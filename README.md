@@ -49,22 +49,21 @@ for tau in ${taus[@]}; do
     for pid in ${pids[@]}; do
         #inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}`)
         nFiles=5 #${#inputFiles[@]}
-	echo "python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 1nd -s redigitizeAndMix.sh -o \"-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/tau_${tau} -t Single${pid}_${CMSSW_VERSION} -m MinBias_${CMSSW_VERSION} -p ${tau}\";"
 	python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 1nd -s redigitizeAndMix.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/tau_${tau} -t Single${pid}_${CMSSW_VERSION} -m MinBias_${CMSSW_VERSION} -p ${tau}";
 done
 done
 done
     
 
-
-
 ## Producing analysis ntuples
 
-The ntuples are produced by plugins/HGCSimHitsAnalyzer.cc.
+The ntuples are produced by plugins/HGCSimHitsAnalyzer.cc. 
 Change the code according to your needs.
 To submit the production of the ntuples you can use the following script
 
-CHECK ME!
+
+
+pfs, CHECK ME THIS POINT FORWARD!
 
 Submit ntuples production
 for i in `seq 0 50 1950`; do
