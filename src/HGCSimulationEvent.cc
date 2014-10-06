@@ -40,7 +40,7 @@ void initHGCSimulationEventTree(TTree *t,HGCSimEvent_t &simEvt)
   t->Branch("hit_type",   simEvt.hit_type,   "hit_type[nhits]/S");
   t->Branch("hit_layer",  simEvt.hit_layer,  "hit_layer[nhits]/S");
   t->Branch("hit_edep",   simEvt.hit_edep,   "hit_edep[nhits]/F");
-  t->Branch("hit_edep_sample",   simEvt.hit_edep_sample,   "hit_edep_sample[nhits][9]/F");
+  t->Branch("hit_edep_sample",   simEvt.hit_edep_sample,   "hit_edep_sample[nhits][5]/F");
   t->Branch("hit_x",      simEvt.hit_x,      "hit_x[nhits]/F");
   t->Branch("hit_y",      simEvt.hit_y,      "hit_y[nhits]/F");
   t->Branch("hit_z",      simEvt.hit_z,      "hit_z[nhits]/F");

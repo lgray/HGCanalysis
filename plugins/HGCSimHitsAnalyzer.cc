@@ -304,17 +304,18 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  uint32_t layer    = (rawDetId>>19) & 0x1F;	  
 	  simEvt_.hit_type [simEvt_.nhits]=isd;
 	  simEvt_.hit_layer[simEvt_.nhits]=layer;
+	  size_t npos(dit->second.size());
 	  Float_t edep(0);
-	  for(size_t itime=0; itime<8; itime++) {
-	    simEvt_.hit_edep_sample[simEvt_.nhits][itime]=dit->second[itime]*1e6;
-	    if(itime<3) continue;
-	    edep+=dit->second[itime]*1e6;
+	  for(size_t itime=0; itime<npos-1; itime++) {
+	    float iedep(dit->second[itime]*1e6);
+	    if(itime<5) simEvt_.hit_edep_sample[simEvt_.nhits][itime]=iedep;
+	    edep+=iedep;
 	  }
 	  simEvt_.hit_edep [simEvt_.nhits]=edep;
 
-	  UShort_t adc=(UShort_t)dit->second[9];
+	  UShort_t adc=(UShort_t)dit->second[npos-1];
 	  simEvt_.digi_adc [simEvt_.nhits]=adc;
-	  
+	  //if(edep<=0 && adc>4) std::cout << rawDetId << " edep=" << edep << " adc=" << adc << std::endl;
 	  if(edep<=0 && adc<2) continue;
 
 	  //get position
@@ -352,10 +353,8 @@ void HGCSimHitsAnalyzer::analyzeHits(size_t isd,edm::Handle<edm::PCaloHitContain
 
       //gang SIM->RECO cells
       int layer(simId.layer()), cell(simId.cell());
-      float zPos(0.);
       const HGCalTopology &topo=geom->topology();
       const HGCalDDDConstants &dddConst=topo.dddConstants();
-      zPos=dddConst.getFirstTrForm()->h3v.z();
 
       std::pair<int,int> recoLayerCell=dddConst.simToReco(cell,layer,topo.detectorType());
       cell  = recoLayerCell.first;
@@ -367,12 +366,15 @@ void HGCSimHitsAnalyzer::analyzeHits(size_t isd,edm::Handle<edm::PCaloHitContain
 		   (uint32_t)HGCEEDetId(ForwardSubdetector(mySubDet),simId.zside(),layer,simId.sector(),simId.subsector(),cell) :
 		   (uint32_t)HGCHEDetId(ForwardSubdetector(mySubDet),simId.zside(),layer,simId.sector(),simId.subsector(),cell) 
 		   );
-      
-      //hit time: [time()]=ns  [zPos]=cm [CLHEP::c_light]=mm/ns
-      //for now accumulate in buckets of 5ns = 5 time samples each 25 ns 
-      //consider 3 pre-samples + 5 time samples
-      int itime=floor( (hit_it->time()-zPos/(0.1*CLHEP::c_light))/5);
-      if(itime<-3 || itime>4) continue;
+
+      //distance to the center of the detector
+      float dist2center( geom->getPosition(id).mag() );
+            
+      //hit time: [time()]=ns  [centerDist]=cm [refSpeed_]=cm/ns + delay by 1ns
+      //accumulate in 6 buckets of 5ns 
+      float tof(hit_it->time()-dist2center/(0.1*CLHEP::c_light)+1);
+      int itime=floor( tof/25 ) ;
+      if(itime<0 || itime>5) continue;
 
       HGCSimHitDataAccumulator::iterator simHitIt=simHitData_[isd].find(id);
       if(simHitIt==simHitData_[isd].end())
@@ -383,7 +385,9 @@ void HGCSimHitsAnalyzer::analyzeHits(size_t isd,edm::Handle<edm::PCaloHitContain
           simHitIt=simHitData_[isd].find(id);
 	}
       
-      (simHitIt->second)[itime+3] += hit_it->energy();
+      //check if time index is ok and store energy (last index reserved for digis)
+      if(itime > (int)simHitIt->second.size() ) continue;
+      (simHitIt->second)[itime] += hit_it->energy();
     }
 }
 
@@ -408,7 +412,9 @@ void HGCSimHitsAnalyzer::analyzeHEDigis(size_t isd,edm::Handle<HGCHEDigiCollecti
           simHitData_[isd][detId]=baseData;
           simHitIt=simHitData_[isd].find(detId);
         }
-      (simHitIt->second)[9] = rawDigi;
+      
+      size_t nPos(simHitIt->second.size());
+      (simHitIt->second)[nPos-1] = rawDigi;
     }
 }
 
@@ -432,7 +438,9 @@ void HGCSimHitsAnalyzer::analyzeEEDigis(size_t isd,edm::Handle<HGCEEDigiCollecti
           simHitData_[isd][detId]=baseData;
           simHitIt=simHitData_[isd].find(detId);
         }
-      (simHitIt->second)[9] = rawDigi;
+      
+      size_t nPos(simHitIt->second.size());
+      (simHitIt->second)[nPos-1] = rawDigi;
     }
 }
 

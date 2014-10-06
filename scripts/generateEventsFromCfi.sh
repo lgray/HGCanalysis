@@ -75,7 +75,7 @@ OUTFILE=${BASEJOBNAME}.root
 PYFILE=${BASEJOBNAME}_cfg.py
 LOGFILE=${BASEJOBNAME}.log
 
-if [ "$PILEUP" = "" ]; then
+if [ "$PILEUP" = "local" ]; then
     PILEUP="${PILEUP} --pileup_input ${PILEUPINPUT}"
 fi
 
@@ -88,6 +88,15 @@ cmsDriver.py ${CFI} -n ${NEVENTS} \
     --customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
     --geometry ${GEOMETRY} \
     --no_exec 
+
+echo "cmsDriver.py ${CFI} -n ${NEVENTS} \
+    --python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
+    $PILEUP \
+    -s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW,RAW2DIGI,L1Reco,RECO --datatier GEN-SIM-DIGI-RECO --eventcontent FEVTDEBUGHLT\
+    --conditions auto:upgradePLS3 --beamspot Gauss --magField 38T_PostLS1 \
+    --customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
+    --geometry ${GEOMETRY} \
+    --no_exec"
 
 #customize with values to be generated
 echo "process.g4SimHits.StackingAction.SaveFirstLevelSecondary = True" >> ${WORKDIR}/${PYFILE}

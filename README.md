@@ -28,19 +28,34 @@ pids=(11 13 211)
 for pid in ${pids[@]}; do
 for en in ${energies[@]}; do
 	#default geometry
-        python scripts/submitLocalHGCalProduction.py -q 1nd -n 5 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_SLHC16 -p ${pid} -n 1000 -e ${en}";
+        python scripts/submitLocalHGCalProduction.py -q 1nd -n 5 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION} -p ${pid} -n 1000 -e ${en}";
 	#change geometry scenario
-	python scripts/submitLocalHGCalProduction.py -q 1nd -n 5 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_v4_SLHC16 -p ${pid} -n 1000 -e ${en} -g Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco";
+	python scripts/submitLocalHGCalProduction.py -q 1nd -n 5 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_v4_${CMSSW_VERSION} -p ${pid} -n 1000 -e ${en} -g Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco";
 done
 done
 
 ### Minimum bias
 
-python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/MinBias_SLHC16 -c UserCode/HGCanalysis/python/minBias_cfi.py";
+python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/MinBias_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/minBias_cfi.py";
 
 ### Other processes
 
 Can use the minimum bias example, just substitute the argument passed in the -c option to point to the new cfi snippet.
+
+### Redigitization with pileup mixing
+tau=(0 10 20)
+pids=(13)
+for tau in ${taus[@]}; do
+    for pid in ${pids[@]}; do
+        #inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}`)
+        nFiles=5 #${#inputFiles[@]}
+	echo "python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 1nd -s redigitizeAndMix.sh -o \"-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/tau_${tau} -t Single${pid}_${CMSSW_VERSION} -m MinBias_${CMSSW_VERSION} -p ${tau}\";"
+	python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 1nd -s redigitizeAndMix.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/tau_${tau} -t Single${pid}_${CMSSW_VERSION} -m MinBias_${CMSSW_VERSION} -p ${tau}";
+done
+done
+done
+    
+
 
 
 ## Producing analysis ntuples

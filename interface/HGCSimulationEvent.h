@@ -41,7 +41,7 @@ struct  HGCSimEvent_t
   Short_t hit_type[MAXHGCHITSPEREVENT], hit_layer[MAXHGCHITSPEREVENT];
   Float_t hit_x[MAXHGCHITSPEREVENT],hit_y[MAXHGCHITSPEREVENT],hit_z[MAXHGCHITSPEREVENT];
   Float_t hit_eta[MAXHGCHITSPEREVENT],hit_phi[MAXHGCHITSPEREVENT];
-  Float_t hit_edep[MAXHGCHITSPEREVENT],hit_edep_sample[MAXHGCHITSPEREVENT][8];
+  Float_t hit_edep[MAXHGCHITSPEREVENT],hit_edep_sample[MAXHGCHITSPEREVENT][5];
   Short_t digi_adc[MAXHGCHITSPEREVENT];
   
   HGCSimEvent_t()
