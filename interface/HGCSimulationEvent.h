@@ -34,7 +34,7 @@ struct  HGCSimEvent_t
   Int_t ntk;
   Short_t tk_nhits[MAXTKSPEREVENT];
   Float_t tk_pt[MAXTKSPEREVENT],tk_eta[MAXTKSPEREVENT],tk_phi[MAXTKSPEREVENT],tk_chi2[MAXTKSPEREVENT];
-  Float_t tk_extrapol_x[MAXTKSPEREVENT][66],tk_extrapol_y[MAXTKSPEREVENT][66];
+  Float_t tk_extrapol_x[MAXTKSPEREVENT][66],tk_extrapol_y[MAXTKSPEREVENT][66],tk_extrapol_z[MAXTKSPEREVENT][66];
 
   //sim hits and ADC counts
   Int_t nhits;

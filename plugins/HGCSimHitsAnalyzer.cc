@@ -189,10 +189,10 @@ void HGCSimHitsAnalyzer::analyzeTrackingInformation(edm::Handle<reco::TrackColle
     {
       //it should be safe to cut away tracks which are not pointing to the endcaps
       if(fabs(tIt->eta())<1.45 || fabs(tIt->eta())>3.5) continue;
-      simEvt_.tk_pt[simEvt_.ntk] = tIt->pt();
-      simEvt_.tk_eta[simEvt_.ntk] = tIt->eta();
-      simEvt_.tk_phi[simEvt_.ntk] = tIt->phi();
-      simEvt_.tk_chi2[simEvt_.ntk] = tIt->normalizedChi2();
+      simEvt_.tk_pt[simEvt_.ntk]    = tIt->pt();
+      simEvt_.tk_eta[simEvt_.ntk]   = tIt->eta();
+      simEvt_.tk_phi[simEvt_.ntk]   = tIt->phi();
+      simEvt_.tk_chi2[simEvt_.ntk]  = tIt->normalizedChi2();
       simEvt_.tk_nhits[simEvt_.ntk] = tIt->hitPattern().trackerLayersWithMeasurement();
 
       const TrajectoryStateOnSurface myTSOS = trajectoryStateTransform::outerStateOnSurface(*tIt, *(tkGeom.product()), bField.product());
@@ -209,6 +209,7 @@ void HGCSimHitsAnalyzer::analyzeTrackingInformation(edm::Handle<reco::TrackColle
 		  GlobalPoint pt=piStateAtSurface.globalPosition();
 		  simEvt_.tk_extrapol_x[simEvt_.ntk][iextrapol]=pt.x();
 		  simEvt_.tk_extrapol_y[simEvt_.ntk][iextrapol]=pt.y();
+		  simEvt_.tk_extrapol_z[simEvt_.ntk][iextrapol]=pt.z();
 		  iextrapol++;
 		}
 	    }
@@ -297,9 +298,9 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
     {
       for(HGCSimHitDataAccumulator::iterator dit=simHitData_[isd].begin(); dit!=simHitData_[isd].end(); dit++)
 	{
-
+	  
 	  if(simEvt_.nhits>=MAXHGCHITSPEREVENT) break;
-
+	  
 	  uint32_t rawDetId = dit->first;
 	  uint32_t layer    = (rawDetId>>19) & 0x1F;	  
 	  simEvt_.hit_type [simEvt_.nhits]=isd;

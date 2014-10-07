@@ -21,34 +21,38 @@ generateEventsFromCfi.sh -h
 A full production can be ran locally or submitted to the batch using 
 the submitLocalHGCalProduction.py wrapper script. Two examples are given below:
 
-### Particle gun 
+### Particle gun (100 events per file x 100 jobs) 
 
-energies=(5 10 20 30 50 100 250)
-pids=(11 13 211)
+energies=(5 10 20 30 50 75 100 150 250 500)
+pids=(13 11 211)
 for pid in ${pids[@]}; do
 for en in ${energies[@]}; do
 	#default geometry
-        python scripts/submitLocalHGCalProduction.py -q 1nd -n 5 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION} -p ${pid} -n 1000 -e ${en}";
+        python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION} -p ${pid} -n 100 -e ${en}";
 	#change geometry scenario
-	python scripts/submitLocalHGCalProduction.py -q 1nd -n 5 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_v4_${CMSSW_VERSION} -p ${pid} -n 1000 -e ${en} -g Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco";
+	#python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_v4_${CMSSW_VERSION} -p ${pid} -n 100 -e ${en} -g Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco";
 done
 done
 
-### Minimum bias
+### Minimum bias (1000 events per file x 500 jobs, should be ok for later mixing with particle gun)
 
-python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/MinBias_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/minBias_cfi.py -n 1000";
+python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/MinBias_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/minBias_cfi.py -n 500";
+
+python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/MinBias_v4_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/minBias_cfi.py -n 500 -g Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco";
 
 ### Other processes
 
 Can use the minimum bias example, just substitute the argument passed in the -c option to point to the new cfi snippet.
 
-### Redigitization with pileup mixing
+### Redigitization with pileup mixing (will run one job per file, randomizing the min.bias files at start)
+
 tau=(0 10 20)
 pids=(13)
 for tau in ${taus[@]}; do
     for pid in ${pids[@]}; do
         #inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}`)
-        nFiles=5 #${#inputFiles[@]}
+	#nFiles=${#inputFiles[@]}
+        nFiles=5 
 	python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 1nd -s redigitizeAndMix.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/tau_${tau} -t Single${pid}_${CMSSW_VERSION} -m MinBias_${CMSSW_VERSION} -p ${tau}";
 done
 done

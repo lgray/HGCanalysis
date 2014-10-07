@@ -5,6 +5,7 @@ import sys
 import optparse
 import commands
 import array
+import glob
 from ROOT import *
 
 from UserCode.HGCanalysis.PlotUtils import *
@@ -19,7 +20,8 @@ class HitIntegrator:
   """
   def __init__(self,nsd,nlay):
     self.nsd=nsd
-    self.nlay=nlay
+    self.nlay=[0]*nsd
+    for isd in xrange(0,self.nsd): self.nlay[isd]=nlay[isd]
     self.totalEn=[]
     self.totalEnInCone=[]
     self.totalEnIT=[]
@@ -46,42 +48,41 @@ class HitIntegrator:
   def reset(self):
     for isd in xrange(0,self.nsd) : 
       for ilay in xrange(0,self.nlay[isd]) :
-        self.totalEn[isd][ilay]=0
-        self.totalEnInCone[isd][ilay]=0
-        self.totalEnIT[isd][ilay]=0
-        self.totalEnITInCone[isd][ilay]=0
-        self.totalHitsInCone[isd][ilay]=0
-        self.totalHits[isd][ilay]=0
-        self.totalADC[isd][ilay]=0
-        self.totalADCInCone[isd][ilay]=0
-        self.alpha[isd][ilay]=0
+        self.totalEn[isd][ilay]         = 0
+        self.totalEnInCone[isd][ilay]   = 0
+        self.totalEnIT[isd][ilay]       = 0
+        self.totalEnITInCone[isd][ilay] = 0
+        self.totalHitsInCone[isd][ilay] = 0
+        self.totalHits[isd][ilay]       = 0
+        self.totalADC[isd][ilay]        = 0
+        self.totalADCInCone[isd][ilay]  = 0
+        self.alpha[isd][ilay]           = 0
 
   """
   increment counters
   """
   def integrate(self,isd,ilay,simHitEn,simHitEnIT,hitADC,deltaR,probeCone):
-    self.totalEn[isd][ilay]=self.totalEn[isd][ilay]+simHitEn
-    self.totalEnIT[isd][ilay]=self.totalEnIT[isd][ilay]+simHitEnIT
-    self.totalADC[isd][ilay]=self.totalADC[isd][ilay]+hitADC
-    if hitADC>1 : self.totalHits[isd][ilay]=self.totalHits[isd][ilay]+1
+    self.totalEn[isd][ilay-1]   += simHitEn
+    self.totalEnIT[isd][ilay-1] += simHitEnIT
+    self.totalADC[isd][ilay-1]  += hitADC
+    if hitADC>1 : self.totalHits[isd][ilay-1] += 1
 
     if deltaR>probeCone: return
-    self.totalEnInCone[isd][ilay]=self.totalEnInCone[isd][ilay]+simHitEn
-    self.totalEnITInCone[isd][ilay]=self.totalEnITInCone[isd][ilay]+simHitEnIT
-    self.totalADCInCone[isd][ilay]=self.totalADCInCone[isd][ilay]+hitADC
-    if hitADC>1 : self.totalHitsInCone[isd][ilay]=self.totalHitsInCone[isd][ilay]+1
-    if deltaR>0:
-      self.alpha[isd][ilay]=self.alpha[isd][ilay]+hitADC/deltaR
+    self.totalEnInCone[isd][ilay-1]   += simHitEn
+    self.totalEnITInCone[isd][ilay-1] += simHitEnIT
+    self.totalADCInCone[isd][ilay-1]  += hitADC
+    if hitADC>1 : self.totalHitsInCone[isd][ilay-1] += 1
+    if deltaR>0 : self.alpha[isd][ilay-1] += hitADC/deltaR
 
 
 """
 checks HGC hits for a particle gun, against extrapolated tracks or gen particles
 a control region in the opposite pseudo-rapidity is checked as well
 """
-def testHitIntegration(url,probeCone,useTrackAsRef,puUrl,minEta,maxEta):
+def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList,minEta,maxEta):
 
-  print '[testHitIntegration] with %s, using dR=%3.1f'%(url,probeCone)
-  if puUrl         : print ' calorimetric hits will be taken from %s'%puUrl
+  print '[testHitIntegration] with %d files, using dR=%3.1f'%(len(urlList),probeCone)
+  if puUrlList     : print ' calorimetric hits will be taken from %d files'%len(puUrlList)
   if useTrackAsRef : print ' reconstructed track will be used as a reference'
 
   #general root formats
@@ -92,12 +93,12 @@ def testHitIntegration(url,probeCone,useTrackAsRef,puUrl,minEta,maxEta):
 
   #get the trees
   HGC=ROOT.TChain('analysis/HGC')
-  HGC.Add(url)
+  for url in urlList: HGC.Add(url)
   HGC.GetEntry(0)
   puHGC=None
-  if puUrl:
+  if puUrlList:
     puHGC=ROOT.TChain('analysis/HGC')
-    puHGC.Add(puUrl)
+    for puUrl in puUrlList : puHGC.Add(puUrl)
   else:
     puHGC=HGC
 
@@ -131,6 +132,8 @@ def testHitIntegration(url,probeCone,useTrackAsRef,puUrl,minEta,maxEta):
         histos[pfix+'hitwgtdx']      = histos[pfix+'hitdx'].Clone(pfix+'hitwgtdx')
         histos[pfix+'hitdy']         = ROOT.TH1F(pfix+'hitdy',';y^{hit}-y^{track} [mm];Hits;',50,-102,98)
         histos[pfix+'hitwgtdy']      = histos[pfix+'hitdy'].Clone(pfix+'hitwgtdy')
+        histos[pfix+'hitdz']         = ROOT.TH1F(pfix+'hitdz',';z^{hit}-z^{track} [mm];Hits;',50,-102,98)
+        histos[pfix+'hitwgtdz']      = histos[pfix+'hitdz'].Clone(pfix+'hitwgtdz')
   for hname in histos: histos[hname].SetDirectory(0)
 
   #loop over events
@@ -170,28 +173,46 @@ def testHitIntegration(url,probeCone,useTrackAsRef,puUrl,minEta,maxEta):
       hit_x           = puHGC.hit_x[n]
       hit_y           = puHGC.hit_y[n]
       hit_z           = puHGC.hit_z[n]
-      regionType =''
-      if hit_eta*HGC.gen_eta[0]<0 : regionType='ctrl_'
-      pfix='sd%d_lay%d_%s'%(sd,layer,reg)
+
+      isCtrlRegion,regionType=False,''
+      if hit_eta*HGC.gen_eta[0]<0 : regionType,isCtrlRegion='ctrl_',True
+        
+      pfix='sd%d_lay%d_%s'%(sdType,layer,regionType)
 
       #by default use the generator level particle as reference
       refEta = HGC.gen_eta[0]
-      if regionType == 'ctrl_' : refEta = -1*refEta
+      if isCtrlRegion : refEta = -1*refEta
       refPhi = HGC.gen_phi[0]
       if useTrackAsRef : 
 
-        #find the extrapolation of the track and set the z according to the hit's z
-        tkExtrapolIdx=layer
-        if sdType>0 : tkExtrapolIdx+=HGC.nlay[0]
-        if sdType>1 : tkExtrapolIdx+=HGC.nlay[1]
+        #find the extrapolation of the track from closest z (only needed for HEB)
+        iForMinDZ=layer
+        if sdType>0 : iForMinDZ += HGC.nlay[0]
+        if sdType>1 : 
+          minDZ=999999.
+          iForMinDZ=-1
+          for itkext in xrange(HGC.nlay[0]+HGC.nlay[1],66):
+            #cf. http://root.cern.ch/phpBB3/viewtopic.php?t=9457
+            tk_z=HGC.tk_extrapol_z[0*HGC.ntk+itkext]
+            if isCtrlRegion : tk_z = -1*tk_z
+            dZ=ROOT.TMath.Abs(tk_z-hit_z)
+            if dZ > minDZ : continue
+            minDZ=dZ
+            iForMinDZ=itkext
+
+        #if no extrapolation found, move to the next event
+        if iForMinDZ<0 : continue
 
         #cf. http://root.cern.ch/phpBB3/viewtopic.php?t=9457
-        tk_x = HGC.tk_extrapol_x[0*HGC.ntk+tkExtrapolIdx]
-        tk_y = HGC.tk_extrapol_y[0*HGC.ntk+tkExtrapolIdx]
+        tk_x = HGC.tk_extrapol_x[0*HGC.ntk+iForMinDZ]
+        tk_y = HGC.tk_extrapol_y[0*HGC.ntk+iForMinDZ]
+        tk_z = HGC.tk_extrapol_z[0*HGC.ntk+iForMinDZ]
         histos[pfix+'hitdx'].Fill(hit_x-tk_x)
         histos[pfix+'hitwgtdx'].Fill(hit_x-tk_x,hitADC)
-        histos[pfix+'hitwgtdy'].Fill(hit_y-tk_y,hitADC)
         histos[pfix+'hitdy'].Fill(hit_y-tk_y)
+        histos[pfix+'hitwgtdy'].Fill(hit_y-tk_y,hitADC)
+        histos[pfix+'hitdz'].Fill(hit_z-tk_z)
+        histos[pfix+'hitwgtdz'].Fill(hit_z-tk_z,hitADC)
         
         #update reference eta and phi
         tk_z   = hit_z
@@ -207,8 +228,9 @@ def testHitIntegration(url,probeCone,useTrackAsRef,puUrl,minEta,maxEta):
       deltaEta = refEta-hit_eta
       deltaR   = ROOT.TMath.Sqrt(deltaEta*deltaEta+deltaPhi*deltaPhi)
 
-      if regionType=='': signalHitIntegrator.integrate(sdType,layer-1,simHitEn,simHitEnIT,hitADC,deltaR,probeCone)
-      else             : ctrlHitIntegrator.integrate(sdType,layer-1,simHitEn,simHitEnIT,hitADC,deltaR,probeCone)
+      if isCtrlRegion : ctrlHitIntegrator.integrate(sdType,layer,simHitEn,simHitEnIT,hitADC,deltaR,probeCone)
+      else            : signalHitIntegrator.integrate(sdType,layer,simHitEn,simHitEnIT,hitADC,deltaR,probeCone)
+      
 
     #fill hit histograms
     for sd in xrange(0,signalHitIntegrator.nsd):
@@ -271,7 +293,13 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    testHitIntegration(url=opt.input,probeCone=opt.dR,useTrackAsRef=opt.useTrack,puUrl=opt.puInput,minEta=opt.minEta,maxEta=opt.maxEta)
+        
+    testHitIntegration(urlList=glob.glob('%s*.root'%opt.input),
+                       probeCone=opt.dR,
+                       useTrackAsRef=opt.useTrack,
+                       puUrlList=glob.glob('%s*.root'%opt.puInput),
+                       minEta=opt.minEta,
+                       maxEta=opt.maxEta)
 
 if __name__ == "__main__":
     main()

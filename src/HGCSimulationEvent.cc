@@ -35,6 +35,7 @@ void initHGCSimulationEventTree(TTree *t,HGCSimEvent_t &simEvt)
   t->Branch("tk_chi2",           simEvt.tk_chi2,           "tk_chi2[ntk]/F");
   t->Branch("tk_extrapol_x",     simEvt.tk_extrapol_x,     "tk_extrapol_x[ntk][66]/F");
   t->Branch("tk_extrapol_y",     simEvt.tk_extrapol_y,     "tk_extrapol_y[ntk][66]/F");
+  t->Branch("tk_extrapol_z",     simEvt.tk_extrapol_z,     "tk_extrapol_z[ntk][66]/F");
 
   t->Branch("nhits",     &simEvt.nhits,      "nhits/I");
   t->Branch("hit_type",   simEvt.hit_type,   "hit_type[nhits]/S");
