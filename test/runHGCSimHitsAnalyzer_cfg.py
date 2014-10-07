@@ -22,14 +22,24 @@ process.options   = cms.untracked.PSet( wantSummary = cms.untracked.bool(False),
 #           or any upgrade relval sample (may need tweaking for new releases...)
 ffile=0
 step=-1
-preFix='Single211_SLHC16'
+preFix='Single13_CMSSW_6_2_0_SLHC18'
+doFullAnalysis=True
 import os,sys
-if(len(sys.argv)>2):
-    preFix=sys.argv[2]
-    if(len(sys.argv)>3):
-        if(sys.argv[3].isdigit()) : ffile=int(sys.argv[3])
-    if(len(sys.argv)>4):
-        if(sys.argv[4].isdigit()) : step=int(sys.argv[4])
+if(len(sys.argv)<3):
+    print '\ncmsRun runHGCSimHitsAnalyzer_cfg.py doFullAnalysis tag first_file step\n'
+    print '\tdoFullAnalysis (0/1) - save all information or only hits and digis'
+    print '\ttag - process tag'
+    print '\tfirst_file - first file to process'
+    print '\tstep - number of files to process\n'
+    sys.exit()
+
+if sys.argv[2]=="0" : doFullAnalysis=False
+preFix=sys.argv[3]
+if(len(sys.argv)>4):
+    if(sys.argv[4].isdigit()) : ffile=int(sys.argv[4])
+if(len(sys.argv)>5):
+    if(sys.argv[5].isdigit()) : step=int(sys.argv[5])
+print '[runHGCSimHitsAnalyzer] processing %d files of %s, starting from %d'%(step,preFix,ffile)
 
 #configure the source (list all files in directory within range [ffile,ffile+step[
 from UserCode.HGCanalysis.storeTools_cff import fillFromStore
@@ -44,10 +54,20 @@ else :
 process.source.duplicateCheckMode = cms.untracked.string('noDuplicateCheck')
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
 
-#run the analyzer
+#load the analyzer
 import getpass
 whoami=getpass.getuser()
-process.TFileService = cms.Service("TFileService", fileName = cms.string('/tmp/%s/%s_SimHits_%d.root'%(whoami,preFix,ffile)))
+outputTag=preFix.replace('/','_')
+process.TFileService = cms.Service("TFileService", fileName = cms.string('/tmp/%s/%s_SimHits_%d.root'%(whoami,outputTag,ffile)))
 process.load('UserCode.HGCanalysis.hgcSimHitsAnalyzer_cfi')
+if doFullAnalysis:
+    print '[runHGCSimHitsAnalyzer] will run a full analysis: store G4 and genParticle information, propagate tracks'
+else:
+    process.analysis.saveGenParticles = cms.untracked.bool(False)
+    process.analysis.saveG4           = cms.untracked.bool(False)
+    process.analysis.saveTkExtrapol   = cms.untracked.bool(False)
+    print '[runHGCSimHitsAnalyzer] will store hits and digis only'
+
+#run it
 process.p = cms.Path(process.analysis)
 

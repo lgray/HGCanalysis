@@ -81,7 +81,8 @@ def fillFromStore(dir,ffile=0,step=-1,generatePfn=True):
                 localdataset.extend( [ sline ] )
         ifile=ifile+1
 
-    return natural_sort(localdataset)
+    return localdataset
+    #return natural_sort(localdataset)
 
 """
 check that a file exist and is not corrupted

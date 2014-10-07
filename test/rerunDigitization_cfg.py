@@ -17,7 +17,7 @@ process.load('Configuration.StandardSequences.EndOfProcess_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(-1)
+    input = cms.untracked.int32(1)
 )
 
 #configure from command line
@@ -31,7 +31,7 @@ ffile         = int(sys.argv[4])
 step          = int(sys.argv[5])
 minBiasPreFix = sys.argv[6]
 outputDir='./'
-if len(sys.argv)>6 : outputDir=sys.argv[7]
+if len(sys.argv)>7 : outputDir=sys.argv[7]
 print outputDir
 
 # Input source
@@ -53,10 +53,18 @@ process.configurationMetadata = cms.untracked.PSet(
 
 # Output definition
 
-process.FEVTDEBUGHLToutput = cms.OutputModule("PoolOutputModule",
+process.output = cms.OutputModule("PoolOutputModule",
     splitLevel = cms.untracked.int32(0),
     eventAutoFlushCompressedSize = cms.untracked.int32(5242880),
-    outputCommands = process.FEVTDEBUGHLTEventContent.outputCommands,
+    outputCommands = cms.untracked.vstring('drop *',
+                                           'keep recoGenParticles_*__RECO',
+                                           'keep *_genParticles__RECO',
+                                           'keep SimTracks_g4SimHits__RECO',
+                                           'keep SimVertexs_g4SimHits__RECO',
+                                           'keep *_generalTracks__RECO',
+                                           'keep *_offlinePrimaryVertices__RECO',
+                                           'keep PCaloHits_g4SimHits_HGCHits*_RECO',
+                                           'keep *_mix_HGCDigis*_REDIGIANDMIX'),
     fileName = cms.untracked.string('file:%s/HGCEvents_%s_%d_%d.root'%(outputDir,preFix,pulseShapeTau,ffile)),
     dataset = cms.untracked.PSet(
         filterName = cms.untracked.string(''),
@@ -86,10 +94,10 @@ process.digitisation_step = cms.Path(process.pdigi_valid)
 process.L1simulation_step = cms.Path(process.SimL1Emulator)
 process.digi2raw_step = cms.Path(process.DigiToRaw)
 process.endjob_step = cms.EndPath(process.endOfProcess)
-process.FEVTDEBUGHLToutput_step = cms.EndPath(process.FEVTDEBUGHLToutput)
+process.output_step = cms.EndPath(process.output)
 
 # Schedule definition
-process.schedule = cms.Schedule(process.digitisation_step,process.L1simulation_step,process.digi2raw_step,process.endjob_step,process.FEVTDEBUGHLToutput_step)
+process.schedule = cms.Schedule(process.digitisation_step,process.L1simulation_step,process.digi2raw_step,process.endjob_step,process.output_step)
 
 # customisation of the process.
 
