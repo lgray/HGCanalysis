@@ -44,15 +44,15 @@ void fixExtremities(TH1F* h,bool addOverflow, bool addUnderflow)
 void drawHitIntegrationResults(TString inURL="IntegrateHits_trackExtrapolation.root",TString outDir="~/www/HGCal/HitIntegration/v5")
 {
   TString dists[]=
-    {
-      //   "ntothits",   "nhits",
-      "hitwgtdy",//   "hitdy",
-      "hitwgtdx",//   "hitdx",
-      //      "hitwgtdz",   "hitdz",
-      // "simhiten",   //"simhittoten"
-      //"simhitenit", "simhittotenit",
-      //"hitadc",     "hittotadc",
-      //"hitalpha"
+    {      
+      "hitdx",
+      "hitdy",
+      "hitdz",
+      "nhits",
+      "simhiten",
+      "simhitenit",
+      "hitadc",    
+      "hitalpha"
     };
 
   TFile *_file0 = TFile::Open(inURL);
@@ -63,11 +63,11 @@ void drawHitIntegrationResults(TString inURL="IntegrateHits_trackExtrapolation.r
   for(size_t idist=0; idist<sizeof(dists)/sizeof(TString); idist++)
     {  
       
-      bool doGaussFit(false);
-      if(dists[idist].EndsWith("dz") || dists[idist].EndsWith("dx") || dists[idist].EndsWith("dy")) doGaussFit=true;
+      bool doPeakSignificance(false);
+      if(dists[idist].EndsWith("dz") || dists[idist].EndsWith("dx") || dists[idist].EndsWith("dy")) doPeakSignificance=true;
       
       TGraphErrors *profileInSD=new TGraphErrors;      profileInSD->SetName("profileinsd");         profileInSD->SetTitle("SR");      profileInSD->SetMarkerStyle(20); profileInSD->SetLineWidth(2);
-      TGraphErrors *profileInSD_ctrl=new TGraphErrors; profileInSD_ctrl->Clone("profileinsd_ctrl"); profileInSD_ctrl->SetTitle("CR"); profileInSD_ctrl->SetMarkerStyle(24);
+      TGraphErrors *profileInSD_ctrl=new TGraphErrors; profileInSD_ctrl->Clone("profileinsd_ctrl"); profileInSD_ctrl->SetTitle("CR (median)"); profileInSD_ctrl->SetMarkerStyle(24);
       for(size_t isd=0;isd<=2; isd++)
 	{
 	  size_t nlayers(30);
@@ -88,33 +88,48 @@ void drawHitIntegrationResults(TString inURL="IntegrateHits_trackExtrapolation.r
 	      h->SetLineWidth(2);
 	      Float_t avg(h->GetMean());
 	      Float_t avgErr(h->GetMeanError());
-	      if(doGaussFit)
+	      if(doPeakSignificance)
 		{
-		  h->Fit("gaus","RM+","",-10,10);
-		  TF1 *gaus=h->GetFunction("gaus");
-		  cout << gaus << endl;
-		  avg=gaus->GetParameter(1);
-		  avgErr=gaus->GetParameter(2);
+		  Int_t cenBin=h->FindBin(0);
+		  Float_t ctsInCenter=h->GetBinContent(cenBin);
+		  Float_t ctsInSideBand(0);
+		  avg=0;
+		  for(int dBin=-3; dBin<=3; dBin++)
+		    {
+		      avg+= h->GetBinCenter(cenBin+dBin)*h->GetBinContent(cenBin+dBin);
+		      if(dBin==0) continue;
+		      ctsInSideBand += h->GetBinContent(cenBin+dBin);
+		    }		  
+		  avg /= (ctsInCenter+ctsInSideBand);
+		  avgErr=ctsInSideBand/ctsInCenter;
 		}
 
 	      TString dist_ctrl(pfix+"ctrl_"+dists[idist]);
 
 	      TH1F *h_ctrl=(TH1F *)_file0->Get(dist_ctrl);
 	      fixExtremities(h_ctrl,true,true);
-	      h_ctrl->SetTitle("CR");
+	      h_ctrl->SetTitle("CR (median)");
 	      h_ctrl->SetLineWidth(1);
 	      h_ctrl->SetFillColor(kCyan-3);
 	      h_ctrl->SetFillStyle(1001);
 	      Float_t avg_ctrl(h_ctrl->GetMean());
 	      Float_t avgErr_ctrl(h_ctrl->GetMeanError());
-	      if(doGaussFit)
+	      if(doPeakSignificance)
 		{
-		  h_ctrl->Fit("gaus","RM+","",-10,10);
-		  TF1 *gaus=h_ctrl->GetFunction("gaus");
-		  cout << gaus << endl;
-		  avg_ctrl=gaus->GetParameter(1);
-		  avgErr_ctrl=gaus->GetParameter(2);
+		  Int_t cenBin=h_ctrl->FindBin(0);
+		  Float_t ctsInCenter=h_ctrl->GetBinContent(cenBin);
+		  Float_t ctsInSideBand(0);
+		  avg_ctrl=0;
+		  for(int dBin=-3; dBin<=3; dBin++)
+		    {
+		      avg_ctrl += h_ctrl->GetBinCenter(cenBin+dBin)*h_ctrl->GetBinContent(cenBin+dBin);
+		      if(dBin==0) continue;
+		      ctsInSideBand += h_ctrl->GetBinContent(cenBin+dBin);
+		    }	
+		  avg_ctrl /= (ctsInCenter+ctsInSideBand);	  
+		  avgErr_ctrl=ctsInSideBand/ctsInCenter;
 		}
+
 	      //accumulate
 	      if(totalInSD==0)
 		{
@@ -195,6 +210,8 @@ void showCanvas(TObjArray plots,TString name,TString title,TString outDir)
     }
   if(ymin<0) ymin*=1.5;    else ymin*=0.25;
   if(ymax<0) ymax*=0.25;   else ymax*=1.5;
+  if(fabs(ymax)<1 && fabs(ymin)<1) { ymin=-1.5; ymax=1.5; }
+
 
   //draw
   for(Int_t i=0; i<plots.GetEntriesFast(); i++)

@@ -6,6 +6,7 @@ import optparse
 import commands
 import array
 import glob
+import numpy as np
 from ROOT import *
 
 from UserCode.HGCanalysis.PlotUtils import *
@@ -23,23 +24,15 @@ class HitIntegrator:
     self.nlay=[0]*nsd
     for isd in xrange(0,self.nsd): self.nlay[isd]=nlay[isd]
     self.totalEn=[]
-    self.totalEnInCone=[]
     self.totalEnIT=[]
-    self.totalEnITInCone=[]
-    self.totalHitsInCone=[]
     self.totalHits=[]
     self.totalADC=[]
-    self.totalADCInCone=[]
     self.alpha=[]
     for isd in xrange(0,self.nsd) : 
       self.totalEn.append( [0]*self.nlay[isd] )
-      self.totalEnInCone.append( [0]*self.nlay[isd] )
       self.totalEnIT.append( [0]*self.nlay[isd] )
-      self.totalEnITInCone.append( [0]*self.nlay[isd] )
       self.totalADC.append( [0]*self.nlay[isd] )
-      self.totalADCInCone.append( [0]*self.nlay[isd] )
       self.totalHits.append( [0]*self.nlay[isd] )
-      self.totalHitsInCone.append( [0]*self.nlay[isd] )
       self.alpha.append( [0]*self.nlay[isd] )
 
   """
@@ -48,30 +41,21 @@ class HitIntegrator:
   def reset(self):
     for isd in xrange(0,self.nsd) : 
       for ilay in xrange(0,self.nlay[isd]) :
-        self.totalEn[isd][ilay]         = 0
-        self.totalEnInCone[isd][ilay]   = 0
-        self.totalEnIT[isd][ilay]       = 0
-        self.totalEnITInCone[isd][ilay] = 0
-        self.totalHitsInCone[isd][ilay] = 0
-        self.totalHits[isd][ilay]       = 0
-        self.totalADC[isd][ilay]        = 0
-        self.totalADCInCone[isd][ilay]  = 0
+        self.totalEn[isd][ilay]   = 0
+        self.totalEnIT[isd][ilay] = 0
+        self.totalHits[isd][ilay] = 0
+        self.totalADC[isd][ilay]  = 0
         self.alpha[isd][ilay]           = 0
 
   """
   increment counters
   """
   def integrate(self,isd,ilay,simHitEn,simHitEnIT,hitADC,deltaR,probeCone):
+    if deltaR>probeCone: return
     self.totalEn[isd][ilay-1]   += simHitEn
     self.totalEnIT[isd][ilay-1] += simHitEnIT
     self.totalADC[isd][ilay-1]  += hitADC
     if hitADC>1 : self.totalHits[isd][ilay-1] += 1
-
-    if deltaR>probeCone: return
-    self.totalEnInCone[isd][ilay-1]   += simHitEn
-    self.totalEnITInCone[isd][ilay-1] += simHitEnIT
-    self.totalADCInCone[isd][ilay-1]  += hitADC
-    if hitADC>1 : self.totalHitsInCone[isd][ilay-1] += 1
     if deltaR>0 : self.alpha[isd][ilay-1] += hitADC/deltaR
 
 
@@ -79,7 +63,7 @@ class HitIntegrator:
 checks HGC hits for a particle gun, against extrapolated tracks or gen particles
 a control region in the opposite pseudo-rapidity is checked as well
 """
-def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList,minEta,maxEta):
+def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList):
 
   print '[testHitIntegration] with %d files, using dR=%3.1f'%(len(urlList),probeCone)
   if puUrlList     : print ' calorimetric hits will be taken from %d files'%len(puUrlList)
@@ -104,7 +88,8 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList,minEta,maxEta):
 
   #init hit integrators
   signalHitIntegrator=HitIntegrator(HGC.nsd,HGC.nlay)
-  ctrlHitIntegrator=HitIntegrator(HGC.nsd,HGC.nlay)
+  ctrlHitIntegrator=[None]*10
+  for iphi in xrange(0,10): ctrlHitIntegrator[iphi]=HitIntegrator(HGC.nsd,HGC.nlay)
 
   #prepare histos
   histos={}
@@ -117,23 +102,20 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList,minEta,maxEta):
     for lay in xrange(0,signalHitIntegrator.nlay[sd]):
       for reg in ['','ctrl_']:
         pfix='sd%d_lay%d_%s'%(sd,lay+1,reg)
+
+        #hit alignment
+        histos[pfix+'hitwgtdx']      = ROOT.TH1F(pfix+'hitwgtdx',';x^{hit}-x^{track} [mm];ADC weighted hits;',50,-102,98)
+        histos[pfix+'hitwgtdy']      = ROOT.TH1F(pfix+'hitwgtdy',';y^{hit}-y^{track} [mm];ADC weighted hits;',50,-102,98)
+        histos[pfix+'hitwgtdz']      = ROOT.TH1F(pfix+'hitwgtdz',';z^{hit}-z^{track} [mm];ADC weighted hits;',50,-102,98)
+
         maxSimHitEn=1000
         if sd==2 : maxSimHitEn=10000
-        histos[pfix+'simhiten']      = ROOT.TH1F(pfix+'simhiten',';Energy [keV]; Events',50,0,maxSimHitEn)
-        histos[pfix+'simhittoten']   = histos[pfix+'simhiten'].Clone(pfix+'simhittoten')
+        histos[pfix+'simhiten']      = ROOT.TH2F(pfix+'simhiten',';Energy [keV]; Events',50,0,maxSimHitEn,15,1.5,3.0)
         histos[pfix+'simhitenit']    = histos[pfix+'simhiten'].Clone(pfix+'simhitenit')
-        histos[pfix+'simhittotenit'] = histos[pfix+'simhiten'].Clone(pfix+'simhittotenit')
-        histos[pfix+'hitadc']        = ROOT.TH1F(pfix+'hitadc',';ADC counts; Events',100,-0.5,99.5)
-        histos[pfix+'hittotadc']     = histos[pfix+'hitadc'].Clone(pfix+'hittotadc')
-        histos[pfix+'nhits']         = ROOT.TH1F(pfix+'nhits',';Number of hits; Events',100,0,100)
-        histos[pfix+'ntothits']      = histos[pfix+'nhits'].Clone(pfix+'ntothits')
-        histos[pfix+'hitalpha']      = ROOT.TH1F(pfix+'hitalpha',';#alpha=log #sigma (ADC_{i}/#Delta R_{i}) x #Theta(#DeltaR_{i}<%3.1f);Events'%(probeCone),50,-5,15)
-        histos[pfix+'hitdx']         = ROOT.TH1F(pfix+'hitdx',';x^{hit}-x^{track} [mm];Hits;',50,-102,98)
-        histos[pfix+'hitwgtdx']      = histos[pfix+'hitdx'].Clone(pfix+'hitwgtdx')
-        histos[pfix+'hitdy']         = ROOT.TH1F(pfix+'hitdy',';y^{hit}-y^{track} [mm];Hits;',50,-102,98)
-        histos[pfix+'hitwgtdy']      = histos[pfix+'hitdy'].Clone(pfix+'hitwgtdy')
-        histos[pfix+'hitdz']         = ROOT.TH1F(pfix+'hitdz',';z^{hit}-z^{track} [mm];Hits;',50,-102,98)
-        histos[pfix+'hitwgtdz']      = histos[pfix+'hitdz'].Clone(pfix+'hitwgtdz')
+        histos[pfix+'hitadc']        = ROOT.TH2F(pfix+'hitadc',';ADC counts; Events',100,-0.5,99.5,15,1.5,3.0)
+        histos[pfix+'nhits']         = ROOT.TH2F(pfix+'nhits',';Number of hits; Events',100,0,100,15,1.5,3.0)
+        histos[pfix+'hitalpha']      = ROOT.TH2F(pfix+'hitalpha',';#alpha=log #Sigma (ADC_{i}/#Delta R_{i}) x #Theta(#DeltaR_{i}<%3.1f);Events'%(probeCone),50,-5,15,15,1.5,3.0)
+
   for hname in histos: histos[hname].SetDirectory(0)
 
   #loop over events
@@ -143,9 +125,7 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList,minEta,maxEta):
 
     sys.stdout.write( '\r[testHitIntegration] status [%d/%d]'%(iev,HGC.GetEntries()))
        
-    #require events with only one generated particle in the eta acceptance range
     if HGC.ngen!=1 : continue
-    if ROOT.TMath.Abs(HGC.gen_eta[0])<minEta or ROOT.TMath.Abs(HGC.gen_eta[0])>maxEta : continue
     
     #track resolution
     if useTrackAsRef:
@@ -157,7 +137,7 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList,minEta,maxEta):
     #hit analysis
     if puHGC.nhits==0 : continue
     signalHitIntegrator.reset()
-    ctrlHitIntegrator.reset()
+    for chi in ctrlHitIntegrator : chi.reset()
     for n in xrange(0,puHGC.nhits):
 
       # hit coordinates
@@ -207,11 +187,8 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList,minEta,maxEta):
         tk_x = HGC.tk_extrapol_x[0*HGC.ntk+iForMinDZ]
         tk_y = HGC.tk_extrapol_y[0*HGC.ntk+iForMinDZ]
         tk_z = HGC.tk_extrapol_z[0*HGC.ntk+iForMinDZ]
-        histos[pfix+'hitdx'].Fill(hit_x-tk_x)
         histos[pfix+'hitwgtdx'].Fill(hit_x-tk_x,hitADC)
-        histos[pfix+'hitdy'].Fill(hit_y-tk_y)
         histos[pfix+'hitwgtdy'].Fill(hit_y-tk_y,hitADC)
-        histos[pfix+'hitdz'].Fill(hit_z-tk_z)
         histos[pfix+'hitwgtdz'].Fill(hit_z-tk_z,hitADC)
         
         #update reference eta and phi
@@ -223,13 +200,19 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList,minEta,maxEta):
         if tk_rho>tk_z: refEta=0.5*ROOT.TMath.Log( (tk_rho+tk_z)/(tk_rho-tk_z) )
 
       
-      #distance in phase space
-      deltaPhi = ROOT.TVector2.Phi_mpi_pi(refPhi-hit_phi)
-      deltaEta = refEta-hit_eta
-      deltaR   = ROOT.TMath.Sqrt(deltaEta*deltaEta+deltaPhi*deltaPhi)
-
-      if isCtrlRegion : ctrlHitIntegrator.integrate(sdType,layer,simHitEn,simHitEnIT,hitADC,deltaR,probeCone)
-      else            : signalHitIntegrator.integrate(sdType,layer,simHitEn,simHitEnIT,hitADC,deltaR,probeCone)
+      #distance in phase space: for the control region sample every 36 deg in phi 
+      if isCtrlRegion :
+        for iphi in xrange(0,10) :
+          ctrlPhi = refPhi+iphi*ROOT.TMath.Pi()*36./180.  
+          deltaPhi = ROOT.TVector2.Phi_mpi_pi(ctrlPhi-hit_phi)
+          deltaEta = refEta-hit_eta
+          deltaR   = ROOT.TMath.Sqrt(deltaEta*deltaEta+deltaPhi*deltaPhi)
+          ctrlHitIntegrator[iphi].integrate(sdType,layer,simHitEn,simHitEnIT,hitADC,deltaR,probeCone)
+      else : 
+        deltaPhi = ROOT.TVector2.Phi_mpi_pi(refPhi-hit_phi)
+        deltaEta = refEta-hit_eta
+        deltaR   = ROOT.TMath.Sqrt(deltaEta*deltaEta+deltaPhi*deltaPhi)
+        signalHitIntegrator.integrate(sdType,layer,simHitEn,simHitEnIT,hitADC,deltaR,probeCone)
       
 
     #fill hit histograms
@@ -239,26 +222,31 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList,minEta,maxEta):
         pfix='sd%d_lay%d_'%(sd,lay+1)
           
         #signal region
-        histos[pfix+'simhittoten'].Fill( signalHitIntegrator.totalEn[sd][lay] )
-        histos[pfix+'simhittotenit'].Fill( signalHitIntegrator.totalEnIT[sd][lay] )
-        histos[pfix+'simhiten'].Fill( signalHitIntegrator.totalEnInCone[sd][lay] )
-        histos[pfix+'simhitenit'].Fill( signalHitIntegrator.totalEnITInCone[sd][lay] )
-        histos[pfix+'nhits'].Fill( signalHitIntegrator.totalHitsInCone[sd][lay] )
-        histos[pfix+'ntothits'].Fill( signalHitIntegrator.totalHits[sd][lay] )
-        histos[pfix+'hittotadc'].Fill( signalHitIntegrator.totalADC[sd][lay] )
-        histos[pfix+'hitadc'].Fill( signalHitIntegrator.totalADCInCone[sd][lay] )
-        if signalHitIntegrator.alpha[sd][lay]>0 : histos[pfix+'hitalpha'].Fill( ROOT.TMath.Log(signalHitIntegrator.alpha[sd][lay]) )
+        histos[pfix+'simhiten'].Fill( signalHitIntegrator.totalEn[sd][lay],HGC.gen_eta[0] )
+        histos[pfix+'simhitenit'].Fill( signalHitIntegrator.totalEnIT[sd][lay],HGC.gen_eta[0] )
+        histos[pfix+'nhits'].Fill( signalHitIntegrator.totalHits[sd][lay],HGC.gen_eta[0] )
+        histos[pfix+'hitadc'].Fill( signalHitIntegrator.totalADC[sd][lay],HGC.gen_eta[0] )
+        if signalHitIntegrator.alpha[sd][lay]>0 : histos[pfix+'hitalpha'].Fill( ROOT.TMath.Log(signalHitIntegrator.alpha[sd][lay]),HGC.gen_eta[0] )
 
         #control region
-        histos[pfix+'ctrl_simhittoten'].Fill( ctrlHitIntegrator.totalEn[sd][lay] )
-        histos[pfix+'ctrl_simhittotenit'].Fill( ctrlHitIntegrator.totalEnIT[sd][lay] )
-        histos[pfix+'ctrl_simhiten'].Fill( ctrlHitIntegrator.totalEnInCone[sd][lay] )
-        histos[pfix+'ctrl_simhitenit'].Fill( ctrlHitIntegrator.totalEnITInCone[sd][lay] )
-        histos[pfix+'ctrl_nhits'].Fill( ctrlHitIntegrator.totalHitsInCone[sd][lay] )
-        histos[pfix+'ctrl_ntothits'].Fill( ctrlHitIntegrator.totalHits[sd][lay] )
-        histos[pfix+'ctrl_hittotadc'].Fill( ctrlHitIntegrator.totalADC[sd][lay] )
-        histos[pfix+'ctrl_hitadc'].Fill( ctrlHitIntegrator.totalADCInCone[sd][lay] )
-        if ctrlHitIntegrator.alpha[sd][lay]>0 : histos[pfix+'ctrl_hitalpha'].Fill( ROOT.TMath.Log(ctrlHitIntegrator.alpha[sd][lay]) )
+        totalEn_ctrl=[]
+        totalEnIT_ctrl=[]
+        totalHits_ctrl=[]
+        totalADC_ctrl=[]
+        alpha_ctrl=[]
+        for chi in ctrlHitIntegrator:
+          totalEn_ctrl.append( chi.totalEn[sd][lay] )
+          totalEnIT_ctrl.append( chi.totalEnIT[sd][lay])
+          totalHits_ctrl.append( chi.totalHits[sd][lay] )
+          totalADC_ctrl.append( chi.totalADC[sd][lay] )
+          alpha_ctrl.append( chi.alpha[sd][lay] )
+
+        histos[pfix+'ctrl_simhiten'].Fill( np.median( totalEn_ctrl ),HGC.gen_eta[0] )
+        histos[pfix+'ctrl_simhitenit'].Fill( np.median( totalEnIT_ctrl),HGC.gen_eta[0] )
+        histos[pfix+'ctrl_nhits'].Fill( np.median(totalHits_ctrl),HGC.gen_eta[0] )
+        histos[pfix+'ctrl_hitadc'].Fill( np.median(totalADC_ctrl),HGC.gen_eta[0] )
+        medianAlpha=np.median(alpha_ctrl)
+        if medianAlpha>0 : histos[pfix+'ctrl_hitalpha'].Fill( ROOT.TMath.Log(medianAlpha),HGC.gen_eta[0] )
   
         
   #write the result to a file
@@ -284,8 +272,6 @@ def main():
     parser.add_option('-p',      '--pu' ,      dest='puInput',  help='Input file with PU mixed',                 default=None)
     parser.add_option('-r',      '--dR' ,      dest='dR',       help='DeltaR cone used for analysis (0.3 by default)', default=0.3,   type=float)
     parser.add_option('--useTrack',            dest='useTrack', help='If given, use track as reference', default=False, action="store_true")
-    parser.add_option('--minEta',              dest='minEta',   help='Minimum eta to accept (absolute)', default=1.4, type=float)
-    parser.add_option('--maxEta',              dest='maxEta',   help='Maximum eta to accept (absolute)', default=3.0, type=float)
     (opt, args) = parser.parse_args()
 
     #check inputs
@@ -297,9 +283,7 @@ def main():
     testHitIntegration(urlList=glob.glob('%s*.root'%opt.input),
                        probeCone=opt.dR,
                        useTrackAsRef=opt.useTrack,
-                       puUrlList=glob.glob('%s*.root'%opt.puInput),
-                       minEta=opt.minEta,
-                       maxEta=opt.maxEta)
+                       puUrlList=glob.glob('%s*.root'%opt.puInput))
 
 if __name__ == "__main__":
     main()
