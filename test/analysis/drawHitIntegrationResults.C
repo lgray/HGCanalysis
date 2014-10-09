@@ -64,10 +64,11 @@ void drawHitIntegrationResults(TString inURL="IntegrateHits_trackExtrapolation.r
     {  
       
       bool doPeakSignificance(false);
-      if(dists[idist].EndsWith("dz") || dists[idist].EndsWith("dx") || dists[idist].EndsWith("dy")) doPeakSignificance=true;
+      TString crTitle("CR (median)");
+      if(dists[idist].EndsWith("dz") || dists[idist].EndsWith("dx") || dists[idist].EndsWith("dy")) { doPeakSignificance=true; crTitle="CR"; }
       
-      TGraphErrors *profileInSD=new TGraphErrors;      profileInSD->SetName("profileinsd");         profileInSD->SetTitle("SR");      profileInSD->SetMarkerStyle(20); profileInSD->SetLineWidth(2);
-      TGraphErrors *profileInSD_ctrl=new TGraphErrors; profileInSD_ctrl->Clone("profileinsd_ctrl"); profileInSD_ctrl->SetTitle("CR (median)"); profileInSD_ctrl->SetMarkerStyle(24);
+      TGraphErrors *profileInSD=new TGraphErrors;      profileInSD->SetName("profileinsd");         profileInSD->SetTitle("SR");         profileInSD->SetMarkerStyle(20); profileInSD->SetLineWidth(2);
+      TGraphErrors *profileInSD_ctrl=new TGraphErrors; profileInSD_ctrl->Clone("profileinsd_ctrl"); profileInSD_ctrl->SetTitle(crTitle); profileInSD_ctrl->SetMarkerStyle(24);
       for(size_t isd=0;isd<=2; isd++)
 	{
 	  size_t nlayers(30);
@@ -108,7 +109,7 @@ void drawHitIntegrationResults(TString inURL="IntegrateHits_trackExtrapolation.r
 
 	      TH1F *h_ctrl=(TH1F *)_file0->Get(dist_ctrl);
 	      fixExtremities(h_ctrl,true,true);
-	      h_ctrl->SetTitle("CR (median)");
+	      h_ctrl->SetTitle(crTitle);
 	      h_ctrl->SetLineWidth(1);
 	      h_ctrl->SetFillColor(kCyan-3);
 	      h_ctrl->SetFillStyle(1001);

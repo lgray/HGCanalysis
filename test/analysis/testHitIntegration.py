@@ -22,13 +22,18 @@ class HitIntegrator:
   def __init__(self,nsd,nlay):
     self.nsd=nsd
     self.nlay=[0]*nsd
-    for isd in xrange(0,self.nsd): self.nlay[isd]=nlay[isd]
+    for isd in xrange(0,self.nsd): 
+      #HEB sub-sectors cut in 1/2
+      self.nlay[isd]=nlay[isd]
+      if isd==2: self.nlay[isd]=nlay[isd]/2 
+    self.totalEnInLayer=[]
     self.totalEn=[]
     self.totalEnIT=[]
     self.totalHits=[]
     self.totalADC=[]
     self.alpha=[]
     for isd in xrange(0,self.nsd) : 
+      self.totalEnInLayer.append( [0]*self.nlay[isd] )
       self.totalEn.append( [0]*self.nlay[isd] )
       self.totalEnIT.append( [0]*self.nlay[isd] )
       self.totalADC.append( [0]*self.nlay[isd] )
@@ -41,16 +46,18 @@ class HitIntegrator:
   def reset(self):
     for isd in xrange(0,self.nsd) : 
       for ilay in xrange(0,self.nlay[isd]) :
-        self.totalEn[isd][ilay]   = 0
-        self.totalEnIT[isd][ilay] = 0
-        self.totalHits[isd][ilay] = 0
-        self.totalADC[isd][ilay]  = 0
-        self.alpha[isd][ilay]           = 0
+        self.totalEnInLayer[isd][ilay] = 0
+        self.totalEn[isd][ilay]        = 0
+        self.totalEnIT[isd][ilay]      = 0
+        self.totalHits[isd][ilay]      = 0
+        self.totalADC[isd][ilay]       = 0
+        self.alpha[isd][ilay]          = 0
 
   """
   increment counters
   """
   def integrate(self,isd,ilay,simHitEn,simHitEnIT,hitADC,deltaR,probeCone):
+    self.totalEnInLayer[isd][ilay-1]   += simHitEn
     if deltaR>probeCone: return
     self.totalEn[isd][ilay-1]   += simHitEn
     self.totalEnIT[isd][ilay-1] += simHitEnIT
@@ -63,10 +70,9 @@ class HitIntegrator:
 checks HGC hits for a particle gun, against extrapolated tracks or gen particles
 a control region in the opposite pseudo-rapidity is checked as well
 """
-def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList):
+def testHitIntegration(urlList,probeCone,useTrackAsRef):
 
   print '[testHitIntegration] with %d files, using dR=%3.1f'%(len(urlList),probeCone)
-  if puUrlList     : print ' calorimetric hits will be taken from %d files'%len(puUrlList)
   if useTrackAsRef : print ' reconstructed track will be used as a reference'
 
   #general root formats
@@ -79,12 +85,6 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList):
   HGC=ROOT.TChain('analysis/HGC')
   for url in urlList: HGC.Add(url)
   HGC.GetEntry(0)
-  puHGC=None
-  if puUrlList:
-    puHGC=ROOT.TChain('analysis/HGC')
-    for puUrl in puUrlList : puHGC.Add(puUrl)
-  else:
-    puHGC=HGC
 
   #init hit integrators
   signalHitIntegrator=HitIntegrator(HGC.nsd,HGC.nlay)
@@ -98,6 +98,7 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList):
     histos['tk_etares'] = ROOT.TH1F('tk_etares',';(#eta^{track}-#eta^{gen});Events;',                    50,-0.0102,0.0098)
     histos['tk_phires'] = histos['tk_etares'].Clone('tk_phires')
     histos['tk_phires'].GetXaxis().SetTitle('(#phi^{track}-#phi^{gen}) [rad]')
+
   for sd in xrange(0,signalHitIntegrator.nsd):
     for lay in xrange(0,signalHitIntegrator.nlay[sd]):
       for reg in ['','ctrl_']:
@@ -118,14 +119,31 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList):
 
   for hname in histos: histos[hname].SetDirectory(0)
 
+  #prepare ntuple
+  outUrl='IntegrateHits_genExtrapolation.root'
+  if useTrackAsRef : outUrl='IntegrateHits_trackExtrapolation.root'
+  print '[testHitIntegration] histograms stored @ %s'%outUrl
+  fOut=ROOT.TFile(outUrl,'RECREATE')
+  ntupleVarNames='genPt:genEta:genPhi'
+  for sd in xrange(0,signalHitIntegrator.nsd):
+    for lay in xrange(0,signalHitIntegrator.nlay[sd]):
+      for ivar in ['toten','en','adc','puadc','hits','puhits']:
+        ntupleVarNames += ':%s_s%dl%d'%(ivar,sd,lay+1)
+  fOut.cd()
+  ntupleVars=[0]*len(ntupleVarNames.split(':'))  
+  output_tuple = ROOT.TNtuple("HGC","HGC",ntupleVarNames)
+  output_tuple.SetDirectory(fOut)
+
   #loop over events
   for iev in xrange(0,HGC.GetEntries()):
     HGC.GetEntry(iev)
-    puHGC.GetEntry(iev)
 
     sys.stdout.write( '\r[testHitIntegration] status [%d/%d]'%(iev,HGC.GetEntries()))
        
     if HGC.ngen!=1 : continue
+    ntupleVars[0]=HGC.gen_pt[0]
+    ntupleVars[1]=HGC.gen_eta[0]
+    ntupleVars[2]=HGC.gen_phi[0]
     
     #track resolution
     if useTrackAsRef:
@@ -135,24 +153,24 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList):
       histos['tk_phires'].Fill(HGC.tk_phi[0]-HGC.gen_phi[0])
 
     #hit analysis
-    if puHGC.nhits==0 : continue
+    if HGC.nhits==0 : continue
     signalHitIntegrator.reset()
     for chi in ctrlHitIntegrator : chi.reset()
-    for n in xrange(0,puHGC.nhits):
+    for n in xrange(0,HGC.nhits):
 
       # hit coordinates
-      sdType          = puHGC.hit_type[n]
-      layer           = puHGC.hit_layer[n]
-      hit_eta         = puHGC.hit_eta[n]
-      hit_phi         = puHGC.hit_phi[n]
-      etaEnCorrection = ROOT.TMath.Abs(ROOT.TMath.TanH(hit_eta))
-      simHitEn        = puHGC.hit_edep[n]*etaEnCorrection
+      sdType          = HGC.hit_type[n]
+      layer           = HGC.hit_layer[n]
+      hit_eta         = HGC.hit_eta[n]
+      hit_phi         = HGC.hit_phi[n]
+      etaEnCorrection = ROOT.TMath.Abs(ROOT.TMath.Cos(2*ROOT.TMath.ATan(ROOT.TMath.Exp(-hit_eta))))
+      simHitEn        = HGC.hit_edep[n]*etaEnCorrection
       #cf. http://root.cern.ch/phpBB3/viewtopic.php?t=9457
-      simHitEnIT      = puHGC.hit_edep_sample[n*5+0]*etaEnCorrection
-      hitADC          = puHGC.digi_adc[n]*etaEnCorrection
-      hit_x           = puHGC.hit_x[n]
-      hit_y           = puHGC.hit_y[n]
-      hit_z           = puHGC.hit_z[n]
+      simHitEnIT      = HGC.hit_edep_sample[n*5+0]*etaEnCorrection
+      hitADC          = HGC.digi_adc[n]*etaEnCorrection
+      hit_x           = HGC.hit_x[n]
+      hit_y           = HGC.hit_y[n]
+      hit_z           = HGC.hit_z[n]
 
       isCtrlRegion,regionType=False,''
       if hit_eta*HGC.gen_eta[0]<0 : regionType,isCtrlRegion='ctrl_',True
@@ -216,6 +234,7 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList):
       
 
     #fill hit histograms
+    ntupleIdx=3
     for sd in xrange(0,signalHitIntegrator.nsd):
       for lay in xrange(0,signalHitIntegrator.nlay[sd]):
         
@@ -241,20 +260,37 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,puUrlList):
           totalADC_ctrl.append( chi.totalADC[sd][lay] )
           alpha_ctrl.append( chi.alpha[sd][lay] )
 
-        histos[pfix+'ctrl_simhiten'].Fill( np.median( totalEn_ctrl ),HGC.gen_eta[0] )
+        medianTotalEn_ctrl   = np.median( totalEn_ctrl )
+        medianTotalHits_ctrl = np.median(totalHits_ctrl)
+        medianTotalADC_ctrl  = np.median(totalADC_ctrl)
+        histos[pfix+'ctrl_simhiten'].Fill( medianTotalEn_ctrl,HGC.gen_eta[0] )
         histos[pfix+'ctrl_simhitenit'].Fill( np.median( totalEnIT_ctrl),HGC.gen_eta[0] )
-        histos[pfix+'ctrl_nhits'].Fill( np.median(totalHits_ctrl),HGC.gen_eta[0] )
-        histos[pfix+'ctrl_hitadc'].Fill( np.median(totalADC_ctrl),HGC.gen_eta[0] )
+        histos[pfix+'ctrl_nhits'].Fill( medianTotalHits_ctrl,HGC.gen_eta[0] )
+        histos[pfix+'ctrl_hitadc'].Fill( medianTotalADC_ctrl,HGC.gen_eta[0] )
         medianAlpha=np.median(alpha_ctrl)
         if medianAlpha>0 : histos[pfix+'ctrl_hitalpha'].Fill( ROOT.TMath.Log(medianAlpha),HGC.gen_eta[0] )
+
+        #order must match the one declared in ntupleVarNames
+        ntupleVars[ntupleIdx]= signalHitIntegrator.totalEnInLayer[sd][lay]
+        ntupleIdx+=1
+        ntupleVars[ntupleIdx]= signalHitIntegrator.totalEn[sd][lay]
+        ntupleIdx+=1
+        ntupleVars[ntupleIdx]= signalHitIntegrator.totalADC[sd][lay]
+        ntupleIdx+=1
+        ntupleVars[ntupleIdx]= medianTotalADC_ctrl
+        ntupleIdx+=1
+        ntupleVars[ntupleIdx]= signalHitIntegrator.totalHits[sd][lay]
+        ntupleIdx+=1
+        ntupleVars[ntupleIdx]= medianTotalHits_ctrl
+        ntupleIdx+=1
+
+    #fill the ntuple
+    output_tuple.Fill(array.array('f',ntupleVars))
   
         
   #write the result to a file
-  outUrl='IntegrateHits_genExtrapolation.root'
-  if useTrackAsRef : outUrl='IntegrateHits_trackExtrapolation.root'
-  print '[testHitIntegration] histograms stored @ %s'%outUrl
-  fOut=ROOT.TFile(outUrl,'RECREATE')
   fOut.cd()
+  output_tuple.Write()
   for hname in histos:
     histos[hname].SetDirectory(fOut)
     histos[hname].Write()
@@ -269,7 +305,6 @@ def main():
     usage = 'usage: %prog [options]'
     parser = optparse.OptionParser(usage)
     parser.add_option('-i',      '--in' ,      dest='input',    help='Input file',                               default=None)
-    parser.add_option('-p',      '--pu' ,      dest='puInput',  help='Input file with PU mixed',                 default=None)
     parser.add_option('-r',      '--dR' ,      dest='dR',       help='DeltaR cone used for analysis (0.3 by default)', default=0.3,   type=float)
     parser.add_option('--useTrack',            dest='useTrack', help='If given, use track as reference', default=False, action="store_true")
     (opt, args) = parser.parse_args()
@@ -279,11 +314,10 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-        
+    #run analysis
     testHitIntegration(urlList=glob.glob('%s*.root'%opt.input),
                        probeCone=opt.dR,
-                       useTrackAsRef=opt.useTrack,
-                       puUrlList=glob.glob('%s*.root'%opt.puInput))
+                       useTrackAsRef=opt.useTrack)
 
 if __name__ == "__main__":
     main()

@@ -63,10 +63,10 @@ process.load('UserCode.HGCanalysis.hgcSimHitsAnalyzer_cfi')
 if doFullAnalysis:
     print '[runHGCSimHitsAnalyzer] will run a full analysis: store G4 and genParticle information, propagate tracks'
 else:
-    process.analysis.saveGenParticles = cms.untracked.bool(False)
+    process.analysis.saveGenParticles = cms.untracked.bool(True)
     process.analysis.saveG4           = cms.untracked.bool(False)
-    process.analysis.saveTkExtrapol   = cms.untracked.bool(False)
-    print '[runHGCSimHitsAnalyzer] will store hits and digis only'
+    process.analysis.saveTkExtrapol   = cms.untracked.bool(True)
+    print '[runHGCSimHitsAnalyzer] won\'t store G4 extrapolation'
 
 #run it
 process.p = cms.Path(process.analysis)

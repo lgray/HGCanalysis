@@ -52,7 +52,7 @@ for tau in ${taus[@]}; do
     for pid in ${pids[@]}; do
         #inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}`)
 	#nFiles=${#inputFiles[@]}
-        nFiles=5 
+        nFiles=100 
 	python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 1nd -s redigitizeAndMix.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_v2/tau_${tau} -t Single${pid}_${CMSSW_VERSION}_v2 -m MinBias_${CMSSW_VERSION} -p ${tau}";
 done
 done
