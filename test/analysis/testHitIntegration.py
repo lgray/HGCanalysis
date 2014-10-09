@@ -103,7 +103,6 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef):
     for lay in xrange(0,signalHitIntegrator.nlay[sd]):
       for reg in ['','ctrl_']:
         pfix='sd%d_lay%d_%s'%(sd,lay+1,reg)
-
         #hit alignment
         histos[pfix+'hitwgtdx']      = ROOT.TH1F(pfix+'hitwgtdx',';x^{hit}-x^{track} [mm];ADC weighted hits;',50,-102,98)
         histos[pfix+'hitwgtdy']      = ROOT.TH1F(pfix+'hitwgtdy',';y^{hit}-y^{track} [mm];ADC weighted hits;',50,-102,98)
@@ -162,6 +161,7 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef):
       sdType          = HGC.hit_type[n]
       layer           = HGC.hit_layer[n]
       hit_eta         = HGC.hit_eta[n]
+      if abs(abs(hit_eta)-abs(HGC.gen_eta[0]))>probeCone*1.5 : continue # not worth looking into this ones
       hit_phi         = HGC.hit_phi[n]
       etaEnCorrection = ROOT.TMath.Abs(ROOT.TMath.Cos(2*ROOT.TMath.ATan(ROOT.TMath.Exp(-hit_eta))))
       simHitEn        = HGC.hit_edep[n]*etaEnCorrection
@@ -171,6 +171,7 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef):
       hit_x           = HGC.hit_x[n]
       hit_y           = HGC.hit_y[n]
       hit_z           = HGC.hit_z[n]
+
 
       isCtrlRegion,regionType=False,''
       if hit_eta*HGC.gen_eta[0]<0 : regionType,isCtrlRegion='ctrl_',True
@@ -184,7 +185,7 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef):
       if useTrackAsRef : 
 
         #find the extrapolation of the track from closest z (only needed for HEB)
-        iForMinDZ=layer
+        iForMinDZ=layer-1
         if sdType>0 : iForMinDZ += HGC.nlay[0]
         if sdType>1 : 
           minDZ=999999.

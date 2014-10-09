@@ -10,10 +10,11 @@
 #include "TGraphErrors.h"
 #include "TMath.h"
 #include "TF1.h"
+#include "TH2.h"
 
 void showCanvas(TObjArray plots,TString name,TString title,TString outDir);
 
-void fixExtremities(TH1F* h,bool addOverflow, bool addUnderflow)
+void fixExtremities(TH1* h,bool addOverflow, bool addUnderflow)
 {
   if(h==0) return;
 
@@ -41,13 +42,13 @@ void fixExtremities(TH1F* h,bool addOverflow, bool addUnderflow)
 
 
 //
-void drawHitIntegrationResults(TString inURL="IntegrateHits_trackExtrapolation.root",TString outDir="~/www/HGCal/HitIntegration/v5")
+void drawHitIntegrationResults(TString inURL="IntegrateHits_trackExtrapolation.root",TString outDir="~/www/HGCal/HitIntegration/v4")
 {
   TString dists[]=
     {      
-      "hitdx",
-      "hitdy",
-      "hitdz",
+      "hitwgtdx",
+      "hitwgtdy",
+      "hitwgtdz",
       "nhits",
       "simhiten",
       "simhitenit",
@@ -71,19 +72,32 @@ void drawHitIntegrationResults(TString inURL="IntegrateHits_trackExtrapolation.r
       TGraphErrors *profileInSD_ctrl=new TGraphErrors; profileInSD_ctrl->Clone("profileinsd_ctrl"); profileInSD_ctrl->SetTitle(crTitle); profileInSD_ctrl->SetMarkerStyle(24);
       for(size_t isd=0;isd<=2; isd++)
 	{
+	  //v4
+	  //size_t nlayers(31);
+	  //TString sdName("EE");
+	  //if(isd==1) {sdName="HEfront"; nlayers=12; }
+	  //if(isd==2) {sdName="HEback";  nlayers=10; }
+
+	  //v5
 	  size_t nlayers(30);
 	  TString sdName("EE");
 	  if(isd==1) {sdName="HEfront"; nlayers=12; }
 	  if(isd==2) {sdName="HEback";  nlayers=12; }
 
-	  TH1F *totalInSD=0,*totalInSD_ctrl=0;
+	  TH1 *totalInSD=0,*totalInSD_ctrl=0;
 	  for(size_t ilayer=1; ilayer<=nlayers; ilayer++)
 	    {
 	      TString pfix("sd"); pfix += isd; pfix += "_lay"; pfix += ilayer; pfix += "_";
 	     
 	      //get histograms
 	      TString dist(pfix+dists[idist]);
-	      TH1F *h=(TH1F *)_file0->Get(dist);
+	      TH1 *h=(TH1 *)_file0->Get(dist);
+	      TString className=h->ClassName();
+	      if(className.Contains("TH2")) 
+		{
+		  TH2 *h2d=(TH2 *)_file0->Get(dist);
+		  h=h2d->ProjectionX("proj_"+dist);
+		}
 	      fixExtremities(h,true,true);
 	      h->SetTitle("SR");
 	      h->SetLineWidth(2);
@@ -107,7 +121,13 @@ void drawHitIntegrationResults(TString inURL="IntegrateHits_trackExtrapolation.r
 
 	      TString dist_ctrl(pfix+"ctrl_"+dists[idist]);
 
-	      TH1F *h_ctrl=(TH1F *)_file0->Get(dist_ctrl);
+	      TH1 *h_ctrl=(TH1 *)_file0->Get(dist_ctrl);
+	      className=h_ctrl->ClassName();
+	      if(className.Contains("TH2")) 
+		{
+		  TH2 *h2d_ctrl=(TH2 *)_file0->Get(dist_ctrl);
+		  h_ctrl=h2d_ctrl->ProjectionX("proj_"+dist_ctrl);
+		}
 	      fixExtremities(h_ctrl,true,true);
 	      h_ctrl->SetTitle(crTitle);
 	      h_ctrl->SetLineWidth(1);
@@ -134,10 +154,10 @@ void drawHitIntegrationResults(TString inURL="IntegrateHits_trackExtrapolation.r
 	      //accumulate
 	      if(totalInSD==0)
 		{
-		  totalInSD=(TH1F *)h->Clone("totalinsd"); 
+		  totalInSD=(TH1 *)h->Clone("totalinsd"); 
 		  totalInSD->SetDirectory(0);
 		  totalInSD->Reset("ICE");
-		  totalInSD_ctrl=(TH1F *)h_ctrl->Clone("totalinsd_ctrl"); 
+		  totalInSD_ctrl=(TH1 *)h_ctrl->Clone("totalinsd_ctrl"); 
 		  totalInSD_ctrl->SetDirectory(0);
 		  totalInSD_ctrl->Reset("ICE");
 		}

@@ -5,8 +5,12 @@ process = cms.Process("HGCSimHitsAnalysis")
 process.load('Configuration.StandardSequences.Services_cff')
 process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')    
 process.load('FWCore.MessageService.MessageLogger_cfi')
+#v5 geometry
 process.load('Configuration.Geometry.GeometryExtended2023HGCalMuonReco_cff')
 process.load('Configuration.Geometry.GeometryExtended2023HGCalMuon_cff')
+#v4 geometry
+#process.load('Configuration.Geometry.GeometryExtended2023HGCalV4MuonReco_cff')
+#process.load('Configuration.Geometry.GeometryExtended2023HGCalV4Muon_cff')
 process.load('Configuration.StandardSequences.MagneticField_38T_PostLS1_cff')
 
 ## MessageLogger
@@ -61,7 +65,8 @@ outputTag=preFix.replace('/','_')
 process.TFileService = cms.Service("TFileService", fileName = cms.string('/tmp/%s/%s_SimHits_%d.root'%(whoami,outputTag,ffile)))
 process.load('UserCode.HGCanalysis.hgcSimHitsAnalyzer_cfi')
 if doFullAnalysis:
-    print '[runHGCSimHitsAnalyzer] will run a full analysis: store G4 and genParticle information, propagate tracks'
+    process.analysis.saveG4           = cms.untracked.bool(False)
+    print '[runHGCSimHitsAnalyzer] will run a full analysis: store G4 (disabled for the moment) and genParticle information, propagate tracks'
 else:
     process.analysis.saveGenParticles = cms.untracked.bool(True)
     process.analysis.saveG4           = cms.untracked.bool(False)
