@@ -70,7 +70,7 @@ class HitIntegrator:
 checks HGC hits for a particle gun, against extrapolated tracks or gen particles
 a control region in the opposite pseudo-rapidity is checked as well
 """
-def testHitIntegration(urlList,probeCone,useTrackAsRef):
+def testHitIntegration(urlList,probeCone,useTrackAsRef,outUrl):
 
   print '[testHitIntegration] with %d files, using dR=%3.1f'%(len(urlList),probeCone)
   if useTrackAsRef : print ' reconstructed track will be used as a reference'
@@ -119,8 +119,6 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef):
   for hname in histos: histos[hname].SetDirectory(0)
 
   #prepare ntuple
-  outUrl='IntegrateHits_genExtrapolation.root'
-  if useTrackAsRef : outUrl='IntegrateHits_trackExtrapolation.root'
   print '[testHitIntegration] histograms stored @ %s'%outUrl
   fOut=ROOT.TFile(outUrl,'RECREATE')
   ntupleVarNames='genPt:genEta:genPhi'
@@ -306,6 +304,7 @@ def main():
     usage = 'usage: %prog [options]'
     parser = optparse.OptionParser(usage)
     parser.add_option('-i',      '--in' ,      dest='input',    help='Input file',                               default=None)
+    parser.add_option('-o',      '--out' ,     dest='output',   help='Output file',                              default='HitIntegrationAnalysis.root')
     parser.add_option('-r',      '--dR' ,      dest='dR',       help='DeltaR cone used for analysis (0.3 by default)', default=0.3,   type=float)
     parser.add_option('--useTrack',            dest='useTrack', help='If given, use track as reference', default=False, action="store_true")
     (opt, args) = parser.parse_args()
@@ -318,7 +317,8 @@ def main():
     #run analysis
     testHitIntegration(urlList=glob.glob('%s*.root'%opt.input),
                        probeCone=opt.dR,
-                       useTrackAsRef=opt.useTrack)
+                       useTrackAsRef=opt.useTrack,
+                       outUrl=opt.output)
 
 if __name__ == "__main__":
     main()
