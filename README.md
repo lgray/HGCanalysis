@@ -21,17 +21,26 @@ generateEventsFromCfi.sh -h
 A full production can be ran locally or submitted to the batch using 
 the submitLocalHGCalProduction.py wrapper script. Two examples are given below:
 
-### Particle gun (100 events per file x 100 jobs) 
+### Particle gun 
+
+For muons it's enough a single energy
+
+#default geometry
+python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single13_${CMSSW_VERSION} -p 13 -n 100 -e 100";
+#change geometry scenario
+python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single13_v4_${CMSSW_VERSION} -p 13 -n 100 -e 100 -g Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco";
+
+For calibration use 100 events per file x 100 jobs
 
 energies=(5 10 20 30 50 75 100 150 250 500)
-pids=(13 11 211)
+pids=(11 211)
 for pid in ${pids[@]}; do
-for en in ${energies[@]}; do
+    for en in ${energies[@]}; do
 	#default geometry
         python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION} -p ${pid} -n 100 -e ${en}";
 	#change geometry scenario
 	#python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_v4_${CMSSW_VERSION} -p ${pid} -n 100 -e ${en} -g Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco";
-done
+     done
 done
 
 ### Minimum bias (1000 events per file x 500 jobs, should be ok for later mixing with particle gun)
