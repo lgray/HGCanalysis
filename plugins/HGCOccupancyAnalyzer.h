@@ -58,25 +58,35 @@ class SubdetectorOccupancyHisto
 {
 public:
   
+  /**
+     @short CTOR
+   */
   SubdetectorOccupancyHisto(int sdcode,edm::Service<TFileService> *fs) : sdcode_(sdcode),fs_(fs) 
   { 
-    thr_.push_back(1);
-    thr_.push_back(5);
-    thr_.push_back(10);
+    thr_.push_back(2);
+    thr_.push_back(4);
+    thr_.push_back(20);
+    thr_.push_back(40);
   }
   
+  /**
+     @short check if layer exists already
+   */
   bool hasLayer(int layer) 
   { 
     return normHistos_.find(layer)!=normHistos_.end();
   }
   
+  /**
+     @short initiate montoring histos for a layer
+   */
   void initLayer(int layer)
   {
     if(hasLayer(layer)) return;
-
     TString name("sd_"); name += sdcode_; name += "_layer"; name += layer;
     normHistos_[layer] = (*fs_)->make<TH1F>(name+"_nch",";Pseudo-rapidity;Number of channels",10,1.5,3.0);
-
+    mipHistos_[layer] = (*fs_)->make<TH2F>(name+"_mip",";# MIPs;Pseudo-rapidity",250,0,250,10,1.5,3.0);
+    mipHistos_[layer]->Sumw2();
     std::map<int,TH1F *> layerCountHistos;   
     std::map<int,TH2F *> layerOccHistos;
     for(size_t ithr=0; ithr<thr_.size(); ithr++)
@@ -87,36 +97,44 @@ public:
 
 	layerOccHistos[ thr_[ithr] ] = (*fs_)->make<TH2F>(thrName+"_occ",";Occupancy;Pseudo-rapidity",100,0,1,10,1.5,3.0);
 	layerOccHistos[ thr_[ithr] ]->Sumw2();
-      }    
+      }
+    
     countHistos_[layer]=layerCountHistos;
     occHistos_[layer]=layerOccHistos;
   }
 
+  /**
+     @short accumulate for a new hit
+  */
   void count(int layer,float eta,int adc)
   {
+    mipHistos_[layer]->Fill(adc*0.25,eta);
     for(size_t ithr=0; ithr<thr_.size(); ithr++)
       {
-	if(adc<thr_[ithr]) break;
-	if(countHistos_[ithr].find(layer)==countHistos_[ithr].end()) continue;
-	countHistos_[ithr][layer]->Fill(eta);
+	if(adc<thr_[ithr]) continue;
+	countHistos_[layer][ thr_[ithr] ]->Fill(eta);
       }
   }
 
+  /**
+     @short to be called at the end of an event
+  */
   void finalize(bool reset=true)
   {
-    //iterate over thresholds
+    //iterate over layers
     for(std::map< int, std::map<int,TH2F *> >::iterator it=occHistos_.begin();
 	it!=occHistos_.end();
 	it++)
       {
-	//iterate over layers
+	TH1F *normH=normHistos_[it->first];
+
+	//iterate over thresholds
 	for(std::map<int,TH2F *>::iterator jt=it->second.begin();
 	    jt!=it->second.end();
 	    jt++)
 	  {
 	    TH2F *occH=jt->second;
 	    TH1F *countH=countHistos_[it->first][jt->first];
-	    TH1F *normH=normHistos_[jt->first];
 
 	    //fill occupancy histos
 	    for(int xbin=1; xbin<=countH->GetXaxis()->GetNbins(); xbin++)
@@ -133,14 +151,22 @@ public:
 	  }
       }
   }
-  
+
+  /**
+     @short DTOR
+   */
   ~SubdetectorOccupancyHisto() {}
 
-  int sdcode_;
-  edm::Service<TFileService> *fs_;
-  std::map<int,TH1F *>               normHistos_;
+  //all histos are public and can be manipulated...
+  std::map< int, TH1F *>                normHistos_;
+  std::map< int, TH2F *>                mipHistos_;
   std::map< int, std::map<int,TH1F *> > countHistos_;
   std::map< int, std::map<int,TH2F *> > occHistos_;
+ 
+ private:
+  
+  int sdcode_;
+  edm::Service<TFileService> *fs_;
   std::vector<int> thr_;
 };
 

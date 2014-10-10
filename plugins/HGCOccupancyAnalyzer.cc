@@ -113,7 +113,7 @@ void HGCOccupancyAnalyzer::analyzeHEDigis(size_t isd,edm::Handle<HGCHEDigiCollec
       float eta( geom->getPosition(detId).eta());
       occHistos_[isd].count(layer,eta,adc);
     }
-
+  
   occHistos_[isd].finalize();
 }
 
