@@ -1,11 +1,24 @@
+#include "TFile.h"
+#include "TSystem.h"
+#include "TCanvas.h"
+#include "TString.h"
+#include "TH2F.h"
+#include "TPaveText.h"
+#include "TROOT.h"
+#include "TStyle.h"
+
+//
+void testLocalGeometryAssignments(TString url="/tmp/psilva/HGCGeometry.root",TString outDir="~/public/html/HGCal/Geometry/")
 {
   gROOT->SetBatch(true);
   gStyle->SetOptStat(0);
   gStyle->SetOptTitle(0);
 
-  TFile *_file0 = TFile::Open("/tmp/psilva/HGCGeometry.root");
-  TString outDir("~/www/HGCal/Geometry/v4/");
+  //prepare output
+  gSystem->Exec("mkdir -p " +outDir);
+  gSystem->Exec("cp $CMSSW_BASE/src/UserCode/HGCanalysis/test/analysis/geo_index.html " + outDir +"/index.html");
 
+  TFile *_file0 = TFile::Open(url);
   TCanvas *c=new TCanvas("c","c",500,500);
   c->SetRightMargin(0.2);
   TString dists[]={"simcell","reccell","dx","dy","recix","reciy","simix","simiy"};

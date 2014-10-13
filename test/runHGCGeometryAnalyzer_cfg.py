@@ -5,10 +5,10 @@ process = cms.Process("HGCGeomAnalysis")
 process.load('Configuration.StandardSequences.Services_cff')
 process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')    
 process.load('FWCore.MessageService.MessageLogger_cfi')
-#process.load('Configuration.Geometry.GeometryExtended2023HGCalMuonReco_cff')
-#process.load('Configuration.Geometry.GeometryExtended2023HGCalMuon_cff')
-process.load('Configuration.Geometry.GeometryExtended2023HGCalV4MuonReco_cff')
-process.load('Configuration.Geometry.GeometryExtended2023HGCalV4Muon_cff')
+process.load('Configuration.Geometry.GeometryExtended2023HGCalMuonReco_cff')
+process.load('Configuration.Geometry.GeometryExtended2023HGCalMuon_cff')
+#process.load('Configuration.Geometry.GeometryExtended2023HGCalV4MuonReco_cff')
+#process.load('Configuration.Geometry.GeometryExtended2023HGCalV4Muon_cff')
 process.load('Configuration.StandardSequences.MagneticField_38T_PostLS1_cff')
 
 ## MessageLogger
@@ -19,11 +19,7 @@ process.options   = cms.untracked.PSet( wantSummary = cms.untracked.bool(False),
                                         ) 
 
 #configure the source (list all files in directory within range [ffile,ffile+step[
-from UserCode.HGCanalysis.storeTools_cff import fillFromStore
-process.source = cms.Source("PoolSource",                            
-                            fileNames=cms.untracked.vstring('/store/cmst3/group/hgcal/CMSSW/Single11_SLHC16/HGCEvents_11_100_5.root')
-                            )
-process.source.duplicateCheckMode = cms.untracked.string('noDuplicateCheck')
+process.source = cms.Source("EmptySource")
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(1) )
 
 #run the analyzer
