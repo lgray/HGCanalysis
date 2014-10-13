@@ -59,9 +59,8 @@ taus=(0 10 20)
 pids=(13)
 for tau in ${taus[@]}; do
     for pid in ${pids[@]}; do
-        #inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}`)
-	#nFiles=${#inputFiles[@]}
-        nFiles=100 
+        inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}`);
+	nFiles=${#inputFiles[@]};
 	python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 1nd -s redigitizeAndMix.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_v2/tau_${tau} -t Single${pid}_${CMSSW_VERSION}_v2 -m MinBias_${CMSSW_VERSION} -p ${tau}";
 done
 done
@@ -69,40 +68,14 @@ done
 
 ## Producing analysis ntuples
 
-The ntuples are produced by plugins/HGCSimHitsAnalyzer.cc. 
-Change the code according to your needs.
-To submit the production of the ntuples you can use the following script
+The ntuples are produced by plugins/HGCSimHitsAnalyzer.cc.  Change the code according to your needs.
+To submit the production of the ntuples you can use the following script (it will printout the options)
 
+cmsRun runHGCSimHitsAnalyzer_cfg.py
 
+Submit several jobs to the batch and store the output in EOS
 
-pfs, CHECK ME THIS POINT FORWARD!
-
-Submit ntuples production
-for i in `seq 0 50 1950`; do
-	python scripts/submitLocalAnalysis_cfg.py -t MinBias_v14 -q 2nd -f ${i} -s 50;
-done
-
-#calibration studies
-python test/analysis//testSimHits.py -i /store/cmst3/group/hgcal/CMSSW/Ntuples -t SingleElectron_SLHC13_30um_SimHits
-python test/analysis//testSimHits.py -i /store/cmst3/group/hgcal/CMSSW/Ntuples -t SingleK0L_SLHC13_30um_SimHits
-python test/analysis//testSimHits.py -i /store/cmst3/group/hgcal/CMSSW/Ntuples -t SinglePion_SLHC13_30um_SimHits
-
-#occupancy studies
-pileup=(140 200)
-noise=(0) # it is generated in the summary
-sdType=(0 1)
-for p in ${pileup[@]}; do
-for n in ${noise[@]}; do 
-for s in ${sdType[@]}; do
-python test/analysis/runOccupancyAnalysis.py -i /store/cmst3/group/hgcal/CMSSW/Ntuples/ -t MinBias_v16 -p ${p} -s ${s} -n ${n} &
-done
-done
-done
-
-for p in ${pileup[@]}; do
-for n in ${noise[@]}; do
-for s in ${sdType[@]}; do
-python test/analysis/drawOccupancyAnalysisSummary.py -i MinBias_v16_occ_pu${p}_sd${s}.root -o pu${p}_sd${s} &
-done
-done
+pids=(11 211)
+for pid in ${pids[@]}; do
+    python scripts/submitLocalAnalysis_cfg.py -q 1nd -s -1 -t Single${pid}_${CMSSW_VERSION}_v2;
 done
