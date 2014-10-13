@@ -27,11 +27,22 @@
 using namespace std;
 
 //
-HGCOccupancyAnalyzer::HGCOccupancyAnalyzer( const edm::ParameterSet &iConfig ) : isInit_(false)
+HGCOccupancyAnalyzer::HGCOccupancyAnalyzer( const edm::ParameterSet &iConfig ) : isInit_(false), evtSizeH_(0)
 {
   //configure analyzer
   geometrySource_   = iConfig.getUntrackedParameter< std::vector<std::string> >("geometrySource");
   digiCollections_  = iConfig.getUntrackedParameter< std::vector<std::string> >("digiCollections");
+
+  edm::Service<TFileService> fs;
+  evtSizeH_ = fs->make<TH2F>("evtsize",";Event size (log_{10} byte);Sub-detector",100,0,10,geometrySource_.size()+1,0,geometrySource_.size()+1);
+  evtSizeH_->GetYaxis()->SetBinLabel(1,"HGC");
+  for(size_t i=0; i<geometrySource_.size(); i++)
+    {
+      TString subDetName(geometrySource_[i]);
+      subDetName.ReplaceAll("Sensitive","");
+      evtSizeH_->GetYaxis()->SetBinLabel(i+2,subDetName);
+    }
+
 }
 
 //
@@ -39,6 +50,17 @@ HGCOccupancyAnalyzer::~HGCOccupancyAnalyzer()
 {
 }
 
+//
+void HGCOccupancyAnalyzer::endJob()
+{
+  //normalize to the number of events analyzed
+  int nEvents_(0);
+  for(size_t i=0; i<occHistos_.size(); i++) nEvents_=occHistos_[i].finalize();
+
+  if(nEvents_==0) return;
+  std::cout << "[endJob] analyzed " << nEvents_ << " events" << std::endl;
+  evtSizeH_->Scale(1./nEvents_);
+}
 
 //
 void HGCOccupancyAnalyzer::prepareAnalysis(std::map<int,const HGCalGeometry *> &hgcGeometries)
@@ -79,30 +101,36 @@ void HGCOccupancyAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSe
     }
   prepareAnalysis(hgcGeometries);
 
+  float totalEvtSize(0);
   for(size_t i=0; i<digiCollections_.size(); i++)
     {
       if(digiCollections_[i].find("HE") != std::string::npos)
 	{
 	  edm::Handle<HGCHEDigiCollection> heDigis;
 	  iEvent.getByLabel(edm::InputTag("mix",digiCollections_[i]),heDigis);
-	  analyzeHEDigis(i,heDigis,hgcGeometries[i]);
+	  float heEvtSize=analyzeHEDigis(i,heDigis,hgcGeometries[i]);
+	  totalEvtSize+=heEvtSize;
+	  evtSizeH_->Fill(TMath::Log10(heEvtSize/8.),i+1);
 	}
       else
 	{
 	  edm::Handle<HGCEEDigiCollection> eeDigis;
 	  iEvent.getByLabel(edm::InputTag("mix",digiCollections_[i]),eeDigis);
-	  analyzeEEDigis(i,eeDigis,hgcGeometries[i]);
+	  float eeEvtSize=analyzeEEDigis(i,eeDigis,hgcGeometries[i]);
+	  totalEvtSize+=eeEvtSize;
+	  evtSizeH_->Fill(TMath::Log10(eeEvtSize/8.),i+1);
 	}
     }
+  evtSizeH_->Fill(TMath::Log10(totalEvtSize/8.),0.);
 }
 
 
 //
-void HGCOccupancyAnalyzer::analyzeHEDigis(size_t isd,edm::Handle<HGCHEDigiCollection> &heDigis, const HGCalGeometry *geom)
+float HGCOccupancyAnalyzer::analyzeHEDigis(size_t isd,edm::Handle<HGCHEDigiCollection> &heDigis, const HGCalGeometry *geom)
 {
   //check inputs
-  if(!heDigis.isValid()) return;
-
+  if(!heDigis.isValid()) return 0;
+  
   //analyze hits
   for(HGCHEDigiCollection::const_iterator hit_it = heDigis->begin(); hit_it != heDigis->end(); ++hit_it) 
     {
@@ -114,14 +142,14 @@ void HGCOccupancyAnalyzer::analyzeHEDigis(size_t isd,edm::Handle<HGCHEDigiCollec
       occHistos_[isd].count(layer,eta,adc);
     }
   
-  occHistos_[isd].finalize();
+  return occHistos_[isd].endEvent();
 }
 
 //
-void HGCOccupancyAnalyzer::analyzeEEDigis(size_t isd,edm::Handle<HGCEEDigiCollection> &eeDigis, const HGCalGeometry *geom)
+float HGCOccupancyAnalyzer::analyzeEEDigis(size_t isd,edm::Handle<HGCEEDigiCollection> &eeDigis, const HGCalGeometry *geom)
 {
   //check inputs
-  if(!eeDigis.isValid()) return;
+  if(!eeDigis.isValid()) return 0.;
   
   //analyze hits
   for(HGCEEDigiCollection::const_iterator hit_it = eeDigis->begin(); hit_it != eeDigis->end(); ++hit_it) 
@@ -134,7 +162,7 @@ void HGCOccupancyAnalyzer::analyzeEEDigis(size_t isd,edm::Handle<HGCEEDigiCollec
       occHistos_[isd].count(layer,eta,adc);
     }
 
-  occHistos_[isd].finalize();
+  return occHistos_[isd].endEvent();
 }
 
 

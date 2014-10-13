@@ -1,0 +1,135 @@
+<html>
+
+  <link href='http://fonts.googleapis.com/css?family=Voltaire' rel='stylesheet' type='text/css'/>
+  <link href="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/themes/base/jquery-ui.css" rel="stylesheet" type="text/css"/>
+  <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5/jquery.min.js"></script>
+  <script src="http://ajax.googleapis.com/ajax/libs/jqueryui/1.8/jquery-ui.min.js"></script>
+
+  <style type="text/css">
+    body { font-family: ‘Voltaire’, Arial, serif; font-weight: 400; } 
+    select { font-family: ‘Voltaire’, Arial, serif; font-weight: 400; } 
+    table { font-family: ‘Voltaire’, Arial, serif; font-weight: 400; } 
+    div.title { border-width: 1px; border-style: solid; border-color: gray; }
+    div.image  { border-width: 1px; border-style: solid; border-color: rgb(240,240,240); }
+  </style>
+  
+  
+  
+  <head>
+    <script type="text/javascript">
+      function show(x) {
+      document.write("<td><img height=300 src=\""+x+".png\"/></td>");
+      }
+    </script>
+
+
+    <script>
+      $(document).ready(function() {
+
+      var key="layersel";
+      $('#options').append('<td><select id="' + key + '"style="width:100px" size="5"></select></td>');
+
+      var layCtr=0;
+      for(var sd=0; sd<3; sd++)
+      {
+        var sdName="EE";
+        var lmin=1;
+        var lmax=30;
+        if(sd==1) { sdName="HEF"; lmin=1; lmax=12; }
+	if(sd==2) { sdName="HEB"; lmin=1; lmax=12; }
+
+	for(var l=lmin; l<=lmax; l++)
+        {
+           /* var ival="sd"+sd.toString()+"_layer"+l.toString(); */				 
+           $('#'+key).append('<option value="'+layCtr.toString()+'">'+sdName+" "+l.toString()+'</option>'); 
+           layCtr=layCtr+1;
+        }  
+       }
+                                                                                                                                                                          
+      $('#'+key).append('<option/>');
+      
+      /* bind a callback function for the selector*/
+      $("#"+key).change(function(){ 
+      cat = $("#"+key).val(); 
+
+      /*check the plots selected*/
+      var layersSel = []; 
+      var layerNames = [];
+      $('#options :selected').each(function(isel, selected){ 
+      layersSel[isel] = $(selected).val(); 
+      layerNames[isel] = $(selected).text(); 
+      });
+
+      /*clear previous results*/
+      $('#results').html('')
+
+      /*display the plots each in a new row*/
+      $.each(layersSel, function(iplot,iplotval) {
+      if(layerNames[iplot]=="") return;
+      $('#results').append('<tr><td bgcolor="#ffffcc">Distributions for '+layerNames[iplot]+'</td></tr>');
+      $('#results').append('<tr><td><i>Energy</i></td><td><img width="700" src="mip_'+iplotval+'.png"/></td></tr>');    
+      $('#results').append('<tr><td><i>Occupancy (MIP>0.5)</i></td><td><img width="700" src="occ_'+iplotval+'_thr2.png"/></td></tr>');    
+      $('#results').append('<tr><td><i>Occupancy (MIP>1)</i></td><td><img width="700" src="occ_'+iplotval+'_thr4.png"/></td></tr>');    
+      $('#results').append('<tr><td><i>Occupancy (MIP>5)</i></td><td><img width="700" src="occ_'+iplotval+'_thr20.png"/></td></tr>');    
+      $('#results').append('<tr><td><i>Occupancy (MIP>10)</i></td><td><img width="700" src="occ_'+iplotval+'_thr40.png"/></td></tr>');    
+      $('#results').append('<tr><td><i>Data volume</i></td><td><img width="700" src="datavol_'+iplotval+'.png"/></td></tr>');    
+      $('#results').append('<tr><td><i>Trigger volume</i></td><td><img width="700" src="trigvol_'+iplotval+'.png"/></td></tr>');    
+      });
+
+     });
+    });
+  </script>
+
+  </head>
+
+
+
+<body style="font-size:62.5%;">
+
+<h1>HGCal occupancy analysis summary</h1>
+
+<table>
+<tr><td bgcolor="#ffffcc"><b>Individual distributions per layer can shown by selecting one of the following options</b></td></tr>
+<tr id="options"></tr>
+<tr><table id="results"></table></tr>
+</table>
+
+<table>
+<tr><td bgcolor="#ffffcc"><b>Summary profiles and distributions are shown below</b></td></tr>
+<tr><td bgcolor="#ffffcc"><i>Energy profiles</i></td></tr>
+<tr><script type="text/javascript">show("mipmedian_summary_a")</script></tr>
+<tr><script type="text/javascript">show("mipq95_summary_a")</script></tr>
+<tr><script type="text/javascript">show("mipmedian_summary_b")</script></tr>
+<tr><script type="text/javascript">show("mipq95_summary_b")</script></tr>
+<tr><td bgcolor="#ffffcc"><i>Occupancy profiles</i></td></tr>
+<tr><script type="text/javascript">show("occmedian_summary_0_a")</script></tr>
+<tr><script type="text/javascript">show("occq95_summary_0_a")</script></tr>
+<tr><script type="text/javascript">show("occmedian_summary_0_b")</script></tr>
+<tr><script type="text/javascript">show("occq95_summary_0_b")</script></tr>
+<tr><script type="text/javascript">show("occmedian_summary_1_a")</script></tr>
+<tr><script type="text/javascript">show("occq95_summary_1_a")</script></tr>
+<tr><script type="text/javascript">show("occmedian_summary_1_b")</script></tr>
+<tr><script type="text/javascript">show("occq95_summary_1_b")</script></tr>
+<tr><script type="text/javascript">show("occmedian_summary_5_a")</script></tr>
+<tr><script type="text/javascript">show("occq95_summary_5_a")</script></tr>
+<tr><script type="text/javascript">show("occmedian_summary_5_b")</script></tr>
+<tr><script type="text/javascript">show("occq95_summary_5_b")</script></tr>
+<tr><script type="text/javascript">show("occmedian_summary_10_a")</script></tr>
+<tr><script type="text/javascript">show("occq95_summary_10_a")</script></tr>
+<tr><script type="text/javascript">show("occmedian_summary_10_b")</script></tr>
+<tr><script type="text/javascript">show("occq95_summary_10_b")</script></tr>
+<tr><td bgcolor="#ffffcc"><i>Event size</i></td></tr>
+<tr><script type="text/javascript">show("evtsize")</script></tr>
+<tr><td bgcolor="#ffffcc"><i>Data volume profiles</i></td></tr>
+<tr><script type="text/javascript">show("datavolmedian_summary_a")</script></tr>
+<tr><script type="text/javascript">show("datavolq95_summary_a")</script></tr>
+<tr><script type="text/javascript">show("datavolmedian_summary_b")</script></tr>
+<tr><script type="text/javascript">show("datavolq95_summary_b")</script></tr>
+<tr><td bgcolor="#ffffcc"><i>Trigger volume profiles</i></td></tr>
+<tr><script type="text/javascript">show("trigvolmedian_summary_a")</script></tr>
+<tr><script type="text/javascript">show("trigvolq95_summary_a")</script></tr>
+<tr><script type="text/javascript">show("trigvolmedian_summary_b")</script></tr>
+<tr><script type="text/javascript">show("trigvolq95_summary_b")</script></tr>
+</table>
+
+</body>

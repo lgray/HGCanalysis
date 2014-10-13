@@ -8,14 +8,75 @@
 #include "TH1F.h"
 #include "TObjArray.h"
 #include "TGraphErrors.h"
+#include "TMultiGraph.h"
 #include "TMath.h"
 #include "TF1.h"
 #include "TH2.h"
+#include "TLatex.h"
+#include "TSystem.h"
 
-void showOccupancies(TObjArray plots,TString ytitle,TString name,TString title,std::vector<int> &layerBoundaries,TString outDir);
-void compareOccupancyResults(std::vector<TString> &urlList,TString outDir);
+#include <iostream>
+#include <vector>
+
+using namespace std;
+
+Int_t comparisonColors[]={1,kAzure+2,kRed+2,kGreen-5,kGray+1};
+
+void drawOccupancyResults(TString outDir="~/public/html/HGCal/Occupancy");
 void fixExtremities(TH1* h,bool addOverflow, bool addUnderflow);
+void simpleComparison(TString distName, TString distTitle,	std::vector<TString> &urlList, std::vector<TString> &subTitles, TString outDir);
+void compareProfilesFor(TString distName,TString distTitle,Float_t yranMin,Float_t yranMax, bool drawLog,
+			std::vector<Int_t> &thrScan,
+			std::vector<TString> &urlList,
+			std::vector<TString> &subTitles,
+			TString outDir,
+			bool isV4geometry=false);
+void drawProfiles(TMultiGraph *gr,TMultiGraph *grEvol,
+		  Float_t yranMin,Float_t yranMax,bool drawLog,
+		  TString ytitle,TString name,
+		  TString title,std::vector<int> &layerBoundaries,TString outDir);
+void drawDistributions(std::vector< std::vector<TH1 *> > &plots,
+		       std::vector<TString> subTitles,
+		       TString name, TString ytitle, 
+		       Float_t yranMin,Float_t yranMax, bool drawLog, 
+		       TString title, TString outDir);
 
+//
+void drawOccupancyResults(TString outDir)
+{
+  gROOT->SetBatch(true);
+  gStyle->SetOptStat(0);
+  gStyle->SetOptTitle(0);
+  
+  //prepare output directory
+  gSystem->Exec("mkdir -p "+outDir);
+  gSystem->Exec("cp $CMSSW_BASE/src/UserCode/HGCanalysis/test/analysis/occ_index.html "+ outDir+"/index.html");
+
+  std::vector<TString> urlList,subTitles;
+  urlList.push_back("Single13_CMSSW_6_2_0_SLHC18_v2_tau_0_Occupancy_0.root");   subTitles.push_back("No shaping");
+  urlList.push_back("Single13_CMSSW_6_2_0_SLHC18_v2_tau_10_Occupancy_0.root");  subTitles.push_back("#tau=10 ns");
+  urlList.push_back("Single13_CMSSW_6_2_0_SLHC18_v2_tau_20_Occupancy_0.root");  subTitles.push_back("#tau=20 ns");
+
+  //occupancies
+  std::vector<Int_t> thrScan;
+  thrScan.push_back(2);
+  thrScan.push_back(4);
+  thrScan.push_back(20);
+  thrScan.push_back(40);
+  compareProfilesFor("occ",     "Occupancy / cell",             1e-3, 1,   true,  thrScan,   urlList, subTitles, outDir, false);
+  
+  //data volumes
+  thrScan.clear();
+  compareProfilesFor("datavol", "Expected readout cell data volume / event [bit]", 0, 12,  false,  thrScan,  urlList, subTitles, outDir, false);
+  compareProfilesFor("trigvol", "Expected trigger cell data volume / event [bit]", 0, 4,   false,  thrScan,  urlList, subTitles, outDir, false);
+  compareProfilesFor("mip",     "Energy [MIP]",           0,    25, false, thrScan,  urlList, subTitles, outDir, false);
+
+  simpleComparison("evtsize","Event size [log_{10} byte]",urlList,subTitles, outDir);
+ }
+
+
+
+//
 void fixExtremities(TH1* h,bool addOverflow, bool addUnderflow)
 {
   if(h==0) return;
@@ -42,168 +103,286 @@ void fixExtremities(TH1* h,bool addOverflow, bool addUnderflow)
     }
 }
 
-
-
-void drawOccupancyResults(TString outDir="~/www/HGCal/Occupancy/v5")
-{
-  //gROOT->SetBatch(true);
-  gStyle->SetOptStat(0);
-  gStyle->SetOptTitle(0);
-  
-  std::vector<TString> urlList;
-  urlList.push_back("/tmp/psilva/Single13_CMSSW_6_2_0_SLHC18_v2_tau_0_Occupancy_0.root");
-  compareOccupancyResults(urlList,outDir);
- }
-
 //
-void compareOccupancyResults(std::vector<TString> &urlList,TString outDir)
+void simpleComparison(TString distName, TString distTitle,	std::vector<TString> &urlList, std::vector<TString> &subTitles, TString outDir)
 {
-  Int_t adc_thr[]={2,4,20,40};
-  typedef std::pair<int,int> ThresholdKey_t; //file,threshold
-  std::map<ThresholdKey_t, vector<TGraphErrors *> > occPerLayer,occwidthPerLayer; //threshold,eta profiles
-  std::vector<int> layerBoundaries;
-  //v4
-  //layerBoundaries.push_back(31); layerBoundaries.push_back(12); layerBoundaries.push_back(10);
-  //v5
-  layerBoundaries.push_back(30); layerBoundaries.push_back(12); layerBoundaries.push_back(12);
-
+  std::vector< std::vector<TH1 *> > plots;
   for(size_t ifile=0; ifile<urlList.size(); ifile++)
     {
-      TFile *inF = TFile::Open(urlList[ifile]);
-
-      for(size_t ithr=0; ithr<sizeof(adc_thr)/sizeof(Int_t); ithr++)
+      TFile *fIn=TFile::Open(urlList[ifile]);
+      TH2F *distH=(TH2F *)fIn->Get("analysis/"+distName);
+      Int_t nybins(distH->GetYaxis()->GetNbins());
+      if(ifile==0) plots=std::vector< std::vector<TH1 *> >(nybins);
+      for(Int_t ybin=1; ybin<=nybins; ybin++)
 	{
-	  ThresholdKey_t thr_key(ifile,adc_thr[ithr]);
-	  if(occPerLayer.find(thr_key)==occPerLayer.end())
+	  //project
+	  TString projName(distH->GetName()); projName += "f"; projName += ifile; projName += "_iy"; projName += ybin; projName += "_proj";
+    	  TH1D *h=distH->ProjectionX(distName+projName,ybin,ybin);
+	  h->SetDirectory(0);
+	  fixExtremities(h,true,true);
+	  h->SetTitle( distH->GetYaxis()->GetBinLabel(ybin) );
+	  h->SetLineWidth(2);
+	  h->SetLineColor(comparisonColors[ifile]);
+	  if(ifile==0){
+	    h->SetFillStyle(1001);
+	    h->SetFillColor(kGray);
+	  }
+	  else h->SetFillStyle(0);
+	  plots[ybin-1].push_back(h);
+	}
+      fIn->Close();
+    }
+  
+  drawDistributions(plots,subTitles,distName,distTitle,0,10,false,"",outDir);
+}
+
+//
+void compareProfilesFor(TString distName,TString distTitle,Float_t yranMin,Float_t yranMax,bool drawLog,
+			std::vector<Int_t> &thrScan,
+			std::vector<TString> &urlList,
+			std::vector<TString> &subTitles,
+			TString outDir,
+			bool isV4geometry)
+{
+  size_t nthr=thrScan.size();
+  if(nthr==0) nthr=1;
+  std::vector< std::vector< std::vector<TGraphErrors *> > > medianDistPerLayer,q95DistPerLayer; //file #, threshold #,eta bin #
+  std::vector< std::vector< std::vector< std::vector<TH1 *> > > > distPerLayer; //file #, threshold #, layer #, eta bin #
+  std::vector<int> layerBoundaries;
+  if(isV4geometry) { layerBoundaries.push_back(31); layerBoundaries.push_back(12); layerBoundaries.push_back(10); }
+  else             { layerBoundaries.push_back(30); layerBoundaries.push_back(12); layerBoundaries.push_back(12); }
+  for(size_t ifile=0; ifile<urlList.size(); ifile++)
+    {
+      //open new file
+      TFile *inF = TFile::Open(urlList[ifile]);
+      medianDistPerLayer.push_back( std::vector< vector<TGraphErrors *> >(nthr) );
+      q95DistPerLayer.push_back( std::vector< vector<TGraphErrors *> >(nthr) );
+      distPerLayer.push_back( std::vector< std::vector< std::vector<TH1 *> > >(nthr) );
+      
+      //iterate over thresholds
+      for(size_t ithr=0; ithr<nthr; ithr++)
+	{	  
+	  //built the profile graphs per layer (need a template from the file)
+	  TH2F *distH= thrScan.size()==0?
+	    (TH2F *) inF->Get("analysis/sd_0_layer1_"+distName) :
+	    (TH2F *) inF->Get("analysis/sd_0_layer1_thr2_"+distName);
+	  Int_t netaBins(distH->GetYaxis()->GetNbins());
+	  for(Int_t ybin=1; ybin<=netaBins; ybin++)
 	    {
-	      vector<TGraphErrors *> templateVec;
-	      occPerLayer[thr_key]=templateVec;
-	      occwidthPerLayer[thr_key]=templateVec;
+	      TString grName(distName+"_ithr"); grName += ithr; grName+="_ieta"; grName+=ybin; grName += "_f"; grName += ifile;
+	      Float_t etaMin=distH->GetYaxis()->GetBinLowEdge(ybin);
+	      Float_t etaMax=distH->GetYaxis()->GetBinUpEdge(ybin);
+	      char grTitle[50]; 
+	      sprintf(grTitle,"%3.1f<|#eta|<%3.1f",etaMin,etaMax);
+	      medianDistPerLayer[ifile][ithr].push_back(new TGraphErrors);
+	      medianDistPerLayer[ifile][ithr][ybin-1]->SetName(grName);
+	      medianDistPerLayer[ifile][ithr][ybin-1]->SetTitle(grTitle);
+	      medianDistPerLayer[ifile][ithr][ybin-1]->SetMarkerStyle(20+(ybin-1)/2);
+	      medianDistPerLayer[ifile][ithr][ybin-1]->SetLineColor(27+ybin*2);
+	      medianDistPerLayer[ifile][ithr][ybin-1]->SetMarkerColor(27+ybin*2);
+	      medianDistPerLayer[ifile][ithr][ybin-1]->SetMarkerSize(1.0);
+	      medianDistPerLayer[ifile][ithr][ybin-1]->SetFillStyle(0);
+	      medianDistPerLayer[ifile][ithr][ybin-1]->SetFillColor(27+ybin*2);
+	      q95DistPerLayer[ifile][ithr].push_back( (TGraphErrors *)medianDistPerLayer[ifile][ithr][ybin-1]->Clone("width_"+grName) );
 	    }
-	  
+
+	  //iterate over sub-detectors
 	  int layerCtr(0);
 	  for(size_t isd=0;isd<=2; isd++)
 	    {
 	      Int_t nlayers=layerBoundaries[isd];
-
 	      for(Int_t ilay=1; ilay<=nlayers; ilay++)
 		{
 		  layerCtr++;
-		  TString pfix("sd_"); pfix+=isd; pfix += "_layer"; pfix += ilay; pfix += "_thr"; pfix += adc_thr[ithr];
-		  TH2F *occH= (TH2F *)inF->Get("analysis/"+pfix+"_occ");
-
-		  //init histograms
-		  if(layerCtr==1)
-		    {
-		      for(Int_t ybin=1; ybin<=occH->GetYaxis()->GetNbins(); ybin++)
-			{
-			  occPerLayer[thr_key].push_back(new TGraphErrors);
-			  Float_t etaMin=occH->GetYaxis()->GetBinLowEdge(ybin);
-			  Float_t etaMax=occH->GetYaxis()->GetBinUpEdge(ybin);
-			  char buf[50]; 
-			  sprintf(buf,"%3.1f<|#eta|<%3.1f",etaMin,etaMax);
-			  occPerLayer[thr_key][ybin-1]->SetTitle(buf);
-			  occPerLayer[thr_key][ybin-1]->SetMarkerStyle(20+(ybin-1)%4);
-			  occPerLayer[thr_key][ybin-1]->SetLineColor((ybin-1)%4==0 ? 1 : 20+10*(ybin-1)%4);
-			  occPerLayer[thr_key][ybin-1]->SetMarkerColor((ybin-1)%4==0 ? 1 : 20+10*(ybin-1)%4);
-			  occwidthPerLayer[thr_key].push_back( (TGraphErrors *)occPerLayer[thr_key][ybin-1]->Clone() );
-			}
-		    }
+		  TString pfix("sd_"); pfix+=isd; pfix += "_layer"; pfix += ilay; 
+		  if(thrScan.size()) { pfix += "_thr"; pfix += thrScan[ithr]; }
+		  distH= (TH2F *)inF->Get("analysis/"+pfix+"_"+distName);
 
 		  //profile at different etas
-		  for(Int_t ybin=1; ybin<=occH->GetYaxis()->GetNbins(); ybin++)
+		  distPerLayer[ifile][ithr].push_back( std::vector<TH1 *>(netaBins) );
+		  for(Int_t ybin=1; ybin<=netaBins; ybin++)
 		    {
-		      TH1D *h=occH->ProjectionX("occproj",ybin,ybin);
+		      //project
+		      TString projName(distH->GetName()); projName += "f"; projName += ifile; projName += "_iy"; projName += ybin; projName += "_proj";
+		      TH1D *h=distH->ProjectionX(projName,ybin,ybin);
+		      h->SetDirectory(0);
 		      fixExtremities(h,true,true);
+		      char hTitle[50]; 
+		      TString sdName("EE");
+		      if(isd==1) sdName="HEF";
+		      if(isd==2) sdName="HEB";
+		      sprintf(hTitle,"%s, layer #%d, %3.1f<|#eta|<%3.1f",
+			      sdName.Data(),
+			      ilay,
+			      distH->GetYaxis()->GetBinLowEdge(ybin),distH->GetYaxis()->GetBinUpEdge(ybin));
+	      	      h->SetTitle(hTitle);
+		      h->SetLineWidth(2);
+		      h->SetLineColor(comparisonColors[ifile]);
+		      if(ifile==0){
+			h->SetFillStyle(1001);
+			h->SetFillColor(kGray);
+		      }
+		      else h->SetFillStyle(0);
+		      distPerLayer[ifile][ithr][layerCtr-1][ybin-1]=h;
+		      
+		      //compute quantiles for the profiles
 		      Double_t xq[3]={0.05,0.5,0.95};
 		      Double_t yq[3];
 		      h->GetQuantiles(3,yq,xq);
-
-		      Int_t np=occPerLayer[thr_key][ybin-1]->GetN();
-		      occPerLayer[thr_key][ybin-1]->SetPoint(np,layerCtr,yq[1]);
-		      occPerLayer[thr_key][ybin-1]->SetPointError(np,0,1.253*h->GetRMS()/TMath::Sqrt(h->Integral()));
-		      occwidthPerLayer[thr_key][ybin-1]->SetPoint(np,layerCtr,yq[2]-yq[1]);
-		      occwidthPerLayer[thr_key][ybin-1]->SetPointError(np,0,h->GetRMSError());
-		      
+		      Int_t np=medianDistPerLayer[ifile][ithr][ybin-1]->GetN();
+		      medianDistPerLayer[ifile][ithr][ybin-1]->SetPoint(np,layerCtr,yq[1]);
+		      medianDistPerLayer[ifile][ithr][ybin-1]->SetPointError(np,0,1.253*h->GetMeanError());
+		      if(yq[2]>0){
+			np=q95DistPerLayer[ifile][ithr][ybin-1]->GetN();
+			q95DistPerLayer[ifile][ithr][ybin-1]->SetPoint(np,layerCtr,yq[2]);
+			q95DistPerLayer[ifile][ithr][ybin-1]->SetPointError(np,0,2*1.253*h->GetMeanError());
+		      }
 		    }
 		}
 	    }
 	}
     }
 
-  for(std::map<ThresholdKey_t, vector<TGraphErrors *> >::iterator it=occPerLayer.begin();
-      it!=occPerLayer.end();
-      it++)
+  //now let's plot all of this...
+  //distributions
+  for(size_t ithr=0; ithr<nthr; ithr++)
     {
-      TObjArray plots,widthPlots; 
-      for(size_t i=0; i<it->second.size(); i++) 
+      size_t nlay=distPerLayer[0][ithr].size();
+      for(size_t ilay=0; ilay<nlay; ilay++)
 	{
-	  plots.Add( (it->second)[i] );
-	  widthPlots.Add( (occwidthPerLayer[it->first])[i] );
+	  size_t netabins=distPerLayer[0][ithr][ilay].size();
+	  std::vector< std::vector<TH1 *> > plots(netabins); //eta bin #, file #
+	  for(size_t ietabin=0; ietabin<netabins; ietabin++)
+	    {
+	      size_t nfiles(distPerLayer.size());
+	      plots[ietabin]=std::vector<TH1 *>(nfiles);
+	      for(size_t ifile=0; ifile<distPerLayer.size(); ifile++)
+		{
+		  plots[ietabin][ifile]=distPerLayer[ifile][ithr][ilay][ietabin];
+		}
+	    }
+	  TString title("Layer #"); title += (ilay+1);
+	  if(thrScan.size())
+	    {
+	      char buftitle[50];
+	      sprintf(buftitle,"Threshold: %3.1f MIPs",thrScan[ithr]*0.25);
+	      title+=","; title+=TString(buftitle);
+	    }
+	  TString pfix("_"); pfix+=ilay;
+	  if(thrScan.size()) { pfix += "_thr"; pfix += thrScan[ithr]; }
+	  drawDistributions(plots,subTitles,distName+pfix, distTitle, yranMin,yranMax,drawLog, title,outDir);
 	}
+    }
 
-      TString name("occsummary_"); name+= it->first.second;
-      char buf[50];
-      sprintf(buf,"Threshold: %3.1f MIPs",it->first.second*0.25);
-      TString title(buf);
-      showOccupancies(plots,"Median occupancy",name,title,layerBoundaries,outDir);
-      showOccupancies(widthPlots,"Occupancy width (q_{95}-q_{50})","width_"+name,title,layerBoundaries,outDir);
+  //distribution profiles
+  for(size_t iplot=0; iplot<2; iplot++)
+    {
+      std::vector< std::vector< vector<TGraphErrors *> > > *allPlots=0;
+      TString yTitle("");
+      if(iplot==0) { allPlots=&medianDistPerLayer;      yTitle=distTitle+" median";       }
+      if(iplot==1) { allPlots=&q95DistPerLayer;         yTitle=distTitle+" 95% quantile"; }
+      
+      for(size_t ithr=0; ithr<nthr; ithr++)
+	{
+	  TMultiGraph *oddEtaGraphs     = new TMultiGraph;
+	  TMultiGraph *evenEtaGraphs    = new TMultiGraph;
+	  TMultiGraph *oddEtaGraphEvol  = urlList.size()>0 ? new TMultiGraph : 0; 
+	  TMultiGraph *evenEtaGraphEvol = urlList.size()>0 ? new TMultiGraph : 0;
+	  for(size_t ieta=0; ieta<(*allPlots)[0][ithr].size(); ieta++)
+	    {
+	      if(ieta%2==0) evenEtaGraphs->Add( (*allPlots)[0][ithr][ieta], "p" );
+	      else         oddEtaGraphs->Add( (*allPlots)[0][ithr][ieta], "p" );
+
+	      Double_t ix,iy;
+	      for(Int_t ip=0; ip<(*allPlots)[0][ithr][ieta]->GetN(); ip+=4)
+		{
+		  TGraph *gr=new TGraph;
+		  gr->SetLineColor( (*allPlots)[0][ithr][ieta]->GetLineColor() );
+		  gr->SetMarkerColor( (*allPlots)[0][ithr][ieta]->GetMarkerColor() );
+		  gr->SetMarkerStyle( (*allPlots)[0][ithr][ieta]->GetMarkerStyle() );
+		  gr->SetMarkerSize(0.8);
+		  gr->SetFillStyle(0);
+		  for(size_t ifile=0; ifile<urlList.size(); ifile++)
+		    {
+		      (*allPlots)[ifile][ithr][ieta]->GetPoint(ip,ix,iy);
+		      gr->SetPoint(ifile,ix,iy);
+		    }
+		  if(ieta%2==0) evenEtaGraphEvol->Add(gr,"lp");
+		  else          oddEtaGraphEvol->Add(gr,"lp");
+		}
+	    }
+	  
+	  TString name("summary"); 
+	  if(thrScan.size()) { name +="_"; name+=Int_t(thrScan[ithr]*0.25); }
+	  if(iplot==0) name=distName+"median_"+name;
+	  if(iplot==1) name=distName+"q95_"+name;
+	  TString title("");
+	  if(thrScan.size())
+	    {
+	      char buftitle[50];
+	      sprintf(buftitle,"Threshold: %3.1f MIPs",thrScan[ithr]*0.25);
+	      title=TString(buftitle);
+	    }
+	  drawProfiles(oddEtaGraphs,  oddEtaGraphEvol,  yranMin, yranMax, drawLog, yTitle, name+"_a", title, layerBoundaries, outDir);
+	  drawProfiles(evenEtaGraphs, evenEtaGraphEvol, yranMin, yranMax, drawLog, yTitle, name+"_b", title, layerBoundaries, outDir);
+	}
     }
 }
 
 
 //
-void showOccupancies(TObjArray plots,TString ytitle,TString name,TString title,std::vector<int> &layerBoundaries,TString outDir)
+void drawProfiles(TMultiGraph *gr,TMultiGraph *grEvol,Float_t yranMin,Float_t yranMax, bool drawLog, TString ytitle,TString name,TString title,std::vector<int> &layerBoundaries,TString outDir)
 {
   TCanvas *c=new TCanvas("c","c",800,500);
   c->SetLeftMargin(0.15);
   c->SetTopMargin(0.05);
   c->SetRightMargin(0.05);
   c->SetBottomMargin(0.12);
-  c->SetLogy();
+  if(drawLog) c->SetLogy();
   c->SetGridy();
 
-  TLegend *leg=new TLegend(0.15,0.8,0.7,0.94);
+
+  //draw
+  gr->Draw("a");
+  gr->GetYaxis()->SetTitle(ytitle);
+  gr->GetXaxis()->SetTitle("Layer number");
+  gr->GetYaxis()->SetRangeUser(yranMin,yranMax);
+  TLegend *leg=c->BuildLegend();
   leg->SetBorderSize(0);
   leg->SetFillStyle(0);
   leg->SetTextFont(42);
   leg->SetTextSize(0.04);
-
-  //draw
-  for(Int_t i=0; i<plots.GetEntriesFast(); i++)
-    {
-      TGraphErrors *gr=(TGraphErrors *)plots.At(i);
-      gr->Draw(i==0 ? "ap" : "p");
-      gr->GetXaxis()->SetTitle("HGC layer number");
-      gr->GetYaxis()->SetRangeUser(1e-2,1);
-      gr->GetXaxis()->SetTitleSize(0.05);
-      gr->GetXaxis()->SetLabelSize(0.04);
-      gr->GetYaxis()->SetTitleSize(0.05);
-      gr->GetYaxis()->SetLabelSize(0.04);
-      gr->GetYaxis()->SetTitle(ytitle);
-      leg->AddEntry(gr,gr->GetTitle(),"p");
-    }
-  leg->Draw();
+  leg->SetNColumns(2);
+  if(grEvol) grEvol->Draw("l");
   
-  TPaveText *pt=new TPaveText(0.12,0.96,0.6,0.99,"brNDC");
+  TPaveText *pt=new TPaveText(0.13,0.96,0.6,0.99,"brNDC");
   pt->SetBorderSize(0);
   pt->SetFillStyle(0);
   pt->SetTextFont(42);
   pt->SetTextAlign(12);
   pt->SetTextSize(0.04);
-  pt->AddText("CMS simulation");
+  pt->AddText("#bf{CMS} #it{simulation}");
   pt->Draw();
 
   Int_t nlayers(0);
+  TLatex *txt=new TLatex;
+  txt->SetTextFont(42);
+  txt->SetTextSize(0.04);
+  txt->SetTextColor(kBlue);
   for(size_t i=0; i<layerBoundaries.size(); i++)
     {
+      TString sdName("EE");
+      if(i==1) sdName="HEF";
+      if(i==2) sdName="HEB";
+      txt->DrawLatex( nlayers+layerBoundaries[i]*0.4, drawLog ? 0.7*yranMax : 0.95*yranMax, sdName);
+
       nlayers+=layerBoundaries[i];
-      TLine *l=new TLine(nlayers,1e-2,nlayers,1);
+      TLine *l=new TLine(nlayers,yranMin,nlayers,yranMax);
       l->SetLineColor(kBlue);
       l->SetLineStyle(7);
       l->Draw();
     }
-  
+
   if(title!="")
     {
       pt=new TPaveText(0.65,0.955,0.95,0.99,"brNDC");
@@ -215,7 +394,71 @@ void showOccupancies(TObjArray plots,TString ytitle,TString name,TString title,s
       pt->AddText(title);
       pt->Draw();
     }
-  
+    
+  c->SaveAs(outDir+"/"+name+".png");
+}
+
+//
+void drawDistributions(std::vector< std::vector<TH1 *> > &plots,
+		       std::vector<TString> subTitles,
+		       TString name, TString ytitle, 
+		       Float_t yranMin,Float_t yranMax, bool drawLog, 
+		       TString title, TString outDir)
+{
+  TCanvas *c=new TCanvas("c","c",2000,1000);
+
+  size_t nx=plots.size()/2;
+  while( 2*nx<plots.size() ) nx++;
+  c->Divide(nx,2);
+
+  for(size_t i=0; i<plots.size(); i++)
+    {
+      TPad *p=(TPad *)c->cd(i+1);
+      p->SetLeftMargin(0.15);
+      p->SetTopMargin(0.05);
+      p->SetRightMargin(0.05);
+      p->SetBottomMargin(0.12);
+      //if(drawLog) p->SetLogy();
+      p->SetGridy();
+      TLegend *leg=new TLegend(0.65,0.7,0.95,0.9);
+      leg->SetBorderSize(0);
+      leg->SetFillStyle(0);
+      leg->SetTextFont(42);
+      leg->SetTextSize(0.04);
+      float ymax(-999999999.);
+      for(size_t j=0; j<plots[i].size(); j++)
+	{
+	  plots[i][j]->Draw(j==0 ? "hist": "histsame");
+	  float iymax=plots[i][j]->GetBinContent(plots[i][j]->GetMaximumBin());
+	  ymax=TMath::Max(ymax,iymax);
+	  leg->AddEntry(plots[i][j],subTitles[j],"f");
+	}
+      leg->Draw();
+      plots[i][0]->GetXaxis()->SetTitle(ytitle);
+      plots[i][0]->GetYaxis()->SetTitle("Probability distribution");
+      plots[i][0]->GetYaxis()->SetRangeUser(0,ymax*1.1);
+      plots[i][0]->GetXaxis()->SetRangeUser(yranMin,yranMax);
+ 
+
+      TPaveText *pt=new TPaveText(0.5,0.955,0.95,0.99,"brNDC");
+      pt->SetBorderSize(1);
+      pt->SetFillStyle(0);
+      pt->SetTextFont(42);
+      pt->SetTextAlign(12);
+      pt->SetTextSize(0.035);
+      pt->AddText(plots[i][0]->GetTitle());
+      pt->Draw();
+
+      //if(i) continue;
+      pt=new TPaveText(0.13,0.96,0.6,0.99,"brNDC");
+      pt->SetBorderSize(0);
+      pt->SetFillStyle(0);
+      pt->SetTextFont(42);
+      pt->SetTextAlign(12);
+      pt->SetTextSize(0.04);
+      pt->AddText("#bf{CMS} #it{simulation}");
+      pt->Draw();
+    }
   
   c->SaveAs(outDir+"/"+name+".png");
 }
