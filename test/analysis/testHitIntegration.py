@@ -6,6 +6,7 @@ import optparse
 import commands
 import array
 import glob
+import os
 import numpy as np
 from ROOT import *
 
@@ -303,10 +304,10 @@ def main():
 
     usage = 'usage: %prog [options]'
     parser = optparse.OptionParser(usage)
-    parser.add_option('-i',      '--in' ,      dest='input',    help='Input file',                               default=None)
-    parser.add_option('-o',      '--out' ,     dest='output',   help='Output file',                              default='HitIntegrationAnalysis.root')
+    parser.add_option('-i',      '--in' ,      dest='input',    help='Input file',                                     default=None)
+    parser.add_option('-o',      '--out' ,     dest='output',   help='Output file',                                    default='HitIntegrationAnalysis.root')
     parser.add_option('-r',      '--dR' ,      dest='dR',       help='DeltaR cone used for analysis (0.3 by default)', default=0.3,   type=float)
-    parser.add_option('--useTrack',            dest='useTrack', help='If given, use track as reference', default=False, action="store_true")
+    parser.add_option('--useTrack',            dest='useTrack', help='If given, use track as reference',               default=False, action="store_true")
     (opt, args) = parser.parse_args()
 
     #check inputs
@@ -315,7 +316,19 @@ def main():
         sys.exit(1)
 
     #run analysis
-    testHitIntegration(urlList=glob.glob('%s*.root'%opt.input),
+    urlList=[]
+    if opt.input.find('/store')>=0:
+      basename=os.path.basename(opt.input)
+      basedir=os.path.dirname(opt.input)
+      from UserCode.HGCanalysis.storeTools_cff import fillFromStore
+      allFiles=fillFromStore(basedir)
+      for f in allFiles:
+        if f.find(basename)<0 : continue
+        urlList.append(f)
+    else:
+      urlList=glob.glob('%s*.root'%opt.input)
+
+    testHitIntegration(urlList=urlList,
                        probeCone=opt.dR,
                        useTrackAsRef=opt.useTrack,
                        outUrl=opt.output)
