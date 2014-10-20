@@ -23,11 +23,11 @@
 
 #include "UserCode/HGCanalysis/interface/HGCSimulationEvent.h"
 
-
-
 #include "TH1F.h"
 #include "TTree.h"
+#include "TString.h"
 
+#include <memory>
 #include <string>
 
 /**
@@ -49,11 +49,15 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   Int_t genId_;
   Float_t genEn_,genEta_,genPhi_;
   Int_t nlay_;
-  Float_t edeps_[100];
+  std::vector< Float_t * > edeps_;
+  std::vector< Int_t *> nhits_;
 
   //tree and summary ntuple
   TTree *t_;
   
+  //mip energy for each sensitive detector and thresholds to apply
+  std::vector<double> mipEn_, thrList_;
+ 
   //gen level
   std::string genSource_;
   

@@ -28,6 +28,8 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   //configure analyzer
   hitCollections_   = iConfig.getUntrackedParameter< std::vector<std::string> >("hitCollections");
   geometrySource_   = iConfig.getUntrackedParameter< std::vector<std::string> >("geometrySource");
+  mipEn_            = iConfig.getUntrackedParameter< std::vector<double> >("mipEn");
+  thrList_          = iConfig.getUntrackedParameter< std::vector<double> >("thrList");
 
   //init tree
   edm::Service<TFileService> fs;
@@ -37,7 +39,14 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   t_->Branch("genEta", &genEta_, "genEta/F");
   t_->Branch("genPhi", &genPhi_, "genPhi/F");
   t_->Branch("nlay",   &nlay_,   "nlay/I");
-  t_->Branch("edeps",  edeps_,   "edeps[nlay]/F");
+  for(size_t i=0; i<thrList_.size(); i++)
+    {
+      TString pf("_thr"); pf+=i;
+      edeps_.push_back( new Float_t[100] ); 
+      nhits_.push_back( new Int_t[100] );
+      t_->Branch("edep"+pf,  edeps_[i], "edeps"+pf+"[nlay]/F");
+      t_->Branch("nhits"+pf, nhits_[i], "nhits"+pf+"[nlay]/I");
+    }
 }
 
 //
@@ -59,20 +68,32 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
   genPhi_ = p.phi();
     
   //hits + geometry
-  std::map<int, std::vector<float> > allEdeps;
+  std::map<int, std::vector<float> > eventMaxEdep;
+  std::map<int, std::vector<std::vector<float> > > eventEdeps;
+  std::map<int, std::vector<std::vector<int> > > eventNhits;
   for(size_t i=0; i<hitCollections_.size(); i++)
     {
+      uint32_t mySubDet(ForwardSubdetector::HGCEE);
+      if(i==1) mySubDet=ForwardSubdetector::HGCHEF;
+      else if(i==2) mySubDet=ForwardSubdetector::HGCHEB;
+
+      //get hits+geometry
       edm::Handle<edm::PCaloHitContainer> caloHits;
       iEvent.getByLabel(edm::InputTag("g4SimHits",hitCollections_[i]),caloHits); 
       edm::ESHandle<HGCalGeometry> geom;
       iSetup.get<IdealGeometryRecord>().get(geometrySource_[i],geom);
       const HGCalTopology &topo=geom->topology();
       const HGCalDDDConstants &dddConst=topo.dddConstants();
-      std::vector<float> edepsPerLayer(dddConst.layers(true),0.);
-      uint32_t mySubDet(ForwardSubdetector::HGCEE);
-      if(i==1) mySubDet=ForwardSubdetector::HGCHEF;
-      else if(i==2) mySubDet=ForwardSubdetector::HGCHEB;
 
+      //prepare counters
+      std::vector< std::vector<float> > layerEdeps( thrList_.size() );
+      std::vector< std::vector<int> > layerNhits( thrList_.size() );
+      for(size_t ithr=0; ithr<thrList_.size(); ithr++)
+	{
+	  layerEdeps[ithr]=std::vector<float>(dddConst.layers(true),0.);
+	  layerNhits[ithr]=std::vector<int>(dddConst.layers(true),0.);
+	}
+      
       for(edm::PCaloHitContainer::const_iterator hit_it = caloHits->begin(); hit_it != caloHits->end(); ++hit_it) 
 	{
 	  //gang SIM->RECO cells to get final layer assignment
@@ -93,17 +114,36 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  if(hitEta*genEta_<0) continue;    
 	  
 	  //save it if interesting
-	  edepsPerLayer[layer-1]+=hit_it->energy()*TMath::TanH(hitEta);
+	  float hitEnInMIPs(hit_it->energy()*TMath::TanH(hitEta)/mipEn_[i]);
+	  if(hitEnInMIPs<0.5) continue;
+	  for(size_t ithr=0; ithr<thrList_.size(); ithr++)
+	    {
+	      if(hitEnInMIPs<thrList_[ithr]) continue;
+	      layerEdeps[ithr][layer-1]+=hitEnInMIPs;
+	      layerNhits[ithr][layer-1]++;
+	    }
 	}
-      allEdeps[i]=edepsPerLayer;
+      eventEdeps[i]=layerEdeps;
+      eventNhits[i]=layerNhits;
     }
   
+  //fill the tree (reset first for all layers)
+  for(size_t ithr=0; ithr<thrList_.size(); ithr++)
+    for(size_t ilay=0; ilay<100; ilay++)
+      {
+	edeps_[ithr][ilay]=0;
+	nhits_[ithr][ilay]=0;
+      }
   nlay_=0;
-  for(std::map<int, std::vector<float> >::iterator it = allEdeps.begin(); it != allEdeps.end(); it++)
+  for(std::map<int, std::vector<std::vector<float> > >::iterator it = eventEdeps.begin(); it!=eventEdeps.end(); it++)
     {
-      for(std::vector<float>::iterator jt=it->second.begin(); jt!=it->second.end(); jt++)
+      for(size_t ilay=0; ilay<(it->second)[0].size(); ++ilay)
 	{
-	  edeps_[nlay_]=*jt;
+	  for(size_t ithr=0; ithr<thrList_.size(); ithr++)
+	    {
+	      edeps_[ithr][nlay_]          = (it->second)[ithr][ilay];
+	      nhits_[ithr][nlay_]          = eventNhits[it->first][ithr][ilay];
+	    }
 	  nlay_++;
 	}
     }

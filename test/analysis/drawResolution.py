@@ -42,7 +42,7 @@ def prepareWorkspace(url,integRanges,mipEn,outUrl):
             totalEnInIntegRegion=0
             for ilayer in xrange(integRanges[ireg][0],integRanges[ireg][1]+1):
                 totalEnInIntegRegion=totalEnInIntegRegion+HGC.edeps[ilayer-1]
-            edeps.append(totalEnInIntegRegion*1e6 / mipEn[ireg] )
+            edeps.append(totalEnInIntegRegion / mipEn[ireg] )
             ws.var('edep%d'%ireg).setVal(totalEnInIntegRegion)
             newEntry.add(ws.var('edep%d'%(ireg)))
         ws.data('data').add( newEntry )
@@ -219,9 +219,9 @@ def showEMcalibrationResults(calibFunc,resFunc,outDir,isHadronic=False):
 def runResolutionStudy(url,isHadronic=False,wsOutUrl=None):
     
     #init weights
-    mipEn       = [55.1,        55.1,        55.1,        55.1,        85.0,     1498.4]   
-    integRanges = [[1,1],       [2,11],      [12,21],     [22,30],     [31,42],  [43,54]]
-    defWeights  = [0.209/0.494, 0.494/0.494, 0.797/0.494, 1.207/0.494, 0.,       0.,      0.]
+    mipEn       = [55.1e-6,        55.1e-6,        55.1e-6,        55.1e-6]#,        85.0,     1498.4]   
+    integRanges = [[1,1],       [2,11],      [12,21],     [22,30]]#,     [31,42],  [43,54]]
+    defWeights  = [0.0,         1.0,         1.2,         2.4,      0.]#,       0.,      0.]
     if isHadronic :
         #defWeights = [0.028,       0.065,        0.105,       0.160,      1.0,       1.667,   0.]        
         defWeights = [0.028,       0.065,        0.105,       0.160, 0.]
@@ -286,17 +286,20 @@ def runResolutionStudy(url,isHadronic=False,wsOutUrl=None):
     resFunc=[]
     calibModel=ROOT.TF1('calibmodel',"[0]*x+[1]",0,800)
     c=ROOT.TCanvas('c','c',1400,800)
-    nSigmasToFit=2.0
+    nSigmasToFit=2.5
 
-    etaRanges=[[1.5,2.8]]
-    enRanges=[[99,101]]
+    etaRanges=[[1.7,2.8]]
+    enRanges=[[9,11],[19,21],[29,31],[49,51],[74,76],[99,101],[149,151]]
+    #enRanges=[[9,11],[99,101]]
     for var,varTitle in vars:
         varCtr+=1
         vName=var.GetName().replace('Func','')
 
         #run calibration and resolution fits in different rapidity ranges
-        c.Clear()
         fitCtr=0
+        c.Clear()
+        c.Divide(len(enRanges)/3+2,2)
+        ipad=0
         for iEtaRange in xrange(0,len(etaRanges)):
             etaMin=etaRanges[iEtaRange][0]
             etaMax=etaRanges[iEtaRange][1]
@@ -323,14 +326,25 @@ def runResolutionStudy(url,isHadronic=False,wsOutUrl=None):
                 fitDataEnMean, fitDataEnSigma = redData.mean(ws.var('en')),  redData.sigma(ws.var('en'))
 
                 #define PDF and ranges to fit/show
-                ws.var(vName).setRange(postfix,fitDataMean-4*fitDataSigma,fitDataMean+4*fitDataSigma)
-                ws.var(vName).setRange('fit'+postfix,fitDataMean*0.9,fitDataMean*1.1)
-                ws.factory('Gaussian::g_%s(%s,mean_%s[%f,%f,%f],sigma_%s[%f,%f,%f])'%
+                xaxisMin,xaxisMax=fitDataMean-4*fitDataSigma,fitDataMean+4*fitDataSigma
+                xfitMin, xfitMax=fitDataMean-nSigmasToFit*fitDataSigma,fitDataMean+nSigmasToFit*fitDataSigma
+                if fitDataSigma/fitDataMean > 0.2:
+                    xaxisMin, xaxisMax = fitDataMean*0.5, fitDataMean*2
+                    xfitMin,  xfitMax = fitDataMean*0.9, fitDataMean*1.1
+                ws.var(vName).setRange(postfix,xaxisMin,xaxisMax)
+                ws.var(vName).setRange('fit'+postfix,xfitMin,xfitMax)
+                #ws.factory('Gaussian::g_%s(%s,mean_%s[%f,%f,%f],sigma_%s[%f,%f,%f])'%
+                #           (postfix,vName,
+                #            postfix,fitDataMean,fitDataMean-25*fitDataSigma,fitDataMean+25*fitDataSigma,
+                #            postfix,fitDataSigma,fitDataSigma*0.001,fitDataSigma*2)
+                #    )
+                ws.factory('RooCBShape::g_%s(%s,mean_%s[%f,%f,%f],sigma_%s[%f,%f,%f],alpha_%s[0.001.,0.0001,20.0],n_%s[1])'%
                            (postfix,vName,
                             postfix,fitDataMean,fitDataMean-25*fitDataSigma,fitDataMean+25*fitDataSigma,
-                            postfix,fitDataSigma,fitDataSigma*0.001,fitDataSigma*2)
-                    )
-                
+                            postfix,fitDataSigma,fitDataSigma*0.001,fitDataSigma*2,
+                            postfix,postfix)
+                           )
+
                 #fit
                 fres=ws.pdf('g_%s'%postfix).fitTo( redData, ROOT.RooFit.Range('fit'+postfix), ROOT.RooFit.Save(True) )
                 meanFit       = ws.var('mean_%s'%postfix).getVal()
@@ -342,17 +356,47 @@ def runResolutionStudy(url,isHadronic=False,wsOutUrl=None):
                 np=calibFunc[nv].GetN()
                 calibFunc[nv].SetPoint(np,fitDataEnMean,meanFit)
                 calibFunc[nv].SetPointError(np,fitDataEnSigma,meanFitError)
+                
+                #show results
+                ipad=ipad+1
+                c.cd(ipad)
+                pframe=ws.var(vName).frame(ROOT.RooFit.Range(postfix))
+                redData.plotOn(pframe)
+                ws.pdf('g_%s'%postfix).plotOn(pframe,ROOT.RooFit.Range(postfix))
+                pframe.Draw()
+                pframe.GetXaxis().SetTitle(varTitle )
+                pframe.GetYaxis().SetTitle('Events')
+                pframe.GetYaxis().SetTitleOffset(1.2)
+                pframe.GetYaxis().SetRangeUser(0.01,1.8*pframe.GetMaximum())
+                pframe.GetXaxis().SetNdivisions(5)
+                pt=MyPaveText('[Energy=%d GeV, |#eta|=%3.1f]\\<E_{raw}>=%3.2f RMS=%3.2f\\<bias>=%3.2f #sigma=%3.2f'%
+                              (fitDataEnMean,avgEta,fitDataMean,fitDataSigma,meanFit,sigmaFit),
+                              0.18,0.9,0.5,0.6)
+                pt.SetTextFont(42)
+                pt.SetTextSize(0.06)
+                if ipad==1:
+                    simpt=MyPaveText('#bf{CMS} #it{simulation}')
+                    simpt.SetTextSize(0.06)
+                    simpt.SetTextFont(42)
+                               
 
+            #save the canvas with the fitted values
+            for ext in ['png','pdf','C'] : c.SaveAs(outDir+'/fits_%s_eta%3.1f.%s'%(var.GetName(),avgEta,ext))
+            raw_input()
+
+            #add the calibrated variable bias for the resolution fit
             calibFunc[nv].Fit(calibModel,'MER+')
             calibFunc[nv].GetFunction(calibModel.GetName()).SetLineColor(calibFunc[nv].GetLineColor())
             calib_offset=calibFunc[nv].GetFunction(calibModel.GetName()).GetParameter(1)
             calib_slope=calibFunc[nv].GetFunction(calibModel.GetName()).GetParameter(0)
-
-            #add the calibrated variable bias for the resolution fit
-            calibFname='%sCalibBias_%d'%(var.GetName(),nv)
+            #calibFname='%sCalibBias_%d'%(var.GetName(),nv)
+            #varValName=var.GetName().replace('Func','')
+            #ws.factory("RooFormulaVar::%s('(@0-%f)/%f-@1',{%s,en})"%(calibFname,calib_offset,calib_slope,varValName))
+            calibFname='%sCalib_%d'%(var.GetName(),nv)
             varValName=var.GetName().replace('Func','')
-            ws.factory("RooFormulaVar::%s('(@0-%f)/%f-@1',{%s,en})"%(calibFname,calib_offset,calib_slope,varValName))
+            ws.factory("RooFormulaVar::%s('(@0-%f)/%f',{%s})"%(calibFname,calib_offset,calib_slope,varValName))
 
+            
             #use the values
             calibVname=calibFname.replace('Func','')
             calibEnEstimatorsSet=ROOT.RooArgSet(ws.var('eta'),ws.var('en'),ws.factory('%s[0,-9999999,9999999]'%calibVname))
@@ -369,7 +413,7 @@ def runResolutionStudy(url,isHadronic=False,wsOutUrl=None):
             c.Clear()
             c.Divide(len(enRanges)/3+2,2)
             ipad=0
-            for ptRang in enRanges:
+            for enMin,enMax in enRanges:
                 postfix='fit%d%d%d%d'%(fitCtr,nv,iEtaRange,ipad)
                 ipad=ipad+1
 
@@ -383,17 +427,25 @@ def runResolutionStudy(url,isHadronic=False,wsOutUrl=None):
                 calibFitDataMean,   calibFitDataSigma   = redData.mean(ws.var(calibVname)), redData.sigma(ws.var(calibVname))
                 fitDataEnMean, fitDataEnSigma = redData.mean(ws.var('en')),  redData.sigma(ws.var('en'))
                 
-                if (not isHadronic) and calibFitDataSigma/calibFitDataMean>0.1 :
-                    ws.var(calibVname).setRange(postfix+calibVname,-0.3*fitDataEnMean,0.3*fitDataEnMean)
-                    ws.var(calibVname).setRange('fit'+postfix+calibVname,-0.1*fitDataEnMean,0.1*fitDataEnMean)
-                else:
-                    ws.var(calibVname).setRange(postfix+calibVname,calibFitDataMean-4*calibFitDataSigma,calibFitDataMean+4*calibFitDataSigma)
-                    ws.var(calibVname).setRange('fit'+postfix+calibVname,calibFitDataMean-nSigmasToFit*calibFitDataSigma,calibFitDataMean+nSigmasToFit*calibFitDataSigma)
-                ws.factory('Gaussian::gcalib_%s_%s(%s,calibmean_%s_%s[%f,%f,%f],calibsigma_%s_%s[%f,%f,%f])'%
-                           (postfix, calibVname,  calibVname,
-                            postfix, calibVname,  0,  -5*calibFitDataSigma, +5*calibFitDataSigma,
-                            postfix, calibVname,  calibFitDataSigma, calibFitDataSigma*0.001,              calibFitDataSigma*2)
-                    )
+                xaxisMin,xaxisMax=calibFitDataMean-4*calibFitDataSigma,calibFitDataMean+4*calibFitDataSigma
+                xfitMin, xfitMax=calibFitDataMean-nSigmasToFit*calibFitDataSigma,calibFitDataMean+nSigmasToFit*calibFitDataSigma
+                if calibFitDataSigma/calibFitDataMean > 0.2:
+                    xaxisMin, xaxisMax = calibFitDataMean*0.5, calibFitDataMean*2
+                    xfitMin,  xfitMax = calibFitDataMean*0.9, calibFitDataMean*1.1
+                ws.var(calibVname).setRange(postfix+calibVname,xaxisMin,xaxisMax)
+                ws.var(calibVname).setRange('fit'+postfix+calibVname,xfitMin,xfitMax)
+                #ws.factory('Gaussian::gcalib_%s_%s(%s,calibmean_%s_%s[%f,%f,%f],calibsigma_%s_%s[%f,%f,%f])'%
+                #           (postfix, calibVname,  calibVname,
+                #            postfix, calibVname,  0,  -5*calibFitDataSigma, +5*calibFitDataSigma,
+                #            postfix, calibVname,  calibFitDataSigma, calibFitDataSigma*0.001,              calibFitDataSigma*2)
+                #    )
+                ws.factory('RooCBShape::gcalib_%s_%s(%s,calibmean_%s_%s[%f,%f,%f],calibsigma_%s_%s[%f,%f,%f],calibalpha_%s_%s[0.001.,0.0001,20.0],calibn_%s_%s[1])'%
+                           (postfix,calibVname, calibVname,
+                            postfix,calibVname,calibFitDataMean,calibFitDataMean-25*calibFitDataSigma,calibFitDataMean+25*calibFitDataSigma,
+                            postfix,calibVname,calibFitDataSigma,calibFitDataSigma*0.001,calibFitDataSigma*2,
+                            postfix,calibVname,postfix,calibVname)
+                           )
+
                 fres=ws.pdf('gcalib_%s_%s'%(postfix,calibVname)).fitTo( redData, ROOT.RooFit.Range('fit'+postfix+calibVname), ROOT.RooFit.Save(True) )
                 meanFit       = ws.var('calibmean_%s_%s'%(postfix,calibVname)).getVal()
                 sigmaFit      = ws.var('calibsigma_%s_%s'%(postfix,calibVname)).getVal()
@@ -410,13 +462,13 @@ def runResolutionStudy(url,isHadronic=False,wsOutUrl=None):
                 redData.plotOn(pframe)
                 ws.pdf('gcalib_%s_%s'%(postfix,calibVname)).plotOn(pframe,ROOT.RooFit.Range(postfix+calibVname))
                 pframe.Draw()
-                pframe.GetXaxis().SetTitle( 'Calibrated ' + varTitle )
-                pframe.GetYaxis().SetTitle( 'Events')
+                pframe.GetXaxis().SetTitle( 'Calibrated ' + varTitle + ' [GeV]' )
+                pframe.GetYaxis().SetTitle( 'Events' )
                 pframe.GetYaxis().SetTitleOffset(1.2)
                 pframe.GetYaxis().SetRangeUser(0.01,1.8*pframe.GetMaximum())
                 pframe.GetXaxis().SetNdivisions(5)
-                pt=MyPaveText('[Energy=%d GeV, |#eta|=%3.1f]\\<E>=%3.1f RMS=%3.1f GeV\\<bias>=%3.1f #sigma=%3.1f GeV'%
-                              (fitDataEnMean,avgEta,calibFitDataMean+fitDataEnMean,calibFitDataSigma,meanFit,sigmaFit),
+                pt=MyPaveText('[Energy=%d GeV, |#eta|=%3.1f]\\<E>=%3.2f RMS=%3.2f\\#mu=%3.2f #sigma=%3.2f'%
+                              (fitDataEnMean,avgEta,calibFitDataMean,calibFitDataSigma,meanFit,sigmaFit),
                     0.18,0.9,0.5,0.6)
                 pt.SetTextFont(42)
                 pt.SetTextSize(0.06)
@@ -428,7 +480,7 @@ def runResolutionStudy(url,isHadronic=False,wsOutUrl=None):
             c.Modified()
             c.Update()
             raw_input()
-            for ext in ['png','pdf','C'] : c.SaveAs(outDir+'/efits_%s_eta%3.1f.%s'%(vName,avgEta,ext))
+            for ext in ['png','pdf','C'] : c.SaveAs(outDir+'/biasfits_%s_eta%3.1f.%s'%(vName,avgEta,ext))
 
     return showEMcalibrationResults(calibFunc=calibFunc,resFunc=resFunc,outDir=outDir,isHadronic=isHadronic)
 
