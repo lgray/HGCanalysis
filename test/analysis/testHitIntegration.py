@@ -73,7 +73,7 @@ a control region in the opposite pseudo-rapidity is checked as well
 """
 def testHitIntegration(urlList,probeCone,useTrackAsRef,outUrl):
 
-  print '[testHitIntegration] with %d files, using dR=%3.1f'%(len(urlList),probeCone)
+  print '[testHitIntegration] with %d files, using dR=%3.2f'%(len(urlList),probeCone)
   if useTrackAsRef : print ' reconstructed track will be used as a reference'
 
   #general root formats
@@ -122,7 +122,7 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,outUrl):
   #prepare ntuple
   print '[testHitIntegration] histograms stored @ %s'%outUrl
   fOut=ROOT.TFile(outUrl,'RECREATE')
-  ntupleVarNames='genPt:genEta:genPhi'
+  ntupleVarNames='genEn:genEta:genPhi'
   for sd in xrange(0,signalHitIntegrator.nsd):
     for lay in xrange(0,signalHitIntegrator.nlay[sd]):
       for ivar in ['toten','en','adc','puadc','hits','puhits']:
@@ -139,7 +139,7 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,outUrl):
     sys.stdout.write( '\r[testHitIntegration] status [%d/%d]'%(iev,HGC.GetEntries()))
        
     if HGC.ngen!=1 : continue
-    ntupleVars[0]=HGC.gen_pt[0]
+    ntupleVars[0]=HGC.gen_en[0]
     ntupleVars[1]=HGC.gen_eta[0]
     ntupleVars[2]=HGC.gen_phi[0]
     
@@ -160,9 +160,9 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,outUrl):
       sdType          = HGC.hit_type[n]
       layer           = HGC.hit_layer[n]
       hit_eta         = HGC.hit_eta[n]
-      if abs(abs(hit_eta)-abs(HGC.gen_eta[0]))>probeCone*1.5 : continue # not worth looking into this ones
+      #if abs(abs(hit_eta)-abs(HGC.gen_eta[0]))>probeCone*1.5 : continue # not worth looking into this ones
       hit_phi         = HGC.hit_phi[n]
-      etaEnCorrection = ROOT.TMath.Abs(ROOT.TMath.Cos(2*ROOT.TMath.ATan(ROOT.TMath.Exp(-hit_eta))))
+      etaEnCorrection = ROOT.TMath.Abs(ROOT.TMath.TanH(hit_eta))
       simHitEn        = HGC.hit_edep[n]*etaEnCorrection
       #cf. http://root.cern.ch/phpBB3/viewtopic.php?t=9457
       simHitEnIT      = HGC.hit_edep_sample[n*5+0]*etaEnCorrection
@@ -181,9 +181,9 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,outUrl):
       refEta = HGC.gen_eta[0]
       if isCtrlRegion : refEta = -1*refEta
       refPhi = HGC.gen_phi[0]
-      if useTrackAsRef : 
 
-        #find the extrapolation of the track from closest z (only needed for HEB)
+      #if track is to be used, find the extrapolation of the track from closest z (only needed for HEB)
+      if useTrackAsRef : 
         iForMinDZ=layer-1
         if sdType>0 : iForMinDZ += HGC.nlay[0]
         if sdType>1 : 
@@ -217,7 +217,7 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,outUrl):
         refEta = 0
         if tk_rho>tk_z: refEta=0.5*ROOT.TMath.Log( (tk_rho+tk_z)/(tk_rho-tk_z) )
 
-      
+
       #distance in phase space: for the control region sample every 36 deg in phi 
       if isCtrlRegion :
         for iphi in xrange(0,10) :

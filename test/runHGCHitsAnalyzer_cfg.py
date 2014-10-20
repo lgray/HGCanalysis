@@ -27,19 +27,22 @@ process.options   = cms.untracked.PSet( wantSummary = cms.untracked.bool(False),
 ffile=0
 step=-1
 preFix='Single13_CMSSW_6_2_0_SLHC18'
+doFullAnalysis=True
 import os,sys
 if(len(sys.argv)<3):
     print '\ncmsRun runHGCSimHitsAnalyzer_cfg.py doFullAnalysis tag first_file step\n'
+    print '\tdoFullAnalysis (0/1) - save all information or only hits and digis'
     print '\ttag - process tag'
     print '\tfirst_file - first file to process'
     print '\tstep - number of files to process\n'
     sys.exit()
 
-preFix=sys.argv[2]
-if(len(sys.argv)>3):
-    if(sys.argv[3].isdigit()) : ffile=int(sys.argv[3])
+if sys.argv[2]=="0" : doFullAnalysis=False
+preFix=sys.argv[3]
 if(len(sys.argv)>4):
-    if(sys.argv[4].isdigit()) : step=int(sys.argv[4])
+    if(sys.argv[4].isdigit()) : ffile=int(sys.argv[4])
+if(len(sys.argv)>5):
+    if(sys.argv[5].isdigit()) : step=int(sys.argv[5])
 print '[runHGCSimHitsAnalyzer] processing %d files of %s, starting from %d'%(step,preFix,ffile)
 
 #configure the source (list all files in directory within range [ffile,ffile+step[
@@ -61,6 +64,14 @@ whoami=getpass.getuser()
 outputTag=preFix.replace('/','_')
 process.TFileService = cms.Service("TFileService", fileName = cms.string('/tmp/%s/%s_SimHits_%d.root'%(whoami,outputTag,ffile)))
 process.load('UserCode.HGCanalysis.hgcSimHitsAnalyzer_cfi')
+if doFullAnalysis:
+    process.analysis.saveG4           = cms.untracked.bool(False)
+    print '[runHGCSimHitsAnalyzer] will run a full analysis: store G4 (disabled for the moment) and genParticle information, propagate tracks'
+else:
+    process.analysis.saveGenParticles = cms.untracked.bool(True)
+    process.analysis.saveG4           = cms.untracked.bool(False)
+    process.analysis.saveTkExtrapol   = cms.untracked.bool(True)
+    print '[runHGCSimHitsAnalyzer] won\'t store G4 extrapolation'
 
 #run it
 process.p = cms.Path(process.analysis)
