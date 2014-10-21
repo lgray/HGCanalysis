@@ -114,7 +114,8 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  if(hitEta*genEta_<0) continue;    
 	  
 	  //save it if interesting
-	  float hitEnInMIPs(hit_it->energy()*TMath::TanH(hitEta)/mipEn_[i]);
+	  float hitEnInMIPs(hit_it->energy()/mipEn_[i]);
+	  //hitEnInMIPs *= TMath::TanH(hitEta);
 	  if(hitEnInMIPs<0.5) continue;
 	  for(size_t ithr=0; ithr<thrList_.size(); ithr++)
 	    {

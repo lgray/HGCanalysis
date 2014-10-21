@@ -76,6 +76,9 @@ cmsRun runHGCSimHitsAnalyzer_cfg.py
 Submit several jobs to the batch and store the output in EOS
 
 pids=(11 211)
+ifiles=(0 100 200 300 400 500 600 700)
 for pid in ${pids[@]}; do
-    python scripts/submitLocalAnalysis_cfg.py -q 1nd -s -1 -t Single${pid}_${CMSSW_VERSION}_v2;
+    for ifile in ${ifiles[@]}; do
+    	cmsRun test/runHGCSimHitsAnalyzer_cfg.py Single${pid}_${CMSSW_VERSION}_v2 ${ifile} 100 & 
+    done
 done
