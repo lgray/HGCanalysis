@@ -138,17 +138,26 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,outUrl):
 
     sys.stdout.write( '\r[testHitIntegration] status [%d/%d]'%(iev,HGC.GetEntries()))
        
-    if HGC.ngen!=1 : continue
+    #if HGC.ngen!=1 : continue
     ntupleVars[0]=HGC.gen_en[0]
     ntupleVars[1]=HGC.gen_eta[0]
     ntupleVars[2]=HGC.gen_phi[0]
     
     #track resolution
+    closestTrack=-1
+    closestTrackDR=0
     if useTrackAsRef:
-      if HGC.ntk!=1 : continue
-      histos['tk_ptres'].Fill(HGC.tk_pt[0]/HGC.gen_pt[0]-1)
-      histos['tk_etares'].Fill(HGC.tk_eta[0]-HGC.gen_eta[0])
-      histos['tk_phires'].Fill(HGC.tk_phi[0]-HGC.gen_phi[0])
+      if HGC.ntk!=HGC.ngen : continue
+      for itk in xrange(0,HGC.ntk):
+        deltaEta=HGC.tk_eta[itk]-HGC.gen_eta[0]
+        deltaPhi= ROOT.TVector2.Phi_mpi_pi(HGC.tk_phi[0]-HGC.gen_phi[0])
+        deltaR   = ROOT.TMath.Sqrt(deltaEta*deltaEta+deltaPhi*deltaPhi)
+        if closestTrack<0 or closestTrackDR>deltaR : 
+          closestTrack,closestTrackDR=itk,deltaR
+      histos['tk_ptres'].Fill(HGC.tk_pt[closestTrack]/HGC.gen_pt[0]-1)
+      histos['tk_etares'].Fill(HGC.tk_eta[closestTrack]-HGC.gen_eta[0])
+      histos['tk_phires'].Fill( ROOT.TVector2.Phi_mpi_pi(HGC.tk_phi[closestTrack]-HGC.gen_phi[0]) )
+      print closestTrack,closestTrackDR
 
     #hit analysis
     if HGC.nhits==0 : continue
@@ -191,7 +200,7 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,outUrl):
           iForMinDZ=-1
           for itkext in xrange(HGC.nlay[0]+HGC.nlay[1],66):
             #cf. http://root.cern.ch/phpBB3/viewtopic.php?t=9457
-            tk_z=HGC.tk_extrapol_z[0*HGC.ntk+itkext]
+            tk_z=HGC.tk_extrapol_z[closestTrack*HGC.ntk+itkext]
             if isCtrlRegion : tk_z = -1*tk_z
             dZ=ROOT.TMath.Abs(tk_z-hit_z)
             if dZ > minDZ : continue
@@ -202,9 +211,9 @@ def testHitIntegration(urlList,probeCone,useTrackAsRef,outUrl):
         if iForMinDZ<0 : continue
 
         #cf. http://root.cern.ch/phpBB3/viewtopic.php?t=9457
-        tk_x = HGC.tk_extrapol_x[0*HGC.ntk+iForMinDZ]
-        tk_y = HGC.tk_extrapol_y[0*HGC.ntk+iForMinDZ]
-        tk_z = HGC.tk_extrapol_z[0*HGC.ntk+iForMinDZ]
+        tk_x = HGC.tk_extrapol_x[closestTrack*HGC.ntk+iForMinDZ]
+        tk_y = HGC.tk_extrapol_y[closestTrack*HGC.ntk+iForMinDZ]
+        tk_z = HGC.tk_extrapol_z[closestTrack*HGC.ntk+iForMinDZ]
         histos[pfix+'hitwgtdx'].Fill(hit_x-tk_x,hitADC)
         histos[pfix+'hitwgtdy'].Fill(hit_y-tk_y,hitADC)
         histos[pfix+'hitwgtdz'].Fill(hit_z-tk_z,hitADC)
