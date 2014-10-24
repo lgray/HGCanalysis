@@ -12,7 +12,7 @@ from UserCode.HGCanalysis.PlotUtils import *
 """
 Converts all to a workspace and returns optimized weights
 """
-def prepareWorkspace(url,integRanges,treeVarName,outUrl):
+def prepareWorkspace(url,integRanges,treeVarName,deriveOffset,outUrl):
     
     #prepare the workspace
     ws=ROOT.RooWorkspace("w")
@@ -21,8 +21,8 @@ def prepareWorkspace(url,integRanges,treeVarName,outUrl):
     getattr(ws,'import')( ROOT.RooDataSet('data','data',dsVars) )
 
     #optimization with linear regression
-    optimVec    = numpy.zeros( len(integRanges)+1 )
-    optimMatrix = numpy.zeros( (len(integRanges)+1, len(integRanges)+1 ) )
+    optimVec    = numpy.zeros( len(integRanges)+int(deriveOffset) )
+    optimMatrix = numpy.zeros( (len(integRanges)+int(deriveOffset), len(integRanges)+int(deriveOffset) ) )
 
     #read all to a RooDataSet
     fin=ROOT.TFile.Open(url)
@@ -53,23 +53,35 @@ def prepareWorkspace(url,integRanges,treeVarName,outUrl):
         ws.data('data').add( newEntry )
 
         #fill the optmization matrix and vector for a subset of events (low energy, low eta)
-        for ie in xrange(0,len(edeps)):
-            for je in xrange(0,len(edeps)): 
-                optimMatrix[ie][je]=optimMatrix[ie][je]+edeps[ie]*edeps[je]/(genEn*genEn)
-            optimMatrix[len(edeps)][ie]=optimMatrix[len(edeps)][ie]+edeps[ie]/(genEn*genEn)
-            optimMatrix[ie][len(edeps)]=optimMatrix[ie][len(edeps)]+edeps[ie]/(genEn*genEn)
-            optimVec[ie]=optimVec[ie]+edeps[ie]/genEn
-        optimMatrix[len(edeps)][len(edeps)]=optimMatrix[len(edeps)][len(edeps)]+1.0/(genEn*genEn)
-        optimVec[len(edeps)]=optimVec[len(edeps)]+1.0/genEn        
+
+        #include weights and offset
+        if deriveOffset:
+            for ie in xrange(0,len(edeps)):
+                optimVec[ie]=optimVec[ie]+edeps[ie]/genEn
+                for je in xrange(0,len(edeps)): 
+                    optimMatrix[ie][je]=optimMatrix[ie][je]+edeps[ie]*edeps[je]/(genEn*genEn)
+                optimMatrix[len(edeps)][ie]=optimMatrix[len(edeps)][ie]+edeps[ie]/(genEn*genEn)
+                optimMatrix[ie][len(edeps)]=optimMatrix[ie][len(edeps)]+edeps[ie]/(genEn*genEn)
+            optimVec[len(edeps)]=optimVec[len(edeps)]+1.0/genEn        
+            optimMatrix[len(edeps)][len(edeps)]=optimMatrix[len(edeps)][len(edeps)]+1.0/(genEn*genEn)
+            
+        #include only weights
+        else:
+            for ie in xrange(0,len(edeps)):
+                optimVec[ie]=optimVec[ie]+edeps[ie]/genEn
+                for je in xrange(0,len(edeps)): 
+                    optimMatrix[ie][je]=optimMatrix[ie][je]+edeps[ie]*edeps[je]/(genEn*genEn)
+
+
     fin.Close()
 
     #all done, write to file
     ws.writeToFile(outUrl,True)
     print 'Created the analysis RooDataSet with %d events, stored @ %s'%(ws.data('data').numEntries(),outUrl)
 
-    #finalize weight optimization
+    #finalize weight optimization (solve linear equation system)
     optimWeights=numpy.linalg.solve(optimMatrix,optimVec)
-    return optimWeights
+    return optimWeights.tolist()
 
     
 
@@ -138,7 +150,6 @@ def showEMcalibrationResults(methodNames,calibFunc,resFunc,outDir,isHadronic=Fal
     c.Modified()
     c.Update()
     for ext in ['png','pdf','C'] : c.SaveAs('%s/resolution.%s'%(outDir,ext))
-    #raw_input()
     
     #
     #calibration
@@ -200,14 +211,13 @@ def showEMcalibrationResults(methodNames,calibFunc,resFunc,outDir,isHadronic=Fal
 
 """
 """
-def runResolutionStudy(url,treeVarName='edep_thr0',isHadronic=False,wsOutUrl=None):
+def runResolutionStudy(url,treeVarName='edep_thr0',isHadronic=False,deriveOffset=False,wsOutUrl=None):
     
     #init weights
-    integRanges=[[1,1],[2,2],[3,11],[12,21],[22,30],[31,31],[32,43],[44,54]]
-    defWeights =[0.08, 0.92, 0.6,   0.8,    1.2,    3.58,   2.72,   2.31]
-    if isHadronic:
-        defWeights = [1.0, 1.0, 1.1, 1.4, 7.6,5.6, 4.8]
- 
+    integRanges = [[1,1],[2,11],[12,21],[22,30],[31,31],[32,42],[43,54]]
+    defWeights  = [0.08,  0.62,   0.81, 1.19,   3.58,   2.72,   2.31 ]
+    if isHadronic : defWeights = [0.01, 0.036, 0.042, 0.055, 0.34, 0.25, 0.21 ] 
+
     #integRanges  = [[1,1]]
     #defWeights   = [0.08]
     #integRanges += [[2,2],[3,3],[4,4],[5,5],[6,6],[7,7],[8,8],[9,9],[10,10],[11,11]]
@@ -238,7 +248,8 @@ def runResolutionStudy(url,treeVarName='edep_thr0',isHadronic=False,wsOutUrl=Non
     #get workspace
     if wsOutUrl is None:
         wsOutUrl='%s/workspace.root'%outDir
-        optimWeights=prepareWorkspace(url=url,integRanges=integRanges,treeVarName=treeVarName,outUrl=wsOutUrl)
+        optimWeights=prepareWorkspace(url=url,integRanges=integRanges,treeVarName=treeVarName,outUrl=wsOutUrl,deriveOffset=deriveOffset)
+        if not deriveOffset : optimWeights.append(0)
     wsOutF=ROOT.TFile.Open(wsOutUrl)
     ws=wsOutF.Get('w')
     wsOutF.Close()
@@ -303,7 +314,7 @@ def runResolutionStudy(url,treeVarName='edep_thr0',isHadronic=False,wsOutUrl=Non
     for var,varTitle in vars:
         varCtr+=1
         vName=var.GetName().replace('Func','')
-        outliersPhi=ROOT.TH1F('outliersphi',';#phi [rad];Events',50,0,3.2)
+        outliersPhi=ROOT.TH1F('outliersphi',';#phi [rad];Events',100,0,3.2)
 
         #run calibration and resolution fits in different rapidity ranges
         for iEtaRange in xrange(0,len(etaRanges)):
@@ -492,8 +503,15 @@ def runResolutionStudy(url,treeVarName='edep_thr0',isHadronic=False,wsOutUrl=Non
             c.Modified()
             c.Update()
             for ext in ['png','pdf','C'] : c.SaveAs(outDir+'/biasfits_%s_eta%3.1f.%s'%(vName,avgEta,ext))
+
+        #show the outliers phi distribution
+        c.Clear()
         outliersPhi.Draw()
-        raw_input()
+        simpt=MyPaveText('#bf{CMS} #it{simulation}')
+        simpt.SetTextSize(0.06)
+        simpt.SetTextFont(42)
+        for ext in ['png','pdf','C'] : c.SaveAs(outDir+'/%s_outliers.%s'%(vName,ext))
+
     showEMcalibrationResults(methodNames=methodNames,calibFunc=calibFunc,resFunc=resFunc,outDir=outDir,isHadronic=isHadronic)
 
 """
@@ -503,20 +521,26 @@ def main():
     
     usage = 'usage: %prog [options]'
     parser = optparse.OptionParser(usage)
-    parser.add_option('-i',      '--in' ,      dest='input',       help='Input file',                            default='Single11_0.root')
-    parser.add_option('--isHad' ,              dest='isHad',       help='Flag if it\'s an hadronic calibration', default=False, action="store_true")
-    parser.add_option('-w',      '--ws' ,      dest='ws',          help='ROOT file with previous workspace',     default=None)
-    parser.add_option('-v',      '--var' ,     dest='treeVarName', help='Variable to use as energy estimotor',   default='edep_thr0')
+    parser.add_option('-i',      '--in' ,      dest='input',        help='Input file',                              default=None)
+    parser.add_option('--isHad' ,              dest='isHad',        help='Flag if it\'s an hadronic calibration',   default=False, action="store_true")
+    parser.add_option('--offset' ,             dest='deriveOffset', help='Flag if calibration offset is to be fit', default=False, action="store_true")
+    parser.add_option('-w',      '--ws' ,      dest='ws',           help='ROOT file with previous workspace',       default=None)
+    parser.add_option('-v',      '--var' ,     dest='treeVarName',  help='Variable to use as energy estimotor',     default='edep_thr0')
     (opt, args) = parser.parse_args()
+
+     #check inputs                                                                                                                                                                                                  
+    if opt.input is None :
+        parser.print_help()
+        sys.exit(1)
 
     #basic ROOT customization
     customROOTstyle()
-    ROOT.gROOT.SetBatch(False)
-    #ROOT.gROOT.SetBatch(True)
+    #ROOT.gROOT.SetBatch(False)
+    ROOT.gROOT.SetBatch(True)
     ROOT.gStyle.SetOptTitle(0)
     ROOT.gStyle.SetOptStat(0)
     
-    runResolutionStudy(url=opt.input,treeVarName=opt.treeVarName,isHadronic=opt.isHad,wsOutUrl=opt.ws)
+    runResolutionStudy(url=opt.input,treeVarName=opt.treeVarName,isHadronic=opt.isHad,deriveOffset=opt.deriveOffset,wsOutUrl=opt.ws)
     
 if __name__ == "__main__":
     sys.exit(main())
