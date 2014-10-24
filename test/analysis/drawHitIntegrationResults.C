@@ -42,8 +42,12 @@ void fixExtremities(TH1* h,bool addOverflow, bool addUnderflow)
 
 
 //
-void drawHitIntegrationResults(TString inURL="IntegrateHits_trackExtrapolation.root",TString outDir="~/www/HGCal/HitIntegration/v4")
+void drawHitIntegrationResults(TString inURL="IntegrateHits_trackExtrapolation.root",TString outDir="~/www/HGCal/HitIntegration/v4",bool isV4=false)
 {
+  //prepare output                                                                                                                                                                                        
+  gSystem->Exec("mkdir -p " +outDir);
+  gSystem->Exec("cp $CMSSW_BASE/src/UserCode/HGCanalysis/test/analysis/hitinteg_index.html " + outDir +"/index.html");
+
   TString dists[]=
     {      
       "hitwgtdx",
@@ -72,17 +76,12 @@ void drawHitIntegrationResults(TString inURL="IntegrateHits_trackExtrapolation.r
       TGraphErrors *profileInSD_ctrl=new TGraphErrors; profileInSD_ctrl->Clone("profileinsd_ctrl"); profileInSD_ctrl->SetTitle(crTitle); profileInSD_ctrl->SetMarkerStyle(24);
       for(size_t isd=0;isd<=2; isd++)
 	{
-	  //v4
-	  //size_t nlayers(31);
-	  //TString sdName("EE");
-	  //if(isd==1) {sdName="HEfront"; nlayers=12; }
-	  //if(isd==2) {sdName="HEback";  nlayers=10; }
 
 	  //v5
-	  size_t nlayers(30);
+	  size_t nlayers(isV4 ? 30 : 31);
 	  TString sdName("EE");
 	  if(isd==1) {sdName="HEfront"; nlayers=12; }
-	  if(isd==2) {sdName="HEback";  nlayers=12; }
+	  if(isd==2) {sdName="HEback";  nlayers= isV4 ? 10 : 12; }
 
 	  TH1 *totalInSD=0,*totalInSD_ctrl=0;
 	  for(size_t ilayer=1; ilayer<=nlayers; ilayer++)
