@@ -26,14 +26,14 @@ the submitLocalHGCalProduction.py wrapper script. Two examples are given below:
 For muons it's enough a single energy
 
 #default geometry
-python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single13_${CMSSW_VERSION} -p 13 -n 100 -e 100";
+python scripts/submitLocalHGCalProduction.py -q 1nd -n 10 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single13_${CMSSW_VERSION} -p 13 -n 100 -e 100";
 #change geometry scenario
 python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single13_v4_${CMSSW_VERSION} -p 13 -n 100 -e 100 -g Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco";
 
 For calibration use 100 events per file x 100 jobs
 
 energies=(5 10 20 30 50 75 100 150 250 500)
-pids=(11 211)
+pids=(11 22 211 130)
 for pid in ${pids[@]}; do
     for en in ${energies[@]}; do
 	#default geometry

@@ -33,6 +33,7 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   //configure analyzer
   hitCollections_        = iConfig.getUntrackedParameter< std::vector<std::string> >("hitCollections");
   recHitCollections_     = iConfig.getUntrackedParameter< std::vector<std::string> >("recHitCollections");
+  pfRecHitCollections_   = iConfig.getUntrackedParameter< std::vector<std::string> >("pfRecHitCollections");
   pfClustersCollections_ = iConfig.getUntrackedParameter< std::vector<std::string> >("pfClustersCollections");
   geometrySource_        = iConfig.getUntrackedParameter< std::vector<std::string> >("geometrySource");
   mipEn_                 = iConfig.getUntrackedParameter< std::vector<double> >("mipEn");
@@ -193,9 +194,11 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  key="clus";
 	  allEdeps[key] = templEdep;
 	  maxEdep[key]=std::pair<uint32_t,float>(0,-1.0);
+	  edm::Handle<reco::PFRecHitCollection> pfRecHits;
+	  iEvent.getByLabel(edm::InputTag(pfRecHitCollections_[i],"Cleaned"),pfRecHits);
 	  edm::Handle<reco::PFClusterCollection> pfClusters;
 	  iEvent.getByLabel(edm::InputTag(pfClustersCollections_[i],""),pfClusters);
-	  
+      
 	  //get all within DR=0.4
 	  int nClusters(0);
 	  for(reco::PFClusterCollection::const_iterator c_it=pfClusters->begin(); 

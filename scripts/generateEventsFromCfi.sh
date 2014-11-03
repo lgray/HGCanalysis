@@ -80,6 +80,15 @@ if [ "$PILEUP" = "local" ]; then
 fi
 
 #run cmsDriver
+#cmsDriver.py ${CFI} -n ${NEVENTS} \
+#    --python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
+#    $PILEUP \
+#    -s GEN,SIM --datatier GEN-SIM --eventcontent FEVTDEBUGHLT\
+#    --conditions auto:upgradePLS3 --beamspot Gauss --magField 38T_PostLS1 \
+#    --customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
+#    --geometry ${GEOMETRY} \
+#    --no_exec 
+
 cmsDriver.py ${CFI} -n ${NEVENTS} \
     --python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
     $PILEUP \

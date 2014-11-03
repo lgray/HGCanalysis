@@ -84,7 +84,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   std::string genSource_;
   
   //hgcal
-  std::vector<std::string> hitCollections_, recHitCollections_, pfClustersCollections_, geometrySource_;
+  std::vector<std::string> hitCollections_, recHitCollections_, pfRecHitCollections_, pfClustersCollections_, geometrySource_;
 };
  
 

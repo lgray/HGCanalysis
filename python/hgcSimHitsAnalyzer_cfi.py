@@ -5,6 +5,7 @@ analysis = cms.EDAnalyzer("HGCSimHitsAnalyzer",
                           geometrySource        = cms.untracked.vstring('HGCalEESensitive',        'HGCalHESiliconSensitive',  'HGCalHEScintillatorSensitive'),
                           hitCollections        = cms.untracked.vstring('HGCHitsEE',               'HGCHitsHEfront',           'HGCHitsHEback'               ),
                           recHitCollections     = cms.untracked.vstring('HGCEERecHits',            'HGCHEFRecHits',            'HGCHEBRecHits'),
+                          pfRecHitCollections   = cms.untracked.vstring('particleFlowRecHitHGCEE', 'particleFlowRecHitHGCHEF', 'particleFlowRecHitHGCHEB'),
                           pfClustersCollections = cms.untracked.vstring('particleFlowClusterHGCEE','particleFlowClusterHGCHEF','particleFlowClusterHGCHEB'),
                           mipEn                 = cms.untracked.vdouble(55.1,                       85,                        1498.4),
                           thrList               = cms.untracked.vdouble(0.5)
