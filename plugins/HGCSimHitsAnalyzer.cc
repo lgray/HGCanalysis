@@ -24,6 +24,7 @@
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
 
 #include <iostream>
+#include <unordered_map>
 
 using namespace std;
 
@@ -33,11 +34,9 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   //configure analyzer
   hitCollections_        = iConfig.getUntrackedParameter< std::vector<std::string> >("hitCollections");
   recHitCollections_     = iConfig.getUntrackedParameter< std::vector<std::string> >("recHitCollections");
-  pfRecHitCollections_   = iConfig.getUntrackedParameter< std::vector<std::string> >("pfRecHitCollections");
   pfClustersCollections_ = iConfig.getUntrackedParameter< std::vector<std::string> >("pfClustersCollections");
   geometrySource_        = iConfig.getUntrackedParameter< std::vector<std::string> >("geometrySource");
   mipEn_                 = iConfig.getUntrackedParameter< std::vector<double> >("mipEn");
-  thrList_               = iConfig.getUntrackedParameter< std::vector<double> >("thrList");
 
   //init tree
   edm::Service<TFileService> fs;
@@ -52,32 +51,38 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       TString key("sim");
       if(istep==1) key="rec";
       if(istep==2) key="clus";
-      std::vector<Float_t *> templVF;
-      edeps_[key]    = templVF;
-      emeanPhi_[key] = templVF;
-      emeanEta_[key] = templVF;
-      sihih_[key]    = templVF;
-      sipip_[key]    = templVF;
-      sipih_[key]    = templVF;
-      std::vector<Int_t *> templVI;
-      nhits_[key]    = templVI;
-      for(size_t i=0; i<thrList_.size(); i++)
-	{
-	  TString pf("_thr"); pf+=i;
-	  edeps_[key].push_back( new Float_t[100] ); 
-	  emeanPhi_[key].push_back( new Float_t[100] ); 
-	  emeanEta_[key].push_back( new Float_t[100] ); 
-	  sihih_[key].push_back( new Float_t[100] ); 
-	  sipip_[key].push_back( new Float_t[100] ); 
-	  sipih_[key].push_back( new Float_t[100] ); 
-	  nhits_[key].push_back( new Int_t[100] );
-	  t_->Branch("edep_"+key+pf,      edeps_[key][i],    "edeps_"+key+pf+"[nlay]/F");
-	  t_->Branch("emeanPhi_"+key+pf,  emeanPhi_[key][i], "emeanPhi_"+key+pf+"[nlay]/F");
-	  t_->Branch("emeanEta_"+key+pf,  emeanEta_[key][i], "emeanEta_"+key+pf+"[nlay]/F");
-	  t_->Branch("sihih_"+key+pf,     sihih_[key][i],    "sihih_"+key+pf+"[nlay]/F");
-	  t_->Branch("sipip_"+key+pf,     sipip_[key][i],    "sipip_"+key+pf+"[nlay]/F");
-	  t_->Branch("sipih_"+key+pf,     sipih_[key][i],    "sipih_"+key+pf+"[nlay]/F");
-	  t_->Branch("nhits_"+key+pf,     nhits_[key][i],    "nhits_"+key+pf+"[nlay]/I");
+
+      nhits_[key]    = new Int_t[100];
+      t_->Branch("nhits_"+key,     nhits_[key],    "nhits_"+key+"[nlay]/I");
+
+      edeps_[key]    = new Float_t[100];
+      t_->Branch("edep_"+key,      edeps_[key],    "edeps_"+key+"[nlay]/F");
+      
+      edeps3x3_[key]    = new Float_t[100];
+      t_->Branch("edep3x3_"+key,      edeps3x3_[key],    "edeps3x3_"+key+"[nlay]/F");
+
+      edeps5x5_[key]    = new Float_t[100];
+      t_->Branch("edep5x5_"+key,      edeps5x5_[key],    "edeps5x5_"+key+"[nlay]/F");
+
+      emeanPhi_[key] = new Float_t[100];
+      t_->Branch("emeanPhi_"+key,  emeanPhi_[key], "emeanPhi_"+key+"[nlay]/F");
+      
+      emeanEta_[key] = new Float_t[100];
+      t_->Branch("emeanEta_"+key,  emeanEta_[key], "emeanEta_"+key+"[nlay]/F");
+      
+      sihih_[key]    = new Float_t[100];
+      t_->Branch("sihih_"+key,     sihih_[key],    "sihih_"+key+"[nlay]/F");
+      
+      sipip_[key]    = new Float_t[100];
+      t_->Branch("sipip_"+key,     sipip_[key],    "sipip_"+key+"[nlay]/F");
+
+      sipih_[key]    = new Float_t[100];
+      t_->Branch("sipih_"+key,     sipih_[key],    "sipih_"+key+"[nlay]/F");
+
+      if(istep==2)
+	{	
+	  t_->Branch("nClusters",          nClusters_,        "nClusters[3]/I");
+	  t_->Branch("nHitsInClusters",    nHitsInClusters_,  "nHitsInClusters[3]/I");
 	}
     }
 }
@@ -109,12 +114,11 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       genEta_ = p.eta();
       genPhi_ = p.phi();
 
-      std::cout << genId_ << " " << genEn_ << " " << genEta_ << " " << genPhi_ << std::endl;
-
       //hits and clusters
       std::map<uint32_t,float> templEdep;
       std::map<TString, std::map<uint32_t,float> > allEdeps;
       std::map<TString, std::pair<uint32_t,float> > maxEdep;
+      uint32_t baseLayerIdx(0);
       for(size_t i=0; i<hitCollections_.size(); i++)
 	{
 	  uint32_t mySubDet(ForwardSubdetector::HGCEE);
@@ -126,7 +130,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  iSetup.get<IdealGeometryRecord>().get(geometrySource_[i],geom);
 	  const HGCalTopology &topo=geom->topology();
 	  const HGCalDDDConstants &dddConst=topo.dddConstants();
-
+	 
 	  //SIM HITS
 	  TString key("sim");
 	  allEdeps[key] = templEdep;
@@ -164,7 +168,6 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      maxEdep[key].first=recoDetId;
 	      maxEdep[key].second=allEdeps[key][recoDetId];
 	    }
-	  cout << "\t" << key << " " << maxEdep[key].first << " " << maxEdep[key].second << endl;
 
 	  //RECO: save rec hits where sim hits exist
 	  key="rec";
@@ -172,13 +175,17 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  maxEdep[key]  = std::pair<uint32_t,float>(0,-1.0);
 	  edm::Handle<HGCRecHitCollection> recHits;
 	  iEvent.getByLabel(edm::InputTag("HGCalRecHit",recHitCollections_[i]),recHits);
-	  for(HGCRecHitCollection::const_iterator hit_it=recHits->begin(); hit_it!=recHits->end(); hit_it++)
+	  std::unordered_map<uint32_t,uint32_t> recoDetIdMap;
+	  uint32_t recHitCtr(0);
+	  for(HGCRecHitCollection::const_iterator hit_it=recHits->begin(); hit_it!=recHits->end(); hit_it++,recHitCtr++)
 	    {
 	      uint32_t recoDetId(hit_it->id());
+	      recoDetIdMap[recoDetId]=recHitCtr;
 	      if(allEdeps["sim"].find(recoDetId)==allEdeps["sim"].end()) continue;
 
 	      //convert energy to keV
 	      float hitEn(hit_it->energy()*1e6/mipEn_[i]);
+	      if(hitEn<0.5) continue;
 	      if(allEdeps[key].find(recoDetId)==allEdeps[key].end()) allEdeps[key][recoDetId] = 0;
 	      allEdeps[key][recoDetId] += hitEn;
 	      
@@ -187,34 +194,32 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      maxEdep[key].first=recoDetId;
 	      maxEdep[key].second=allEdeps[key][recoDetId];
 	    } 
-	  cout << "\t" << key << " " << maxEdep[key].first << " " << maxEdep[key].second << endl;
-	
 
 	  //CLUSTERS
 	  key="clus";
 	  allEdeps[key] = templEdep;
 	  maxEdep[key]=std::pair<uint32_t,float>(0,-1.0);
-	  edm::Handle<reco::PFRecHitCollection> pfRecHits;
-	  iEvent.getByLabel(edm::InputTag(pfRecHitCollections_[i],"Cleaned"),pfRecHits);
 	  edm::Handle<reco::PFClusterCollection> pfClusters;
 	  iEvent.getByLabel(edm::InputTag(pfClustersCollections_[i],""),pfClusters);
       
 	  //get all within DR=0.4
-	  int nClusters(0);
-	  for(reco::PFClusterCollection::const_iterator c_it=pfClusters->begin(); 
+	  for(reco::PFClusterCollection::const_iterator c_it=pfClusters->begin();   
 	      c_it!=pfClusters->end(); 
 	      c_it++)
 	    {
 	      float dR=deltaR(c_it->position(),p);
 	      if(dR>0.4) continue;
-	      nClusters++;
-	      for( const auto& rhf : c_it->recHitFractions() ) {
-		const reco::PFRecHit& hit = *(rhf.recHitRef());
-		uint32_t recoDetId(hit.detId());
+
+	      nClusters_[i]++;
+	      for( const auto& rhf : c_it->hitsAndFractions() ) {
+		uint32_t recoDetId( rhf.first.rawId() );
+		float recEnFracClustered=rhf.second;
+		if(recoDetIdMap.find(recoDetId)==recoDetIdMap.end()) continue;
+		nHitsInClusters_[i]++;
+		float recHitEn=(*recHits)[ recoDetIdMap[recoDetId] ].energy();
 		
 		//rec hits : convert energy to keV
-		float eclus(hit.energy()*1e6/mipEn_[i]);
-		eclus *= rhf.fraction();
+		float eclus(recHitEn*recEnFracClustered*1e6/mipEn_[i]);
 		if(allEdeps[key].find(recoDetId)==allEdeps[key].end())  allEdeps[key][recoDetId] = 0;
 		allEdeps[key][recoDetId] += eclus;
 		
@@ -224,65 +229,83 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 		maxEdep[key].second=allEdeps[key][recoDetId];
 	      }
 	    }
-	  cout << "\t" << key << " " << maxEdep[key].first << " " << maxEdep[key].second << endl;
-	  
 	  
 	  //now compute the relevant variables for the regression
-	  /*
 	  for(std::map<TString, std::map<uint32_t,float> >::iterator stepIt=allEdeps.begin();
 	      stepIt!=allEdeps.end();
 	      stepIt++)
 	    {
 	      TString key(stepIt->first);
 
+	      //check if there is any reasonable energy here
+	      if(maxEdep[key].second<0.5) continue;
+
+	      //this is the reference
 	      const GlobalPoint refPos( std::move( geom->getPosition(maxEdep[key].first) ) );
+	      float refX=refPos.x();
+	      float refY=refPos.y();
 	      float refEta=refPos.eta();
 	      float refPhi=refPos.phi();
 
+	      //get the cell size for the reference hit
+	      int layer((maxEdep[key].first >> 19) & 0x1f); 
+	      std::vector<HGCalDDDConstants::hgtrap>::const_iterator recModIt( dddConst.getFirstModule(true) );
+	      std::pair<int,int>  simToReco=dddConst.simToReco(1,layer,false);
+	      for(int klay=1; klay<simToReco.second; klay++) recModIt++;
+	      float cellSize=recModIt->cellSize;
+
+	      //loop over the hits
 	      for(std::map<uint32_t,float>::iterator detIt=stepIt->second.begin();
 		  detIt!=stepIt->second.end();
 		  detIt++)
 		{
 		  const GlobalPoint pos( std::move( geom->getPosition(detIt->first) ) );
-		  float hitPhi=pos.phi();
 		  float hitEta=pos.eta();
-		  int layer((detIt->first >> 19) & 0x1f);
+		  float hitPhi=pos.phi();
+		  int idx(abs((pos.x()-refX)/cellSize));
+		  int idy(abs((pos.y()-refY)/cellSize));
+		  int layerIdx((detIt->first >> 19) & 0x1f); 
+		  layerIdx+=(baseLayerIdx-1);
 		  float en(detIt->second);
-		  for(size_t ithr=0; ithr<thrList_.size(); ithr++)
-		    {
-		      if(en<thrList_[ithr]) continue;
-		      nhits_[key][ithr][layer]    ++;
-		      edeps_[key][ithr][layer]    += en;
-		      emeanPhi_[key][ithr][layer] += en*hitPhi;
-		      emeanEta_[key][ithr][layer] += en*hitEta;
-		      sihih_[key][ithr][layer]    += en*pow(hitEta-refEta,2);
-		      sipip_[key][ithr][layer]    += en*pow(hitPhi-refPhi,2);
-		      sipih_[key][ithr][layer]    += en*(hitEta-refEta)*(hitPhi-refPhi);
-		    }
+
+		  nhits_[key][layerIdx]    ++;
+		  edeps_[key][layerIdx]    += en;
+		  if(idx<=1 && idy<=1) edeps3x3_[key][layerIdx] += en;
+		  if(idx<=3 && idy<=3) edeps5x5_[key][layerIdx] += en;
+		  emeanPhi_[key][layerIdx] += en*hitPhi;
+		  emeanEta_[key][layerIdx] += en*hitEta;
+		  sihih_[key][layerIdx]    += en*pow(hitEta-refEta,2);
+		  sipip_[key][layerIdx]    += en*pow(hitPhi-refPhi,2);
+		  sipih_[key][layerIdx]    += en*(hitEta-refEta)*(hitPhi-refPhi);
 		}
 	    }
-	  */
-	}
-    }
 
-  /*
-  nlay_=0;
-  for(std::map<int, std::vector<std::vector<float> > >::iterator it = eventEdeps.begin(); it!=eventEdeps.end(); it++)
-    {
-      for(size_t ilay=0; ilay<(it->second)[0].size(); ++ilay)
-	{
-	  for(size_t ithr=0; ithr<thrList_.size(); ithr++)
-	    {
-	      edeps_[ithr][nlay_]          = (it->second)[ithr][ilay];
-	      nhits_[ithr][nlay_]          = eventNhits[it->first][ithr][ilay];
-	    }
-	  nlay_++;
+	  //increment base layer idx
+	  baseLayerIdx += dddConst.layers(true); 
 	}
+      
+
+      //finalize normalizing by total energy in each layer
+      nlay_=baseLayerIdx;
+      for(std::map<TString, Float_t * >::iterator keyIt=edeps_.begin();
+	  keyIt!=edeps_.end();
+	  keyIt++)
+	{
+	  TString key(keyIt->first);
+	  for(Int_t ilay=0; ilay<nlay_; ilay++)
+	    {
+	      float totalEn=edeps_[key][ilay];
+	      if(totalEn<=0) continue;
+	      emeanPhi_[key][ilay] /= totalEn;	  
+	      emeanEta_[key][ilay] /= totalEn;
+	      sihih_[key][ilay]    /= totalEn;
+	      sipip_[key][ilay]    /= totalEn;
+	      sipih_[key][ilay]    /= totalEn;
+	    }
+	}
+      
+      t_->Fill();
     }
-  
-  //all done, save information
-  t_->Fill();
-  */
 }
 
 
