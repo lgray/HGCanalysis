@@ -46,15 +46,37 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 
  private:
   
+  //
+  inline void resetCounters()
+  {
+    for(std::map<TString, std::vector< Float_t *> >::iterator keyIt=edeps_.begin();
+	keyIt!=edeps_.end();
+	keyIt++)
+      {
+	TString key(keyIt->first);
+	for(size_t ithr=0; ithr<thrList_.size(); ithr++)
+	  for(size_t ilay=0; ilay<100; ilay++)
+	    {
+	      edeps_[key][ithr][ilay]=0;
+	      emeanPhi_[key][ithr][ilay]=0;
+	      emeanEta_[key][ithr][ilay]=0;
+	      sihih_[key][ithr][ilay]=0;
+	      sipip_[key][ithr][ilay]=0;
+	      sipih_[key][ithr][ilay]=0;
+	      nhits_[key][ithr][ilay]=0;
+	    }
+      }
+  }
+  
   Int_t genId_;
   Float_t genEn_,genEta_,genPhi_;
   Int_t nlay_;
-  std::vector< Float_t * > edeps_;
-  std::vector< Int_t *> nhits_;
+  std::map<TString, std::vector< Float_t *> > edeps_,    emeanPhi_,    emeanEta_,    sihih_,     sipip_,     sipih_;
+  std::map<TString, std::vector< Int_t *> >   nhits_;
 
   //tree and summary ntuple
   TTree *t_;
-  
+
   //mip energy for each sensitive detector and thresholds to apply
   std::vector<double> mipEn_, thrList_;
  
@@ -62,7 +84,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   std::string genSource_;
   
   //hgcal
-  std::vector<std::string> hitCollections_, geometrySource_;
+  std::vector<std::string> hitCollections_, recHitCollections_, pfClustersCollections_, geometrySource_;
 };
  
 
