@@ -6,6 +6,10 @@
 #include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHitFwd.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHitFraction.h"
+#include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
+#include "DataFormats/ParticleFlowReco/interface/PFBlockFwd.h"
+#include "DataFormats/ParticleFlowReco/interface/PFBlock.h"
+#include "DataFormats/ParticleFlowReco/interface/PFBlockElementCluster.h"
 
 #include "DetectorDescription/OfflineDBLoader/interface/GeometryInfoDump.h"
 #include "Geometry/Records/interface/IdealGeometryRecord.h"
@@ -46,11 +50,12 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   t_->Branch("genEta", &genEta_, "genEta/F");
   t_->Branch("genPhi", &genPhi_, "genPhi/F");
   t_->Branch("nlay",   &nlay_,   "nlay/I");
-  for(size_t istep=0; istep<3; istep++)
+  for(size_t istep=0; istep<4; istep++)
     {
       TString key("sim");
       if(istep==1) key="rec";
       if(istep==2) key="clus";
+      if(istep==3) key="pf";
 
       nhits_[key]    = new Int_t[100];
       t_->Branch("nhits_"+key,     nhits_[key],    "nhits_"+key+"[nlay]/I");
@@ -79,10 +84,13 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       sipih_[key]    = new Float_t[100];
       t_->Branch("sipih_"+key,     sipih_[key],    "sipih_"+key+"[nlay]/F");
 
-      if(istep==2)
+      if(istep>=2)
 	{	
-	  t_->Branch("nClusters",          nClusters_,        "nClusters[3]/I");
-	  t_->Branch("nHitsInClusters",    nHitsInClusters_,  "nHitsInClusters[3]/I");
+	  nClusters_[key] = new Int_t[3];
+	  t_->Branch("nClusters_"+key,          nClusters_[key],        "nClusters_"+key+"[3]/I");
+	  
+	  nHitsInClusters_[key] = new Int_t[3];
+	  t_->Branch("nHitsInClusters_"+key,    nHitsInClusters_[key],  "nHitsInClusters_"+key+"[3]/I");
 	}
     }
 }
@@ -113,6 +121,18 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       genEn_  = p.energy();
       genEta_ = p.eta();
       genPhi_ = p.phi();
+
+      //particle flow candidates
+      edm::Handle<reco::PFCandidateCollection> pflow;
+      iEvent.getByLabel("particleFlow",pflow);
+      std::vector<int> selPFs;
+      for(size_t ipf=0; ipf<pflow->size(); ipf++)
+	{
+	  const reco::PFCandidate &cand=(*pflow)[ipf];
+	  float dr=deltaR(p,cand);
+	  if(dr>0.1) continue;
+	  selPFs.push_back(ipf);
+	}
 
       //hits and clusters
       std::map<uint32_t,float> templEdep;
@@ -201,7 +221,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  maxEdep[key]=std::pair<uint32_t,float>(0,-1.0);
 	  edm::Handle<reco::PFClusterCollection> pfClusters;
 	  iEvent.getByLabel(edm::InputTag(pfClustersCollections_[i],""),pfClusters);
-      
+	  
 	  //get all within DR=0.4
 	  for(reco::PFClusterCollection::const_iterator c_it=pfClusters->begin();   
 	      c_it!=pfClusters->end(); 
@@ -209,13 +229,13 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	    {
 	      float dR=deltaR(c_it->position(),p);
 	      if(dR>0.4) continue;
-
-	      nClusters_[i]++;
+	      
+	      nClusters_[key][i]++;
 	      for( const auto& rhf : c_it->hitsAndFractions() ) {
 		uint32_t recoDetId( rhf.first.rawId() );
 		float recEnFracClustered=rhf.second;
 		if(recoDetIdMap.find(recoDetId)==recoDetIdMap.end()) continue;
-		nHitsInClusters_[i]++;
+		nHitsInClusters_[key][i]++;
 		float recHitEn=(*recHits)[ recoDetIdMap[recoDetId] ].energy();
 		
 		//rec hits : convert energy to keV
@@ -230,6 +250,50 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      }
 	    }
 	  
+	  //IN PF CANDIDATES
+	  key="pf";
+	  for(size_t ipf=0; ipf<selPFs.size(); ipf++)
+	    {
+	      const reco::PFCandidate &cand=(*pflow)[ selPFs[ipf] ];
+	      const reco::PFCandidate::ElementsInBlocks&einb=cand.elementsInBlocks();
+	      for(size_t ieleinb=0; ieleinb<einb.size(); ieleinb++)
+		{
+		  const reco::PFBlockRef blockRef = einb[ieleinb].first;
+		  const edm::OwnVector< reco::PFBlockElement > &eleList=blockRef->elements();
+		  for(unsigned int iEle=0; iEle<eleList.size(); iEle++)
+		    {
+		      //11-14 (EE/HEF/HEB)
+		      reco::PFBlockElement::Type eletype = eleList[iEle].type();
+		      if(i==0 && eletype!=reco::PFBlockElement::HGC_ECAL)  continue;
+		      if(i==1 && eletype!=reco::PFBlockElement::HGC_HCALF) continue;
+		      if(i==2 && eletype!=reco::PFBlockElement::HGC_HCALB) continue;
+		      
+		      //get the cluster
+		      const reco::PFBlockElementCluster *sc = dynamic_cast<const reco::PFBlockElementCluster*>(&(eleList[iEle]));
+		      nClusters_[key][i]++;
+		      for( const auto& rhf : sc->clusterRef()->hitsAndFractions() )
+			{
+			  uint32_t recoDetId( rhf.first.rawId() );
+			  float recEnFracClustered=rhf.second;
+			  if(recoDetIdMap.find(recoDetId)==recoDetIdMap.end() ) continue;
+			  nHitsInClusters_[key][i]++;
+			  float recHitEn=(*recHits)[ recoDetIdMap[recoDetId] ].energy();
+			  
+			  //rec hits : convert energy to keV
+			  float eclus(recHitEn*recEnFracClustered*1e6/mipEn_[i]);
+			  if(allEdeps[key].find(recoDetId)==allEdeps[key].end())  allEdeps[key][recoDetId] = 0;
+			  allEdeps[key][recoDetId] += eclus;
+			  
+			  //check if maximum found
+			  if(maxEdep[key].second>allEdeps[key][recoDetId]) continue;
+			  maxEdep[key].first=recoDetId;
+			  maxEdep[key].second=allEdeps[key][recoDetId];
+			}
+		    }
+		}
+	    }
+	  	    
+
 	  //now compute the relevant variables for the regression
 	  for(std::map<TString, std::map<uint32_t,float> >::iterator stepIt=allEdeps.begin();
 	      stepIt!=allEdeps.end();
@@ -275,8 +339,8 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 		  emeanPhi_[key][layerIdx] += en*hitPhi;
 		  emeanEta_[key][layerIdx] += en*hitEta;
 		  sihih_[key][layerIdx]    += en*pow(hitEta-refEta,2);
-		  sipip_[key][layerIdx]    += en*pow(hitPhi-refPhi,2);
-		  sipih_[key][layerIdx]    += en*(hitEta-refEta)*(hitPhi-refPhi);
+		  sipip_[key][layerIdx]    += en*pow(deltaPhi(hitPhi,refPhi),2);
+		  sipih_[key][layerIdx]    += en*(hitEta-refEta)*(deltaPhi(hitPhi,refPhi));
 		}
 	    }
 

@@ -66,12 +66,13 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	    sipip_[key][ilay]=0;
 	    sipih_[key][ilay]=0;
 	  }
-      }
 
-    for(size_t i=0; i<3; i++)
-      {
-	nClusters_[i]=0;
-	nHitsInClusters_[i]=0;
+	if(nClusters_.find(key)==nClusters_.end()) continue;
+	for(size_t i=0; i<3; i++)
+	  {
+	    nClusters_[key][i]=0;
+	    nHitsInClusters_[key][i]=0;
+	  }
       }
   }
   
@@ -80,7 +81,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   Int_t nlay_;
   std::map<TString, Float_t *> edeps_, edeps3x3_, edeps5x5_, emeanPhi_,    emeanEta_,    sihih_,     sipip_,     sipih_;
   std::map<TString, Int_t *>   nhits_;
-  Int_t nClusters_[3],nHitsInClusters_[3];
+  std::map<TString, Int_t *> nClusters_,nHitsInClusters_;
 
   //tree and summary ntuple
   TTree *t_;
