@@ -36,11 +36,13 @@ using namespace std;
 HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
 {
   //configure analyzer
-  hitCollections_        = iConfig.getUntrackedParameter< std::vector<std::string> >("hitCollections");
-  recHitCollections_     = iConfig.getUntrackedParameter< std::vector<std::string> >("recHitCollections");
-  pfClustersCollections_ = iConfig.getUntrackedParameter< std::vector<std::string> >("pfClustersCollections");
-  geometrySource_        = iConfig.getUntrackedParameter< std::vector<std::string> >("geometrySource");
-  mipEn_                 = iConfig.getUntrackedParameter< std::vector<double> >("mipEn");
+  hitCollections_           = iConfig.getUntrackedParameter< std::vector<std::string> >("hitCollections");
+  recHitCollections_        = iConfig.getUntrackedParameter< std::vector<std::string> >("recHitCollections");
+  pfClustersCollections_    = iConfig.getUntrackedParameter< std::vector<std::string> >("pfClustersCollections");
+  geometrySource_           = iConfig.getUntrackedParameter< std::vector<std::string> >("geometrySource");
+  mipEn_                    = iConfig.getUntrackedParameter< std::vector<double> >("mipEn");
+  pfCandAssociationCone_    = iConfig.getUntrackedParameter< double >("pfCandAssociationCone");
+  pfClusterAssociationCone_ = iConfig.getUntrackedParameter< double >("pfClusterAssociationCone");
 
   //init tree
   edm::Service<TFileService> fs;
@@ -122,7 +124,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       genEta_ = p.eta();
       genPhi_ = p.phi();
 
-      //particle flow candidates
+      //match particle flow candidates to gen candidate
       edm::Handle<reco::PFCandidateCollection> pflow;
       iEvent.getByLabel("particleFlow",pflow);
       std::vector<int> selPFs;
@@ -130,10 +132,10 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	{
 	  const reco::PFCandidate &cand=(*pflow)[ipf];
 	  float dr=deltaR(p,cand);
-	  if(dr>0.1) continue;
+	  if(dr>pfCandAssociationCone_) continue;
 	  selPFs.push_back(ipf);
 	}
-
+      
       //hits and clusters
       std::map<uint32_t,float> templEdep;
       std::map<TString, std::map<uint32_t,float> > allEdeps;
@@ -222,13 +224,13 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  edm::Handle<reco::PFClusterCollection> pfClusters;
 	  iEvent.getByLabel(edm::InputTag(pfClustersCollections_[i],""),pfClusters);
 	  
-	  //get all within DR=0.4
+	  //get all within R=pfClusterAssociationCone_
 	  for(reco::PFClusterCollection::const_iterator c_it=pfClusters->begin();   
 	      c_it!=pfClusters->end(); 
 	      c_it++)
 	    {
 	      float dR=deltaR(c_it->position(),p);
-	      if(dR>0.4) continue;
+	      if(dR>pfClusterAssociationCone_) continue;
 	      
 	      nClusters_[key][i]++;
 	      for( const auto& rhf : c_it->hitsAndFractions() ) {
@@ -250,9 +252,11 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      }
 	    }
 	  
-	  //IN PF CANDIDATES
+	  //RECHITS FROM CLUSTERS IN SELECTED PF CANDIDATES
 	  key="pf";
-	  for(size_t ipf=0; ipf<selPFs.size(); ipf++)
+	  allEdeps[key] = templEdep;
+	  maxEdep[key]=std::pair<uint32_t,float>(0,-1.0);
+	  for(size_t ipf=0; ipf<selPFs.size(); ipf++) 
 	    {
 	      const reco::PFCandidate &cand=(*pflow)[ selPFs[ipf] ];
 	      const reco::PFCandidate::ElementsInBlocks&einb=cand.elementsInBlocks();
@@ -264,9 +268,9 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 		    {
 		      //11-14 (EE/HEF/HEB)
 		      reco::PFBlockElement::Type eletype = eleList[iEle].type();
-		      if(i==0 && eletype!=reco::PFBlockElement::HGC_ECAL)  continue;
-		      if(i==1 && eletype!=reco::PFBlockElement::HGC_HCALF) continue;
-		      if(i==2 && eletype!=reco::PFBlockElement::HGC_HCALB) continue;
+		      if(mySubDet==ForwardSubdetector::HGCEE  && eletype!=reco::PFBlockElement::HGC_ECAL)  continue;
+		      if(mySubDet==ForwardSubdetector::HGCHEF && eletype!=reco::PFBlockElement::HGC_HCALF) continue;
+		      if(mySubDet==ForwardSubdetector::HGCHEB && eletype!=reco::PFBlockElement::HGC_HCALB) continue;
 		      
 		      //get the cluster
 		      const reco::PFBlockElementCluster *sc = dynamic_cast<const reco::PFBlockElementCluster*>(&(eleList[iEle]));
@@ -292,24 +296,31 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 		    }
 		}
 	    }
-	  	    
-
+	
 	  //now compute the relevant variables for the regression
+	  int nFailed(0);
 	  for(std::map<TString, std::map<uint32_t,float> >::iterator stepIt=allEdeps.begin();
 	      stepIt!=allEdeps.end();
 	      stepIt++)
 	    {
 	      TString key(stepIt->first);
-
+	      
 	      //check if there is any reasonable energy here
 	      if(maxEdep[key].second<0.5) continue;
-
+	      
 	      //this is the reference
-	      const GlobalPoint refPos( std::move( geom->getPosition(maxEdep[key].first) ) );
-	      float refX=refPos.x();
-	      float refY=refPos.y();
-	      float refEta=refPos.eta();
-	      float refPhi=refPos.phi();
+	      float refX(0),refY(0),refEta(0),refPhi(0);
+	      try{
+		const GlobalPoint refPos( std::move( geom->getPosition(maxEdep[key].first) ) );
+		refX=refPos.x();
+		refY=refPos.y();
+		refEta=refPos.eta();
+		refPhi=refPos.phi();
+	      }
+	      catch(...){
+		if(maxEdep[key].first<=0) continue;
+		nFailed++; continue;
+	      }
 
 	      //get the cell size for the reference hit
 	      int layer((maxEdep[key].first >> 19) & 0x1f); 
@@ -323,15 +334,23 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 		  detIt!=stepIt->second.end();
 		  detIt++)
 		{
-		  const GlobalPoint pos( std::move( geom->getPosition(detIt->first) ) );
-		  float hitEta=pos.eta();
-		  float hitPhi=pos.phi();
-		  int idx(abs((pos.x()-refX)/cellSize));
-		  int idy(abs((pos.y()-refY)/cellSize));
+		  float hitEta(0),hitPhi(0),hitX(0),hitY(0);
+		  try{
+		    const GlobalPoint pos( std::move( geom->getPosition(detIt->first) ) );
+		    hitX=pos.x();
+		    hitY=pos.y();
+		    hitEta=pos.eta();
+		    hitPhi=pos.phi();
+		  }catch(...){
+		    nFailed++; continue;
+		  }
+
+		  int idx(abs((hitX-refX)/cellSize));
+		  int idy(abs((hitY-refY)/cellSize));
 		  int layerIdx((detIt->first >> 19) & 0x1f); 
 		  layerIdx+=(baseLayerIdx-1);
 		  float en(detIt->second);
-
+		    
 		  nhits_[key][layerIdx]    ++;
 		  edeps_[key][layerIdx]    += en;
 		  if(idx<=1 && idy<=1) edeps3x3_[key][layerIdx] += en;
@@ -343,7 +362,10 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 		  sipih_[key][layerIdx]    += en*(hitEta-refEta)*(deltaPhi(hitPhi,refPhi));
 		}
 	    }
-
+	 
+	  //log if failed
+	  if(nFailed) cout << "Failed to position " << nFailed << " det ids for " << i << "-th collection" << endl;
+ 
 	  //increment base layer idx
 	  baseLayerIdx += dddConst.layers(true); 
 	}

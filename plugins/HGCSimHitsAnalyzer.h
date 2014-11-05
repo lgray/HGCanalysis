@@ -94,6 +94,9 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   
   //hgcal
   std::vector<std::string> hitCollections_, recHitCollections_, pfClustersCollections_, geometrySource_;
+
+  //association to gen candidate
+  double pfCandAssociationCone_,pfClusterAssociationCone_;
 };
  
 

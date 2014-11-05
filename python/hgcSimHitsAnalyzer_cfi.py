@@ -7,5 +7,6 @@ analysis = cms.EDAnalyzer("HGCSimHitsAnalyzer",
                           recHitCollections     = cms.untracked.vstring('HGCEERecHits',            'HGCHEFRecHits',            'HGCHEBRecHits'),
                           pfClustersCollections = cms.untracked.vstring('particleFlowClusterHGCEE','particleFlowClusterHGCHEF','particleFlowClusterHGCHEB'),
                           mipEn                 = cms.untracked.vdouble(55.1,                       85,                        1498.4),
-                          thrList               = cms.untracked.vdouble(0.5)
+                          pfCandAssociationCone = cms.untracked.double(0.1),
+                          pfClusterAssociationCone = cms.untracked.double(0.3)
                           )
