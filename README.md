@@ -30,6 +30,10 @@ python scripts/submitLocalHGCalProduction.py -q 1nd -n 10 -s generateEventsFromC
 #change geometry scenario
 python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single13_v4_${CMSSW_VERSION} -p 13 -n 100 -e 100 -g Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco";
 
+For regression use flat gun
+
+python scripts/submitLocalHGCalProduction.py -q 1nd -n 250 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/FlatPtYSingle11_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/particlePtYGun_cfi.py -n 500 -p 11";
+
 For calibration use 100 events per file x 100 jobs
 
 energies=(5 10 20 30 50 75 100 150 250 500)

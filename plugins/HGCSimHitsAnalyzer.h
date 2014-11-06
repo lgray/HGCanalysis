@@ -16,9 +16,13 @@
 
 #include "SimDataFormats/CaloHit/interface/PCaloHit.h"
 #include "SimDataFormats/CaloHit/interface/PCaloHitContainer.h"
+#include "SimDataFormats/Track/interface/SimTrack.h"
+#include "SimDataFormats/Track/interface/SimTrackContainer.h"
+#include "SimDataFormats/Vertex/interface/SimVertex.h"
+#include "SimDataFormats/Vertex/interface/SimVertexContainer.h"
 
 #include "DataFormats/Candidate/interface/Candidate.h"
-
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
 
 #include "UserCode/HGCanalysis/interface/HGCSimulationEvent.h"
@@ -45,7 +49,10 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   virtual void analyze( const edm::Event&, const edm::EventSetup& );
 
  private:
-  
+
+  //
+  float getEnergyLostInTracker(const reco::GenParticle & genp,edm::Handle<edm::SimTrackContainer> &SimTk,edm::Handle<edm::SimVertexContainer> &SimVtx);  
+
   //
   inline void resetCounters()
   {
@@ -62,6 +69,8 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	    edeps5x5_[key][ilay]=0;
 	    emeanPhi_[key][ilay]=0;
 	    emeanEta_[key][ilay]=0;
+	    emeanX_[key][ilay]=0;
+	    emeanY_[key][ilay]=0;
 	    sihih_[key][ilay]=0;
 	    sipip_[key][ilay]=0;
 	    sipih_[key][ilay]=0;
@@ -78,8 +87,9 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   
   Int_t genId_;
   Float_t genEn_,genEta_,genPhi_;
+  Float_t dEnInTracker_;
   Int_t nlay_;
-  std::map<TString, Float_t *> edeps_, edeps3x3_, edeps5x5_, emeanPhi_,    emeanEta_,    sihih_,     sipip_,     sipih_;
+  std::map<TString, Float_t *> edeps_, edeps3x3_, edeps5x5_, emeanX_, emeanY_, emeanPhi_,    emeanEta_,    sihih_,     sipip_,     sipih_;
   std::map<TString, Int_t *>   nhits_;
   std::map<TString, Int_t *> nClusters_,nHitsInClusters_;
 
@@ -94,6 +104,9 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   
   //hgcal
   std::vector<std::string> hitCollections_, recHitCollections_, pfClustersCollections_, geometrySource_;
+
+  //Geant4
+  std::string g4TracksSource_, g4VerticesSource_;
 
   //association to gen candidate
   double pfCandAssociationCone_,pfClusterAssociationCone_;

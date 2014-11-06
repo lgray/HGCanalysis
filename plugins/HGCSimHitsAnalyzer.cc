@@ -1,6 +1,5 @@
 #include "UserCode/HGCanalysis/plugins/HGCSimHitsAnalyzer.h"
 
-#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
 #include "DataFormats/ParticleFlowReco/interface/PFClusterFwd.h"
 #include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
@@ -43,6 +42,8 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   mipEn_                    = iConfig.getUntrackedParameter< std::vector<double> >("mipEn");
   pfCandAssociationCone_    = iConfig.getUntrackedParameter< double >("pfCandAssociationCone");
   pfClusterAssociationCone_ = iConfig.getUntrackedParameter< double >("pfClusterAssociationCone");
+  g4TracksSource_           = iConfig.getUntrackedParameter<std::string>("g4TracksSource");
+  g4VerticesSource_         = iConfig.getUntrackedParameter<std::string>("g4VerticesSource");
 
   //init tree
   edm::Service<TFileService> fs;
@@ -51,7 +52,9 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   t_->Branch("genEn",  &genEn_,  "genEn/F");  
   t_->Branch("genEta", &genEta_, "genEta/F");
   t_->Branch("genPhi", &genPhi_, "genPhi/F");
+  t_->Branch("dEnInTracker",   &dEnInTracker_,   "dEnInTracker/F");
   t_->Branch("nlay",   &nlay_,   "nlay/I");
+
   for(size_t istep=0; istep<4; istep++)
     {
       TString key("sim");
@@ -76,6 +79,12 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       
       emeanEta_[key] = new Float_t[100];
       t_->Branch("emeanEta_"+key,  emeanEta_[key], "emeanEta_"+key+"[nlay]/F");
+
+      emeanX_[key] = new Float_t[100];
+      t_->Branch("emeanX_"+key,  emeanX_[key], "emeanX_"+key+"[nlay]/F");
+      
+      emeanY_[key] = new Float_t[100];
+      t_->Branch("emeanY_"+key,  emeanY_[key], "emeanY_"+key+"[nlay]/F");
       
       sihih_[key]    = new Float_t[100];
       t_->Branch("sihih_"+key,     sihih_[key],    "sihih_"+key+"[nlay]/F");
@@ -135,6 +144,14 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  if(dr>pfCandAssociationCone_) continue;
 	  selPFs.push_back(ipf);
 	}
+      
+      //sim tracks and vertices
+      edm::Handle<edm::SimTrackContainer> SimTk;
+      iEvent.getByLabel(g4TracksSource_,SimTk);
+      edm::Handle<edm::SimVertexContainer> SimVtx;
+      iEvent.getByLabel(g4VerticesSource_,SimVtx);
+      dEnInTracker_=0;
+      //dEnInTracker_=getEnergyLostInTracker(p,SimTk,SimVtx);
       
       //hits and clusters
       std::map<uint32_t,float> templEdep;
@@ -357,6 +374,8 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 		  if(idx<=3 && idy<=3) edeps5x5_[key][layerIdx] += en;
 		  emeanPhi_[key][layerIdx] += en*hitPhi;
 		  emeanEta_[key][layerIdx] += en*hitEta;
+		  emeanX_[key][layerIdx]   += en*hitX;
+		  emeanY_[key][layerIdx]   += en*hitY;
 		  sihih_[key][layerIdx]    += en*pow(hitEta-refEta,2);
 		  sipip_[key][layerIdx]    += en*pow(deltaPhi(hitPhi,refPhi),2);
 		  sipih_[key][layerIdx]    += en*(hitEta-refEta)*(deltaPhi(hitPhi,refPhi));
@@ -384,6 +403,8 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      if(totalEn<=0) continue;
 	      emeanPhi_[key][ilay] /= totalEn;	  
 	      emeanEta_[key][ilay] /= totalEn;
+	      emeanX_[key][ilay]   /= totalEn;	  
+	      emeanY_[key][ilay]   /= totalEn;
 	      sihih_[key][ilay]    /= totalEn;
 	      sipip_[key][ilay]    /= totalEn;
 	      sipih_[key][ilay]    /= totalEn;
@@ -392,6 +413,57 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       
       t_->Fill();
     }
+}
+
+
+//
+float HGCSimHitsAnalyzer::getEnergyLostInTracker(const reco::GenParticle & genp,
+						 edm::Handle<edm::SimTrackContainer> &SimTk,
+						 edm::Handle<edm::SimVertexContainer> &SimVtx)
+{
+  float dEnInTracker(0);
+
+  if(!SimTk.isValid() || !SimVtx.isValid()) return dEnInTracker;
+  if(SimTk->size()==0) return dEnInTracker;
+  
+  //neglect primary (entry=0) which is already stored in the genParticles collection
+  //compute energy loss in tracker and save secondaries in the calorimeter
+  for (unsigned int isimtk = 0; isimtk < SimTk->size() ; isimtk++ )
+    {
+      //the track
+      const SimTrack &tk=SimTk->at(isimtk);
+      const math::XYZTLorentzVectorD &p4 = tk.momentum() ;
+
+      //require close to gen particle
+      float dR=deltaR(genp,p4);
+      if(dR>pfClusterAssociationCone_) continue;
+
+      //match pdg id
+      if(abs(genp.pdgId())==11 && tk.type()!=22) continue;
+      if(genp.pdgId()==22 && tk.type()!=11) continue;
+      
+      //the interaction vertex
+      int vtxIdx=tk.vertIndex();
+      if(vtxIdx<0) continue;
+      const math::XYZTLorentzVectorD& pos=SimVtx->at(vtxIdx).position();
+      //bool isInTracker( fabs(pos.z())< 320); //yes...this is hardcoded but should be fine
+      
+      cout << tk.type() << " " 
+	   << p4.energy() << " " 
+	   << fabs(pos.z()) 
+	   << tk.genpartIndex() 
+	   << " " 
+	   << tk.noGenpart() << " | ";
+
+      
+      
+      //energy loss in tracker
+      //if( !isInTracker ) continue;
+      dEnInTracker += p4.energy();
+    }
+
+  if(dEnInTracker) cout << endl;
+  return dEnInTracker;
 }
 
 

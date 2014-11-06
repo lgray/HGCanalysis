@@ -16,7 +16,7 @@ generator = cms.EDProducer("Pythia6PtYDistGun",
                                                       MinPhi = cms.double(-3.14159265359),
                                                       MaxPhi = cms.double(3.14159265359),
                                                       ),                    
-                           PythiaParameters = cms.PSet( pythiaDefaultBlock,
-                                                        parameterSets = cms.vstring('pythiaDefault')
+                           PythiaParameters = cms.PSet( pythiaUESettingsBlock,
+                                                        parameterSets = cms.vstring('pythiaUESettings')
                                                         )
                            )
