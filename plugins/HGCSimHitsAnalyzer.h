@@ -51,7 +51,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
  private:
 
   //
-  float getEnergyLostInTracker(const reco::GenParticle & genp,edm::Handle<edm::SimTrackContainer> &SimTk,edm::Handle<edm::SimVertexContainer> &SimVtx);  
+  bool hasInteractionBeforeHGC(const reco::GenParticle & genp, edm::Handle<edm::SimTrackContainer> &SimTk, edm::Handle<edm::SimVertexContainer> &SimVtx, int barcode);
 
   //
   inline void resetCounters()
@@ -87,7 +87,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   
   Int_t genId_;
   Float_t genEn_,genEta_,genPhi_;
-  Float_t dEnInTracker_;
+  Bool_t hasInteractionBeforeHGC_;
   Int_t nlay_;
   std::map<TString, Float_t *> edeps_, edeps3x3_, edeps5x5_, emeanX_, emeanY_, emeanPhi_,    emeanEta_,    sihih_,     sipip_,     sipih_;
   std::map<TString, Int_t *>   nhits_;

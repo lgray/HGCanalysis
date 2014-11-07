@@ -52,7 +52,7 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   t_->Branch("genEn",  &genEn_,  "genEn/F");  
   t_->Branch("genEta", &genEta_, "genEta/F");
   t_->Branch("genPhi", &genPhi_, "genPhi/F");
-  t_->Branch("dEnInTracker",   &dEnInTracker_,   "dEnInTracker/F");
+  t_->Branch("hasInteractionBeforeHGC",   &hasInteractionBeforeHGC_,   "hasInteractionBeforeHGC/O");
   t_->Branch("nlay",   &nlay_,   "nlay/I");
 
   for(size_t istep=0; istep<4; istep++)
@@ -149,9 +149,10 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       edm::Handle<edm::SimTrackContainer> SimTk;
       iEvent.getByLabel(g4TracksSource_,SimTk);
       edm::Handle<edm::SimVertexContainer> SimVtx;
-      iEvent.getByLabel(g4VerticesSource_,SimVtx);
-      dEnInTracker_=0;
-      //dEnInTracker_=getEnergyLostInTracker(p,SimTk,SimVtx);
+      iEvent.getByLabel(g4VerticesSource_,SimVtx); 
+      edm::Handle<std::vector<int> > genBarcodes;
+      iEvent.getByLabel("genParticles",genBarcodes);  
+      hasInteractionBeforeHGC_=hasInteractionBeforeHGC(p,SimTk,SimVtx,genBarcodes->at(igen));
       
       //hits and clusters
       std::map<uint32_t,float> templEdep;
@@ -417,53 +418,28 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 
 
 //
-float HGCSimHitsAnalyzer::getEnergyLostInTracker(const reco::GenParticle & genp,
+bool HGCSimHitsAnalyzer::hasInteractionBeforeHGC(const reco::GenParticle & genp,
 						 edm::Handle<edm::SimTrackContainer> &SimTk,
-						 edm::Handle<edm::SimVertexContainer> &SimVtx)
+						 edm::Handle<edm::SimVertexContainer> &SimVtx,
+						 int barcode)
 {
-  float dEnInTracker(0);
-
-  if(!SimTk.isValid() || !SimVtx.isValid()) return dEnInTracker;
-  if(SimTk->size()==0) return dEnInTracker;
-  
-  //neglect primary (entry=0) which is already stored in the genParticles collection
-  //compute energy loss in tracker and save secondaries in the calorimeter
-  for (unsigned int isimtk = 0; isimtk < SimTk->size() ; isimtk++ )
+  for (const SimTrack &simtrack : *SimTk) 
     {
-      //the track
-      const SimTrack &tk=SimTk->at(isimtk);
-      const math::XYZTLorentzVectorD &p4 = tk.momentum() ;
-
-      //require close to gen particle
-      float dR=deltaR(genp,p4);
-      if(dR>pfClusterAssociationCone_) continue;
-
-      //match pdg id
-      if(abs(genp.pdgId())==11 && tk.type()!=22) continue;
-      if(genp.pdgId()==22 && tk.type()!=11) continue;
-      
-      //the interaction vertex
-      int vtxIdx=tk.vertIndex();
-      if(vtxIdx<0) continue;
-      const math::XYZTLorentzVectorD& pos=SimVtx->at(vtxIdx).position();
-      //bool isInTracker( fabs(pos.z())< 320); //yes...this is hardcoded but should be fine
-      
-      cout << tk.type() << " " 
-	   << p4.energy() << " " 
-	   << fabs(pos.z()) 
-	   << tk.genpartIndex() 
-	   << " " 
-	   << tk.noGenpart() << " | ";
-
-      
-      
-      //energy loss in tracker
-      //if( !isInTracker ) continue;
-      dEnInTracker += p4.energy();
+      if (simtrack.genpartIndex()!=barcode) continue;
+      int simid = simtrack.trackId();
+      for (const SimVertex &simvertex : *SimVtx) 
+	{
+          if (simvertex.parentIndex()!=simid) continue;
+	  //double rho = simvertex.position().rho();
+	  double z = simvertex.position().z();
+	  //if(rho>123.7) continue;
+	  if(fabs(z)>317.0) continue;
+	  if(genp.pdgId()==22) return true;
+	}
+      break;
     }
 
-  if(dEnInTracker) cout << endl;
-  return dEnInTracker;
+  return false;
 }
 
 
