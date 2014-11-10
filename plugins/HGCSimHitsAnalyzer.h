@@ -51,7 +51,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
  private:
 
   //
-  bool hasInteractionBeforeHGC(const reco::GenParticle & genp, edm::Handle<edm::SimTrackContainer> &SimTk, edm::Handle<edm::SimVertexContainer> &SimVtx, int barcode);
+  math::XYZVectorD getInteractionPosition(const reco::GenParticle & genp, edm::Handle<edm::SimTrackContainer> &SimTk, edm::Handle<edm::SimVertexContainer> &SimVtx, int barcode);
 
   //
   inline void resetCounters()
@@ -61,10 +61,17 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	keyIt++)
       {
 	TString key(keyIt->first);
+	for(size_t isd=0; isd<3; isd++)
+	  {
+	    layerMax_[key][isd]=0;
+	    hitMax_[key][isd]=0;
+	  }
 	for(size_t ilay=0; ilay<100; ilay++)
 	  {
 	    nhits_[key][ilay]=0;
 	    edeps_[key][ilay]=0;
+	    edepdR_[key][ilay]=0;
+	    edep2dR_[key][ilay]=0;
 	    edeps3x3_[key][ilay]=0;
 	    edeps5x5_[key][ilay]=0;
 	    emeanPhi_[key][ilay]=0;
@@ -74,6 +81,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	    sihih_[key][ilay]=0;
 	    sipip_[key][ilay]=0;
 	    sipih_[key][ilay]=0;
+	    hasHitAbove10Mip_[key][ilay]=false;
 	  }
 
 	if(nClusters_.find(key)==nClusters_.end()) continue;
@@ -87,12 +95,15 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   
   Int_t genId_;
   Float_t genEn_,genEta_,genPhi_;
+  Float_t genHitX_, genHitY_, genHitZ_;
   Bool_t hasInteractionBeforeHGC_;
   Int_t nlay_;
-  std::map<TString, Float_t *> edeps_, edeps3x3_, edeps5x5_, emeanX_, emeanY_, emeanPhi_,    emeanEta_,    sihih_,     sipip_,     sipih_;
+  std::map<TString, Int_t *>   layerMax_;
+  std::map<TString, Float_t *> hitMax_;
+  std::map<TString, Bool_t *> hasHitAbove10Mip_;
+  std::map<TString, Float_t *> edeps_, edeps3x3_, edeps5x5_, emeanX_, emeanY_, emeanPhi_,    emeanEta_,    sihih_,     sipip_,     sipih_, edepdR_, edep2dR_;
   std::map<TString, Int_t *>   nhits_;
   std::map<TString, Int_t *> nClusters_,nHitsInClusters_;
-
   //tree and summary ntuple
   TTree *t_;
 

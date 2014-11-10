@@ -41,10 +41,22 @@ pids=(11 22 211 130)
 for pid in ${pids[@]}; do
     for en in ${energies[@]}; do
 	#default geometry
-        python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION} -p ${pid} -n 100 -e ${en}";
+    	python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION} -p ${pid} -n 100 -e ${en}";
 	#change geometry scenario
 	#python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_v4_${CMSSW_VERSION} -p ${pid} -n 100 -e ${en} -g Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco";
      done
+done
+
+#test alternative physics lists for pions
+phys=("QGSP_FTFP_BERT_EML" "FTFP_BERT_EML" "FTFP_BERT_XS_EML" "QBBC")
+pids=(211)
+energies=(30)
+for pid in ${pids[@]}; do
+    for en in ${energies[@]}; do
+    	for p in ${phys[@]}; do
+        python scripts/submitLocalHGCalProduction.py -q 1nd -n 10 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_${p} -p ${pid} -n 400 -e ${en} -l ${p}";
+        done
+    done
 done
 
 ### Minimum bias (1000 events per file x 500 jobs, should be ok for later mixing with particle gun)
