@@ -12,11 +12,13 @@ WORKDIR="/tmp/`whoami`/"
 STOREDIR=${WORKDIR}
 JOBNB=1
 GEOMETRY="Extended2023HGCalMuon,Extended2023HGCalMuonReco"
+EE_AIR=""
+HEF_AIR=""
 PILEUP=""
 TAG=""
 PILEUPINPUT=root://eoscms//eos/cms/store/cmst3/group/hgcal/CMSSW/MinBias_CMSSW_6_2_X_SLHC_2014-09-10-0200/
 
-while getopts "hp:e:n:c:o:w:j:g:ut:i:" opt; do
+while getopts "hp:e:n:c:o:w:j:g:ut:i:xz" opt; do
     case "$opt" in
     h)
         echo ""
@@ -31,6 +33,8 @@ while getopts "hp:e:n:c:o:w:j:g:ut:i:" opt; do
 	echo "     -g      geometry"
 	echo "             v4:            Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco"
 	echo "             v5 (default) : ${GEOMETRY}"
+	echo "     -x      exclude EE (turn into air)"
+	echo "     -z      exclude HEF (turn into air)"
 	echo "     -u      Turn on Pileup"
         echo "     -i      pileup input file"
         echo "     -t      tag to name output file"
@@ -54,6 +58,10 @@ while getopts "hp:e:n:c:o:w:j:g:ut:i:" opt; do
 	;;
     g)  GEOMETRY=$OPTARG
 	;;
+    x)  EE_AIR="True"
+	;;
+    z)  HEF_AIR="True"
+	;;
     u)  PILEUP="--pileup AVE_140_BX_25ns"
         ;;
     t)  TAG=$OPTARG
@@ -68,6 +76,12 @@ done
 #
 if [ "$TAG" = "" ]; then
    TAG=${PID}_${ENERGY}
+   if [[ "${EE_AIR}" != "" ]]; then
+       TAG="${TAG}_NOEE"
+   fi
+   if [[ "${HEF_AIR}" != "" ]]; then
+       TAG="${TAG}_NOHEF"
+   fi
 fi
 BASEJOBNAME=HGCEvents_${TAG}_${JOBNB}
 BASEJOBNAME=${BASEJOBNAME/","/"_"}
@@ -111,6 +125,23 @@ echo "cmsDriver.py ${CFI} -n ${NEVENTS} \
 echo "process.g4SimHits.StackingAction.SaveFirstLevelSecondary = True" >> ${WORKDIR}/${PYFILE}
 echo "process.RandomNumberGeneratorService.generator.initialSeed = cms.untracked.uint32(${JOBNB})" >> ${WORKDIR}/${PYFILE}
 echo "process.source.firstEvent=cms.untracked.uint32($((NEVENTS*(JOBNB-1)+1)))" >> ${WORKDIR}/${PYFILE}
+
+#substitute sub-detectors by dummy air volumes
+echo "for ifile in xrange(0,len(process.XMLIdealGeometryESSource.geomXMLFiles)):" >> ${WORKDIR}/${PYFILE}
+echo "    fname=process.XMLIdealGeometryESSource.geomXMLFiles[ifile]" >> ${WORKDIR}/${PYFILE}
+if [[ "${EE_AIR}" != "" ]]; then
+    echo "    if fname.find('hgcalEE')>0 :"  >> ${WORKDIR}/${PYFILE} 
+    echo "        process.XMLIdealGeometryESSource.geomXMLFiles[ifile]='UserCode/HGCanalysis/data/air/hgcalEE.xml'" >> ${WORKDIR}/${PYFILE}
+    echo "EE will be substituted by dummy air volume" 
+fi
+if [[ "${HEF_AIR}" != "" ]]; then
+    echo "    if fname.find('hgcalHEsil')>0 :"  >> ${WORKDIR}/${PYFILE} 
+    echo "        process.XMLIdealGeometryESSource.geomXMLFiles[ifile]='UserCode/HGCanalysis/data/air/hgcalHEsil.xml'" >> ${WORKDIR}/${PYFILE}
+    echo "HEF will be substituted by dummy air volume" 
+fi
+
+
+
 SUBSTRING="s/MinE = cms.double(0)/MinE = cms.double(${ENERGY})/"
 SUBSTRING="${SUBSTRING};s/MaxE = cms.double(0)/MaxE = cms.double(${ENERGY})/"
 SUBSTRING="${SUBSTRING};s/ParticleID = cms.vint32(0)/ParticleID = cms.vint32(${PID})/"
