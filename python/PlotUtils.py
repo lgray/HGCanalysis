@@ -22,15 +22,15 @@ def customROOTstyle() :
     ROOT.gROOT.SetBatch(True)
     ROOT.gStyle.SetOptTitle(False)
     ROOT.gStyle.SetOptStat(False)
-    ROOT.gStyle.SetPadTopMargin(0.06);
+    ROOT.gStyle.SetPadTopMargin(0.05);
     ROOT.gStyle.SetPadBottomMargin(0.13);
     ROOT.gStyle.SetPadLeftMargin(0.12);
-    ROOT.gStyle.SetPadRightMargin(0.02);
+    ROOT.gStyle.SetPadRightMargin(0.04);
     ROOT.gStyle.SetLabelColor(1, "XYZ");
     ROOT.gStyle.SetLabelFont(42, "XYZ");
     ROOT.gStyle.SetLabelOffset(0.007, "XYZ");
-    ROOT.gStyle.SetLabelSize(0.05, "XYZ");
-    ROOT.gStyle.SetTitleSize(0.05, "XYZ");
+    ROOT.gStyle.SetLabelSize(0.035, "XYZ");
+    ROOT.gStyle.SetTitleSize(0.04, "XYZ");
     ROOT.gStyle.SetAxisColor(1, "XYZ");
     ROOT.gStyle.SetStripDecimals(True);
     ROOT.gStyle.SetTickLength(0.03, "XYZ");

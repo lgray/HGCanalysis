@@ -34,16 +34,17 @@ For regression use flat gun
 
 python scripts/submitLocalHGCalProduction.py -q 1nd -n 250 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/FlatPtYSingle11_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/particlePtYGun_cfi.py -n 500 -p 11";
 
-For calibration use 100 events per file x 100 jobs
+For e.m. calibration use 200 events per file x 50 jobs
 
-energies=(5 10 20 30 50 75 100 150 250 500)
-pids=(11 22 211 130)
+energies=(10 20 40 50 75 100 250)
+pids=(22 11 211)
 for pid in ${pids[@]}; do
     for en in ${energies[@]}; do
-	#default geometry
-    	python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION} -p ${pid} -n 100 -e ${en}";
-	#change geometry scenario
-	#python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_v4_${CMSSW_VERSION} -p ${pid} -n 100 -e ${en} -g Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco";
+        python scripts/submitLocalHGCalProduction.py -q 1nd -n 50 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION} -p ${pid} -n 200 -e ${en}";
+	if [[ "${pid}" -eq "22" ]]; then
+           python scripts/submitLocalHGCalProduction.py -q 2nd -n 50 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_EE_AIR -p ${pid} -n 200 -e ${en} -x";
+           python scripts/submitLocalHGCalProduction.py -q 8nh -n 50 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_EE_HEF_AIR -p ${pid} -n 200 -e ${en} -x -z";
+	fi
      done
 done
 
