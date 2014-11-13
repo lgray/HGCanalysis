@@ -78,13 +78,13 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       t_->Branch("hasHitAbove10Mip_"+key,     hasHitAbove10Mip_[key],    "hasHitAbove10Mip_"+key+"[nlay]/O");
 
       edeps_[key]    = new Float_t[100];
-      t_->Branch("edep_"+key,      edeps_[key],    "edeps_"+key+"[nlay]/F");
+      t_->Branch("edep_"+key,      edeps_[key],    "edep_"+key+"[nlay]/F");
       
       edeps3x3_[key]    = new Float_t[100];
-      t_->Branch("edep3x3_"+key,      edeps3x3_[key],    "edeps3x3_"+key+"[nlay]/F");
+      t_->Branch("edep3x3_"+key,      edeps3x3_[key],    "edep3x3_"+key+"[nlay]/F");
 
       edeps5x5_[key]    = new Float_t[100];
-      t_->Branch("edep5x5_"+key,      edeps5x5_[key],    "edeps5x5_"+key+"[nlay]/F");
+      t_->Branch("edep5x5_"+key,      edeps5x5_[key],    "edep5x5_"+key+"[nlay]/F");
 
       edepdR_[key]    = new Float_t[100];
       t_->Branch("edepdR_"+key,      edepdR_[key],    "edepdR_"+key+"[nlay]/F");
@@ -471,6 +471,7 @@ math::XYZVectorD HGCSimHitsAnalyzer::getInteractionPosition(const reco::GenParti
 	    }
 	  else
 	    {
+	      uint32_t tkMult(0);
 	      for (const SimTrack &dausimtrack : *SimTk)
 		{
 		  int dausimid=dausimtrack.trackId();
@@ -478,15 +479,14 @@ math::XYZVectorD HGCSimHitsAnalyzer::getInteractionPosition(const reco::GenParti
 		  unsigned int vtxIdx=dausimtrack.vertIndex(); 
 		  if(vtxIdx!=simvertex.vertexId()) continue;
 		  int tkType=abs(dausimtrack.type());
-
+		  
 		  //neglect ionization products
 		  if(tkType==11) continue;
 
 		  //check for nucleons or nuclei, neutral pions or gammas
-		  if(tkType==2112 || tkType==2212 || tkType>1000000000
-		     || tkType==111 || tkType==22)
-		    return  math::XYZVectorD(simvertex.position());
+		  if(tkType==2112 || tkType==2212 || tkType>1000000000 || tkType==111 || tkType==22) tkMult++;
 		}
+	      if(tkMult>2) return  math::XYZVectorD(simvertex.position());
 	    }
 	}
     }

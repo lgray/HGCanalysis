@@ -50,6 +50,8 @@ process.source = cms.Source("PoolSource",
 if preFix.find('RelVal')>=0 :
     cmsswVersion=os.environ['CMSSW_VERSION']
     process.source.fileNames=fillFromStore('/store/relval/%s/%s/GEN-SIM-RECO/DES23_62_V1_UPG2023Muon-v1/00000/'%(cmsswVersion,preFix),ffile,step)
+elif preFix.find('file')>=0:
+    process.source.fileNames=cms.untracked.vstring(preFix)
 else :
     process.source.fileNames=fillFromStore('/store/cmst3/group/hgcal/CMSSW/%s'%preFix,ffile,step)
 process.source.duplicateCheckMode = cms.untracked.string('noDuplicateCheck')

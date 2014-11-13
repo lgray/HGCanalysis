@@ -12,18 +12,11 @@ from UserCode.HGCanalysis.PlotUtils import *
 """
 Converts all to a workspace and returns optimized weights
 """
-def prepareWorkspace(url,integRanges,treeVarName):
-
-    #readout material overburden file
-    matF=ROOT.TFile.Open("/afs/cern.ch/user/p/psilva/work/HGCal/Calib/CMSSW_6_2_0_SLHC20/src/UserCode/HGCanalysis/data/HGCMaterialOverburden.root")
-    mat_X0Gr=matF.Get("x0Overburden")
-    mat_lambdaGr=matF.Get("lambdaOverburden")
-    matF.Close()
+def prepareWorkspace(url,integRanges,vetoTrackInt,treeVarName):
 
     #optimization with linear regression
     optimVec = numpy.zeros( len(integRanges) )
     optimMatrix = numpy.zeros( (len(integRanges), len(integRanges) ) )
-
  
     #prepare the workspace
     outUrl=url.replace('.root','')
@@ -38,6 +31,11 @@ def prepareWorkspace(url,integRanges,treeVarName):
     HGC=fin.Get('analysis/HGC')
     for entry in xrange(0,HGC.GetEntriesFast()+1):
         HGC.GetEntry(entry)
+
+        #veto interactions in the tracker
+        if vetoTrackInt and HGC.hasInteractionBeforeHGC : continue
+
+        #require generated particle to be in the endcap
         genEn=HGC.genEn
         genEta=ROOT.TMath.Abs(HGC.genEta)
         genPhi=HGC.genPhi
@@ -52,12 +50,8 @@ def prepareWorkspace(url,integRanges,treeVarName):
             totalEnInIntegRegion=0
             for ilayer in xrange(integRanges[ireg][0],integRanges[ireg][1]+1):
                 totalEnInIntegRegion=totalEnInIntegRegion+(getattr(HGC,treeVarName))[ilayer-1]
-            #ws.var('edep%d'%ireg).setVal(totalEnInIntegRegion*ROOT.TMath.TanH(genEta))
-            if ireg==0:
-                ws.var('edep%d'%ireg).setVal(totalEnInIntegRegion*(0.08*ROOT.TMath.TanH(genEta)+mat_X0Gr.Eval(ROOT.TMath.Abs(genEta))))
-                #ws.var('edep%d'%ireg).setVal(totalEnInIntegRegion*(0.01+mat_lambdaGr.Eval(ROOT.TMath.Abs(genEta))))
-            else:
-                ws.var('edep%d'%ireg).setVal(totalEnInIntegRegion*ROOT.TMath.TanH(genEta))
+            geomCorrection=ROOT.TMath.TanH(genEta)
+            ws.var('edep%d'%ireg).setVal(totalEnInIntegRegion*geomCorrection)
             newEntry.add(ws.var('edep%d'%(ireg)))
         ws.data('data').add( newEntry )
 
@@ -71,11 +65,14 @@ def prepareWorkspace(url,integRanges,treeVarName):
     fin.Close()
 
     #finalize optimization
-    optimWeights=numpy.linalg.solve(optimMatrix,optimVec)
-    optimData={}
-    optimData['IntegrationRanges'] = [ {'first':fLayer, 'last':lLayer} for fLayer,lLayer in integRanges ]
-    optimData['OptimWeights'] = [ item for item in optimWeights ]
-    with io.open('%s/optim_weights.dat'%outUrl, 'w', encoding='utf-8') as f: f.write(unicode(json.dumps(optimData, sort_keys = True, ensure_ascii=False, indent=4)))
+    try:
+        optimWeights=numpy.linalg.solve(optimMatrix,optimVec)
+        optimData={}
+        optimData['IntegrationRanges'] = [ {'first':fLayer, 'last':lLayer} for fLayer,lLayer in integRanges ]
+        optimData['OptimWeights'] = [ item for item in optimWeights ]
+        with io.open('%s/optim_weights.dat'%outUrl, 'w', encoding='utf-8') as f: f.write(unicode(json.dumps(optimData, sort_keys = True, ensure_ascii=False, indent=4)))
+    except:
+        print 'Failed to optimize - singular matrix?'
 
     #all done, write to file
     wsFileUrl='%s/workspace.root'%outUrl
@@ -259,8 +256,14 @@ def showResolutionCurves(resGr,outDir,calibPostFix) :
 """
 Steer the calibration study
 """
-def runCalibrationStudy(url,wsUrl=None,calibUrl=None,treeVarName='edeps_sim'):
+def runCalibrationStudy(opt):
 
+    url               = opt.input
+    wsUrl             = opt.wsUrl
+    calibUrl          = opt.calibUrl
+    treeVarName       = opt.treeVarName
+    vetoTrackInt      = opt.vetoTrackInt
+    
     #init phase space regions of interest
     #etaRanges = [[1.5,2.0],[2.0,2.5],[2.5,2.9]]
     etaRanges = [[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75],[2.75,2.9]]
@@ -270,39 +273,49 @@ def runCalibrationStudy(url,wsUrl=None,calibUrl=None,treeVarName='edeps_sim'):
     integRanges       = [[1,1],[2,11],[12,21],[22,30],[31,31],[32,42],[43,54]]
     weights={}
     #weights["Trivial"] = [1.0,  1.0,   1.0,    1.0,    1.0,    1.0,    1.0]
-    weights["X0"]      = [1.0, 0.620, 0.809,  1.239,  3.580,  3.103,  5.228] #[0.08, 0.620, 0.809,  1.239,  3.580,  3.103,  5.228]
-    #weights["lambda"]  = [1.0, 0.036, 0.043,  0.056,  0.338,  0.273,  0.476] #[0.01, 0.036, 0.043,  0.056,  0.338,  0.273,  0.476]
-    #weights["had_linreg"]  = [0.060478641299467166,  0.010821968277230637, 0.0096620531479292698, 0.017915306115493686, 0.045039116195834318, 0.05297744952272318, 0.11989320894062623]
-    weights["em_linreg"] = [ 0.041309493816764332,  0.008462210377895853, 0.009629802090212889, 0.016843239031382701, 0.1264599727885049, 0.15573504738067073, 0.2407144864311227]
+    weights["x0"]      = [0.08, 0.620, 0.809,  1.239,  3.580,  3.103,  5.228]
+    weights["lambda"]  = [0.01, 0.036, 0.043,  0.056,  0.338,  0.273,  0.476]
+    #weights["had_linreg"] = [0.060478641299467166,  0.010821968277230637, 0.0096620531479292698, 0.017915306115493686, 0.045039116195834318, 0.05297744952272318, 0.11989320894062623]
+    #weights["em_linreg"]  = [ 0.041309493816764332,  0.008462210377895853, 0.009629802090212889, 0.016843239031382701, 0.1264599727885049, 0.15573504738067073, 0.2407144864311227]
     weightTitles={}
-    #weightTitles["Trivial"] = "Trivial weights"
-    weightTitles["X0"]      = "X_{0}-based weights"
-    #weightTitles["lambda"]  = "#lambda-based weights"
-    #weightTitles["had_linreg"]  = "lin. regression weights"
-    weightTitles["em_linreg"]  = "lin. regression weights"
+    weightTitles["Trivial"] = "Trivial weights"
+    weightTitles["x0"]      = "X_{0}-based weights"
+    weightTitles["lambda"]  = "#lambda-based weights"
+    weightTitles["had_linreg"] = "had lin. regression weights"
+    weightTitles["em_linreg"]  = "e.m. lin. regression weights"
+
+    #prepare workspace (if needed) and output
+    outDir="./"
+    if wsUrl is None :
+        outDir=url.replace('.root','')
+        os.system('mkdir -p '+outDir)
+        wsUrl=prepareWorkspace(url=url,integRanges=integRanges,vetoTrackInt=vetoTrackInt,treeVarName=treeVarName)
+    else:
+        outDir=os.path.dirname(wsUrl)
+
+    #get the workspace from the file
+    wsOutF=ROOT.TFile.Open(wsUrl)
+    ws=wsOutF.Get('w')
+    wsOutF.Close()
+
+    #readout material overburden file
+    matParamBeforeHGCMap={}
+    matF=ROOT.TFile.Open("/afs/cern.ch/user/p/psilva/work/HGCal/Calib/CMSSW_6_2_0_SLHC20/src/UserCode/HGCanalysis/data/HGCMaterialOverburden.root")
+    for wType in weights:
+        matParamBeforeHGCMap[wType]=matF.Get("%sOverburden"%wType)
+        matF.Close()
 
     #readout calibration
+    calibPostFix='uncalib'
     calibMap={}
     if calibUrl:
+        calibPostFix=os.path.basename(calibUrl)
+        calibPostFix='_'+calibPostFix.replace('.root','')
         calibF=ROOT.TFile.Open(calibUrl)
         print 'Reading out calibrations from %s'%calibUrl
         for wType in weights:
             calibMap[wType]=calibF.Get('%s_calib'%wType).Clone()
         calibF.Close()
-
-    #prepare output
-    outDir="./"
-    if wsUrl is None :
-        outDir=url.replace('.root','')
-        os.system('mkdir -p '+outDir)
-        wsUrl=prepareWorkspace(url=url,integRanges=integRanges,treeVarName=treeVarName)
-    else:
-        outDir=os.path.dirname(wsUrl)
-    
-    #get the workspace from the file
-    wsOutF=ROOT.TFile.Open(wsUrl)
-    ws=wsOutF.Get('w')
-    wsOutF.Close()
 
     #prepare energy estimators
     funcArgs=''
@@ -329,27 +342,36 @@ def runCalibrationStudy(url,wsUrl=None,calibUrl=None,treeVarName='edeps_sim'):
         if wType in calibMap:
             calib_offset=calibMap[wType].GetParameter(1)
             calib_slope=calibMap[wType].GetParameter(0)
-        ws.factory('%sEn_uncalib[0,0,999999999]'%wType)
-        ws.var('%sEn_uncalib'%wType).SetTitle( weightTitles[wType] )
+        ws.factory('%sEn_%s[0,0,999999999]'%(wType,calibPostFix))
+        ws.var('%sEn_%s'%(wType,calibPostFix)).SetTitle( weightTitles[wType] )
         theFunc=ws.factory("RooFormulaVar::%sEn_func('(%s-%f)/%f',%s)"%(wType,funcFormula[wType],calib_offset,calib_slope,funcArgs))
         ws.data('data').addColumn( theFunc ) 
 
         
     #create dataset for calibration
     uncalibDataVars=ROOT.RooArgSet(ws.var('en'), ws.var('eta'), ws.var('phi'))
-    for wType in weights: uncalibDataVars.add( ws.var('%sEn_uncalib'%wType ) )
-    getattr(ws,'import')( ROOT.RooDataSet('data_uncalib','data_uncalib',uncalibDataVars) )
+    for wType in weights: uncalibDataVars.add( ws.var('%sEn_%s'%(wType,calibPostFix) ) )
+    getattr(ws,'import')( ROOT.RooDataSet('data_%s'%calibPostFix,'data_%s'%calibPostFix,uncalibDataVars) )
     for ientry in xrange(0,ws.data('data').numEntries()):
         entryVars=ws.data('data').get(ientry)
         newEntry=ROOT.RooArgSet()
         for baseVar in ['en','eta','phi']: 
             ws.var(baseVar).setVal( entryVars.find(baseVar).getVal() )
             newEntry.add( ws.var(baseVar) )
+
         for wType in weights :
             ienVal=entryVars.find('%sEn_func'%wType).getVal()
-            ws.var('%sEn_uncalib'%wType).setVal(ienVal)
-            newEntry.add(ws.var('%sEn_uncalib'%wType))
-        ws.data('data_uncalib').add( newEntry )
+
+            #check if a material correction is available
+            try:
+                genEta = ROOT.TMath.Abs(ws.var('eta').getVal())
+                edep0  = ws.var('edep0').getVal()/ROOT.TMath.TanH(genEta) #remove previously applied eta correction
+                ienVal+= edep0*matParamBeforeHGCMap[wType].Eval(genEta)*int(vetoTrackInt) 
+            except:
+                pass
+            ws.var('%sEn_%s'%(wType,calibPostFix)).setVal(ienVal)
+            newEntry.add(ws.var('%sEn_%s'%(wType,calibPostFix)))
+        ws.data('data_%s'%calibPostFix).add( newEntry )
 
 
 
@@ -386,14 +408,14 @@ def runCalibrationStudy(url,wsUrl=None,calibUrl=None,treeVarName='edeps_sim'):
         for iEnRange in xrange(0,len(enRanges)):
             genEn_min = enRanges[iEnRange][0]
             genEn_max = enRanges[iEnRange][1]
-            redData=ws.data('data_uncalib').reduce('en>=%f && en<=%f && eta>=%f && eta<=%f'%(genEn_min,genEn_max,genEta_min,genEta_max))
+            redData=ws.data('data_%s'%calibPostFix).reduce('en>=%f && en<=%f && eta>=%f && eta<=%f'%(genEn_min,genEn_max,genEta_min,genEta_max))
             if redData.numEntries()<10 : continue
             genEn_mean, genEn_sigma = redData.mean(ws.var('en')),  redData.sigma(ws.var('en'))
 
             for wType in weights :
 
                 #prepare the fit to this slice
-                vName = '%sEn_uncalib'%wType
+                vName = '%sEn_%s'%(wType,calibPostFix)
                 v_mean, v_sigma    = redData.mean(ws.var(vName)), redData.sigma(ws.var(vName))
                 v_min, v_max       = v_mean-5*v_sigma, v_mean+5*v_sigma
                 v_fitMin, v_fitMax = v_mean-nSigmasToFit*v_sigma, v_mean+nSigmasToFit*v_sigma
@@ -409,8 +431,7 @@ def runCalibrationStudy(url,wsUrl=None,calibUrl=None,treeVarName='edeps_sim'):
                             fitName,
                             fitName)
                            )
-                ws.pdf('resol_%s'%fitName).Print('v')
-
+                
                 #fit
                 fres = ws.pdf('resol_%s'%fitName).fitTo( redData, ROOT.RooFit.Range('fit_%s'%fitName), ROOT.RooFit.Save(True) )
                 meanFit, meanFit_error   = ws.var('mean_%s'%fitName).getVal(), ws.var('mean_%s'%fitName).getError()
@@ -424,6 +445,9 @@ def runCalibrationStudy(url,wsUrl=None,calibUrl=None,treeVarName='edeps_sim'):
                 etaSliceResGr[wType].SetPointError(np,0,ROOT.TMath.Sqrt( ROOT.TMath.Power(meanFit*sigmaFit_error,2)+
                                                                           ROOT.TMath.Power(meanFit_error*sigmaFit,2) ) /
                                                     ROOT.TMath.Power(meanFit,2) )
+
+                #print genEn_min,genEn_max,genEn_mean,wType
+                #raw_input()
                 
                 #for debug purposes
                 showCalibrationFitResults( theVar=ws.var(vName),
@@ -440,11 +464,7 @@ def runCalibrationStudy(url,wsUrl=None,calibUrl=None,treeVarName='edeps_sim'):
     #derive calibration
     calibModel=ROOT.TF1('calibmodel',"[0]*x+[1]",0,800)
     calibModel.SetLineWidth(1)
-    calibPostFix=''
-    if calibUrl : 
-        calibPostFix=os.path.basename(calibUrl)
-        calibPostFix='_'+calibPostFix.replace('.root','')
-    calibF=ROOT.TFile.Open('%s/calib%s.root'%(outDir,calibPostFix),'RECREATE')
+    calibF=ROOT.TFile.Open('%s/calib.root'%outDir,'RECREATE')
     for wType in weights :
         calibGr[wType].Fit(calibModel,'MER+')
         calibGr[wType].GetFunction(calibModel.GetName()).SetLineColor(calibGr[wType].GetListOfGraphs().At(0).GetLineColor())
@@ -462,10 +482,11 @@ def main():
     
     usage = 'usage: %prog [options]'
     parser = optparse.OptionParser(usage)
-    parser.add_option('-i',      '--in' ,      dest='input',        help='Input file',                              default=None)
-    parser.add_option('-w',      '--ws' ,      dest='wsUrl',        help='Workspace file',                          default=None)
-    parser.add_option('-c',      '--calib' ,   dest='calibUrl',     help='Calibration file',                        default=None)
-    parser.add_option('-v',      '--var' ,     dest='treeVarName',  help='Variable to use as energy estimotor',     default='edeps_sim')
+    parser.add_option('-i',      '--in' ,      dest='input',        help='Input file',                                     default=None)
+    parser.add_option('-w',      '--ws' ,      dest='wsUrl',        help='Workspace file',                                 default=None)
+    parser.add_option('-c',      '--calib' ,   dest='calibUrl',     help='Calibration file',                               default=None)
+    parser.add_option('--vetoTrackInt',        dest='vetoTrackInt', help='flag if tracker interactions should be removed', default=False, action="store_true")
+    parser.add_option('-v',      '--var' ,     dest='treeVarName',  help='Variable to use as energy estimotor',            default='edep_sim')
     (opt, args) = parser.parse_args()
 
      #check inputs                                                                                                                                                                                                  
@@ -480,7 +501,7 @@ def main():
     ROOT.gStyle.SetOptTitle(0)
     ROOT.gStyle.SetOptStat(0)
     
-    runCalibrationStudy(url=opt.input,wsUrl=opt.wsUrl,calibUrl=opt.calibUrl,treeVarName=opt.treeVarName)
+    runCalibrationStudy(opt)
     
 if __name__ == "__main__":
     sys.exit(main())
