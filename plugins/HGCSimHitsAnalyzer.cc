@@ -1,8 +1,6 @@
 #include "UserCode/HGCanalysis/plugins/HGCSimHitsAnalyzer.h"
 
 #include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
-#include "DataFormats/ParticleFlowReco/interface/PFClusterFwd.h"
-#include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHitFwd.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHitFraction.h"
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
@@ -37,7 +35,7 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   //configure analyzer
   hitCollections_           = iConfig.getUntrackedParameter< std::vector<std::string> >("hitCollections");
   recHitCollections_        = iConfig.getUntrackedParameter< std::vector<std::string> >("recHitCollections");
-  pfClustersCollections_    = iConfig.getUntrackedParameter< std::vector<std::string> >("pfClustersCollections");
+  pfClustersCollection_     = iConfig.getUntrackedParameter< std::string >("pfClustersCollection");
   geometrySource_           = iConfig.getUntrackedParameter< std::vector<std::string> >("geometrySource");
   mipEn_                    = iConfig.getUntrackedParameter< std::vector<double> >("mipEn");
   pfCandAssociationCone_    = iConfig.getUntrackedParameter< double >("pfCandAssociationCone");
@@ -56,7 +54,8 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   t_->Branch("genHitY",  &genHitY_,  "genHitY/F");  
   t_->Branch("genHitZ",  &genHitZ_,  "genHitZ/F");  
   t_->Branch("hasInteractionBeforeHGC",   &hasInteractionBeforeHGC_,   "hasInteractionBeforeHGC/O");
-  t_->Branch("nlay",   &nlay_,   "nlay/I");
+  t_->Branch("nlay",        &nlay_,       "nlay/I");
+  t_->Branch("pfMatchId",   &pfMatchId_,  "pfMatchId/I");
 
   for(size_t istep=0; istep<4; istep++)
     {
@@ -65,17 +64,28 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       if(istep==2) key="clus";
       if(istep==3) key="pf";
 
-      layerMax_[key]=new Int_t[3];
-      t_->Branch("layerMax_"+key,   layerMax_[key],    "layerMax_"+key+"[3]/I");
+      showerMeanX_[key]=0;
+      t_->Branch("showerMeanX_"+key,       &showerMeanX_[key],     "showerMeanX_"+key+"/F");
+      showerMeanY_[key]=0;
+      t_->Branch("showerMeanY_"+key,       &showerMeanY_[key],     "showerMeanY_"+key+"/F");
+      showerMeanEta_[key]=0;
+      t_->Branch("showerMeanEta_"+key,     &showerMeanEta_[key],   "showerMeanEta_"+key+"/F");
+      showerMeanPhi_[key]=0;
+      t_->Branch("showerMeanPhi_"+key,     &showerMeanPhi_[key],   "showerMeanPhi_"+key+"/F");
 
-      hitMax_[key]=new Float_t[3];
-      t_->Branch("hitMax_"+key,     hitMax_[key],    "hitMax_"+key+"[3]/F");
+      hitMax_[key]=0;
+      t_->Branch("hitMax_"+key,        &hitMax_[key],      "hitMax_"+key+"/F");
+      hitMaxLayer_[key]=0;
+      t_->Branch("hitMaxLayer_"+key,   &hitMaxLayer_[key], "hitMaxLayer_"+key+"/F");
+      hitMaxX_[key]=0;
+      t_->Branch("hitMaxX_"+key,       &hitMaxX_[key],     "hitMaxX_"+key+"/F");
+      hitMaxY_[key]=0;
+      t_->Branch("hitMaxY_"+key,       &hitMaxY_[key],     "hitMaxY_"+key+"/F");
+      hitMaxEta_[key]=0;
+      t_->Branch("hitMaxEta_"+key,     &hitMaxEta_[key],   "hitMaxEta_"+key+"/F");
+      hitMaxPhi_[key]=0;
+      t_->Branch("hitMaxPhi_"+key,     &hitMaxPhi_[key],   "hitMaxPhi_"+key+"/F");
 
-      nhits_[key]    = new Int_t[100];
-      t_->Branch("nhits_"+key,     nhits_[key],    "nhits_"+key+"[nlay]/I");
-
-      hasHitAbove10Mip_[key]    = new Bool_t[100];
-      t_->Branch("hasHitAbove10Mip_"+key,     hasHitAbove10Mip_[key],    "hasHitAbove10Mip_"+key+"[nlay]/O");
 
       edeps_[key]    = new Float_t[100];
       t_->Branch("edep_"+key,      edeps_[key],    "edep_"+key+"[nlay]/F");
@@ -86,42 +96,72 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       edeps5x5_[key]    = new Float_t[100];
       t_->Branch("edep5x5_"+key,      edeps5x5_[key],    "edep5x5_"+key+"[nlay]/F");
 
-      edepdR_[key]    = new Float_t[100];
-      t_->Branch("edepdR_"+key,      edepdR_[key],    "edepdR_"+key+"[nlay]/F");
-      
-      edep2dR_[key]    = new Float_t[100];
-      t_->Branch("edep2dR_"+key,      edep2dR_[key],    "edep2dR_"+key+"[nlay]/F");
+      nhits_[key]    = new Int_t[100];
+      t_->Branch("nhits_"+key,     nhits_[key],    "nhits_"+key+"[nlay]/I");
+
+      nhits5mip_[key]    = new Int_t[100];
+      t_->Branch("nhits5mip_"+key,     nhits5mip_[key],    "nhits5mip_"+key+"[nlay]/I");
+
+      nhits10mip_[key]    = new Int_t[100];
+      t_->Branch("nhits10mip_"+key,     nhits10mip_[key],    "nhits10mip_"+key+"[nlay]/I");
 
       emeanPhi_[key] = new Float_t[100];
       t_->Branch("emeanPhi_"+key,  emeanPhi_[key], "emeanPhi_"+key+"[nlay]/F");
-      
+
       emeanEta_[key] = new Float_t[100];
       t_->Branch("emeanEta_"+key,  emeanEta_[key], "emeanEta_"+key+"[nlay]/F");
-
+      
       emeanX_[key] = new Float_t[100];
       t_->Branch("emeanX_"+key,  emeanX_[key], "emeanX_"+key+"[nlay]/F");
       
       emeanY_[key] = new Float_t[100];
       t_->Branch("emeanY_"+key,  emeanY_[key], "emeanY_"+key+"[nlay]/F");
+
+      edepdR_[key]    = new Float_t[100];
+      t_->Branch("edepdR_"+key,      edepdR_[key],    "edepdR_"+key+"[nlay]/F");
+      
+      edepdR2hitmax_[key]    = new Float_t[100];
+      t_->Branch("edepdR2hitmax_"+key,      edepdR2hitmax_[key],    "edepdR2hitmax_"+key+"[nlay]/F");
+      
+      edep2dR_[key]    = new Float_t[100];
+      t_->Branch("edep2dR_"+key,      edep2dR_[key],    "edep2dR_"+key+"[nlay]/F");
+
+      edep2dR2hitmax_[key]    = new Float_t[100];
+      t_->Branch("edep2dR2hitmax_"+key,      edep2dR2hitmax_[key],    "edep2dR2hitmax_"+key+"[nlay]/F");
       
       sihih_[key]    = new Float_t[100];
       t_->Branch("sihih_"+key,     sihih_[key],    "sihih_"+key+"[nlay]/F");
       
+      sihih2hitmax_[key]    = new Float_t[100];
+      t_->Branch("sihih2hitmax_"+key,     sihih2hitmax_[key],    "sihih2hitmax_"+key+"[nlay]/F");
+      
       sipip_[key]    = new Float_t[100];
       t_->Branch("sipip_"+key,     sipip_[key],    "sipip_"+key+"[nlay]/F");
-
+      
+      sipip2hitmax_[key]    = new Float_t[100];
+      t_->Branch("sipip2hitmax_"+key,     sipip2hitmax_[key],    "sipip2hitmax_"+key+"[nlay]/F");
+      
       sipih_[key]    = new Float_t[100];
       t_->Branch("sipih_"+key,     sipih_[key],    "sipih_"+key+"[nlay]/F");
 
-      if(istep>=2)
-	{	
-	  nClusters_[key] = new Int_t[3];
-	  t_->Branch("nClusters_"+key,          nClusters_[key],        "nClusters_"+key+"[3]/I");
-	  
-	  nHitsInClusters_[key] = new Int_t[3];
-	  t_->Branch("nHitsInClusters_"+key,    nHitsInClusters_[key],  "nHitsInClusters_"+key+"[3]/I");
-	}
-    }
+      sipih2hitmax_[key]    = new Float_t[100];
+      t_->Branch("sipih2hitmax_"+key,     sipih2hitmax_[key],    "sipih2hitmax_"+key+"[nlay]/F");
+      
+      nClusters_[key]=0;
+      t_->Branch("nClusters_"+key,      &(nClusters_[key]),        "nClusters_"+key+"/I");
+      
+      clusterEn_[key] = new Float_t[5];
+      t_->Branch("clusterEn_"+key,      clusterEn_[key],        "clusterEn_"+key+"[nClusters_"+key+"]/F");
+      
+      clusterZ_[key] = new Float_t[5];
+      t_->Branch("clusterZ_"+key,      clusterZ_[key],        "clusterZ_"+key+"[nClusters_"+key+"]/F");
+
+      clusterEta_[key] = new Float_t[5];
+      t_->Branch("clusterEta_"+key,      clusterEta_[key],        "clusterEta_"+key+"[nClusters_"+key+"]/F");
+
+      clusterPhi_[key] = new Float_t[5];
+      t_->Branch("clusterPhi_"+key,      clusterPhi_[key],        "clusterPhi_"+key+"[nClusters_"+key+"]/F");
+    }  
 }
 
 //
@@ -147,15 +187,39 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
   edm::Handle<std::vector<int> > genBarcodes;
   iEvent.getByLabel("genParticles",genBarcodes);  
   
-  //PF candidates
+  //SimHits
+  std::vector<edm::Handle<edm::PCaloHitContainer> > caloHits(hitCollections_.size());
+  for(size_t i=0; i<hitCollections_.size(); i++) iEvent.getByLabel(edm::InputTag("g4SimHits",hitCollections_[i]),caloHits[i]); 
+
+  //RecHits
+  std::vector<edm::Handle<HGCRecHitCollection> > recHits(recHitCollections_.size());
+  for(size_t i=0; i<recHitCollections_.size(); i++) iEvent.getByLabel(edm::InputTag("HGCalRecHit",recHitCollections_[i]),recHits[i]);
+
+  //PF clusters and candidates
+  edm::Handle<reco::PFClusterCollection> pfClusters;
+  iEvent.getByLabel(edm::InputTag(pfClustersCollection_,""),pfClusters);
   edm::Handle<reco::PFCandidateCollection> pflow;
   iEvent.getByLabel("particleFlow",pflow);
 
-  //loop over generator level particles
+  //Geometry
+  std::vector< edm::ESHandle<HGCalGeometry> > geom(geometrySource_.size());
+  nlay_=0;
+  std::vector<int> layerCtrOffset;
+  for(size_t i=0; i<geometrySource_.size(); i++)  {
+    iSetup.get<IdealGeometryRecord>().get(geometrySource_[i],geom[i]);
+    const HGCalTopology &topo=geom[i]->topology();
+    const HGCalDDDConstants &dddConst=topo.dddConstants(); 
+    layerCtrOffset.push_back(nlay_);
+    nlay_ += dddConst.layers(true); 
+  }
+
+  //ready to roll and loop over generator level particles
   for(size_t igen=0; igen<maxGenParts; igen++)
     {
-      //start new particle
+      //start new particle/shower information
       resetCounters();
+
+      //mc truth
       const reco::GenParticle & p = (*genParticles)[igen];
       genId_  = p.pdgId();
       genEn_  = p.energy();
@@ -163,15 +227,18 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       genPhi_ = p.phi();
 
       //match particle flow candidates to gen candidate
-      std::vector<int> selPFs;
+      int selPF(-1);
+      float drToClosest(999999.);
       for(size_t ipf=0; ipf<pflow->size(); ipf++)
 	{
 	  const reco::PFCandidate &cand=(*pflow)[ipf];
 	  float dr=deltaR(p,cand);
 	  if(dr>pfCandAssociationCone_) continue;
-	  selPFs.push_back(ipf);
+	  if(dr>drToClosest) continue;
+	  drToClosest=dr;
+	  selPF=ipf;
 	}
-      
+
       //sim tracks and vertices
       math::XYZVectorD hitPos=getInteractionPosition(p,SimTk,SimVtx,genBarcodes->at(igen));
       genHitX_=hitPos.x();
@@ -179,30 +246,30 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       genHitZ_=hitPos.z();
       hasInteractionBeforeHGC_=(hitPos.z()<317);
       
-      //hits and clusters
-      std::map<uint32_t,float> templEdep;
+      //hits
+      std::unordered_map<uint32_t,uint32_t> recHitsIdMap; //needed to decode hits in clusters
       std::map<TString, std::map<uint32_t,float> > allEdeps;
+      allEdeps["sim"]  = std::map<uint32_t,float>();
+      allEdeps["rec"]  = std::map<uint32_t,float>();
+      allEdeps["clus"] = std::map<uint32_t,float>();
+      allEdeps["pf"]   = std::map<uint32_t,float>();
       std::map<TString, std::pair<uint32_t,float> > maxEdep;
-      uint32_t baseLayerIdx(0);
+      maxEdep["sim"]   = std::pair<uint32_t,float>(0,0);
+      maxEdep["rec"]   = std::pair<uint32_t,float>(0,0);
+      maxEdep["clus"]  = std::pair<uint32_t,float>(0,0);     
+      maxEdep["pf"]    = std::pair<uint32_t,float>(0,0);
       for(size_t i=0; i<hitCollections_.size(); i++)
 	{
 	  uint32_t mySubDet(ForwardSubdetector::HGCEE);
 	  if(i==1) mySubDet=ForwardSubdetector::HGCHEF;
 	  else if(i==2) mySubDet=ForwardSubdetector::HGCHEB;
-	  
-	  //get geometry
-	  edm::ESHandle<HGCalGeometry> geom;
-	  iSetup.get<IdealGeometryRecord>().get(geometrySource_[i],geom);
-	  const HGCalTopology &topo=geom->topology();
-	  const HGCalDDDConstants &dddConst=topo.dddConstants();
+
+	  const HGCalTopology &topo=geom[i]->topology();
+	  const HGCalDDDConstants &dddConst=topo.dddConstants(); 
 	 
 	  //SIM HITS
 	  TString key("sim");
-	  allEdeps[key] = templEdep;
-	  maxEdep[key]=std::pair<uint32_t,float>(0,-1.0);
-	  edm::Handle<edm::PCaloHitContainer> caloHits;
-	  iEvent.getByLabel(edm::InputTag("g4SimHits",hitCollections_[i]),caloHits); 
-	  for(edm::PCaloHitContainer::const_iterator hit_it = caloHits->begin(); hit_it != caloHits->end(); ++hit_it) 
+	  for(edm::PCaloHitContainer::const_iterator hit_it = caloHits[i]->begin(); hit_it != caloHits[i]->end(); ++hit_it) 
 	    {
 	      //gang SIM->RECO cells to get final layer assignment  
 	      HGCalDetId simId(hit_it->id());
@@ -218,7 +285,8 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 				     (uint32_t)HGCHEDetId(ForwardSubdetector(mySubDet),simId.zside(),layer,simId.sector(),simId.subsector(),cell)
 				     );
 	      
-	      const GlobalPoint pos( std::move( geom->getPosition(recoDetId) ) );	  
+	      //require to be on the same side of the generated particle
+	      const GlobalPoint pos( std::move( geom[i]->getPosition(recoDetId) ) );	  
 	      float hitEta(pos.eta());
 	      if(hitEta*genEta_<0) continue;    
 	      
@@ -236,16 +304,11 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 
 	  //RECO: save rec hits where sim hits exist
 	  key="rec";
-	  allEdeps[key] = templEdep;
-	  maxEdep[key]  = std::pair<uint32_t,float>(0,-1.0);
-	  edm::Handle<HGCRecHitCollection> recHits;
-	  iEvent.getByLabel(edm::InputTag("HGCalRecHit",recHitCollections_[i]),recHits);
-	  std::unordered_map<uint32_t,uint32_t> recoDetIdMap;
 	  uint32_t recHitCtr(0);
-	  for(HGCRecHitCollection::const_iterator hit_it=recHits->begin(); hit_it!=recHits->end(); hit_it++,recHitCtr++)
+	  for(HGCRecHitCollection::const_iterator hit_it=recHits[i]->begin(); hit_it!=recHits[i]->end(); hit_it++,recHitCtr++)
 	    {
 	      uint32_t recoDetId(hit_it->id());
-	      recoDetIdMap[recoDetId]=recHitCtr;
+	      recHitsIdMap[recoDetId]=recHitCtr;
 	      if(allEdeps["sim"].find(recoDetId)==allEdeps["sim"].end()) continue;
 
 	      //convert energy to keV
@@ -258,194 +321,264 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      if(maxEdep[key].second>allEdeps[key][recoDetId]) continue;
 	      maxEdep[key].first=recoDetId;
 	      maxEdep[key].second=allEdeps[key][recoDetId];
-	    } 
-
-	  //CLUSTERS
-	  key="clus";
-	  allEdeps[key] = templEdep;
-	  maxEdep[key]=std::pair<uint32_t,float>(0,-1.0);
-	  edm::Handle<reco::PFClusterCollection> pfClusters;
-	  iEvent.getByLabel(edm::InputTag(pfClustersCollections_[i],""),pfClusters);
-	  
-	  //get all within R=pfClusterAssociationCone_
-	  for(reco::PFClusterCollection::const_iterator c_it=pfClusters->begin();   
-	      c_it!=pfClusters->end(); 
-	      c_it++)
-	    {
-	      float dR=deltaR(c_it->position(),p);
-	      if(dR>pfClusterAssociationCone_) continue;
-	      
-	      nClusters_[key][i]++;
-	      for( const auto& rhf : c_it->hitsAndFractions() ) {
-		uint32_t recoDetId( rhf.first.rawId() );
-		float recEnFracClustered=rhf.second;
-		if(recoDetIdMap.find(recoDetId)==recoDetIdMap.end()) continue;
-		nHitsInClusters_[key][i]++;
-		float recHitEn=(*recHits)[ recoDetIdMap[recoDetId] ].energy();
-		
-		//rec hits : convert energy to keV
-		float eclus(recHitEn*recEnFracClustered*1e6/mipEn_[i]);
-		if(allEdeps[key].find(recoDetId)==allEdeps[key].end())  allEdeps[key][recoDetId] = 0;
-		allEdeps[key][recoDetId] += eclus;
-		
-		//check if maximum found
-		if(maxEdep[key].second>allEdeps[key][recoDetId]) continue;
-		maxEdep[key].first=recoDetId;
-		maxEdep[key].second=allEdeps[key][recoDetId];
-	      }
 	    }
-	  
-	  //RECHITS FROM CLUSTERS IN SELECTED PF CANDIDATES
-	  key="pf";
-	  allEdeps[key] = templEdep;
-	  maxEdep[key]=std::pair<uint32_t,float>(0,-1.0);
-	  for(size_t ipf=0; ipf<selPFs.size(); ipf++) 
+	}
+
+
+      //CLUSTERS
+      TString key("clus");
+      std::vector<const reco::PFCluster *> pToClusters;
+      for(reco::PFClusterCollection::const_iterator c_it=pfClusters->begin();   
+	  c_it!=pfClusters->end(); 
+	  c_it++)
+	{
+	  float dR=deltaR(c_it->position(),p);
+	  if(dR>pfClusterAssociationCone_) continue;
+	  pToClusters.push_back(&(*c_it));
+	}	 
+
+      nClusters_[key]=pToClusters.size();
+      sort(pToClusters.begin(),pToClusters.end(),sortClustersByEnergy);
+      if(pToClusters.size())
+	{
+	  for(Int_t iclu=0; iclu<TMath::Min(nClusters_[key],5); iclu++)
 	    {
-	      const reco::PFCandidate &cand=(*pflow)[ selPFs[ipf] ];
-	      const reco::PFCandidate::ElementsInBlocks&einb=cand.elementsInBlocks();
-	      for(size_t ieleinb=0; ieleinb<einb.size(); ieleinb++)
+	      clusterEn_[key][iclu]=pToClusters[iclu]->energy();
+	      clusterEta_[key][iclu]=pToClusters[iclu]->eta();
+	      clusterPhi_[key][iclu]=pToClusters[iclu]->phi();
+	      clusterZ_[key][iclu]=pToClusters[iclu]->position().z();
+	    }
+
+	  for( const auto& rhf : pToClusters[0]->hitsAndFractions() ) {
+	    uint32_t recoDetId( rhf.first.rawId() );
+	    float recEnFracClustered=rhf.second;
+	    if(recHitsIdMap.find(recoDetId)==recHitsIdMap.end()) continue;
+	    
+	    int subDetId((recoDetId >>25)&0x7);
+	    int subDetCtr(0);
+	    if(subDetId==ForwardSubdetector::HGCHEF) subDetCtr=1;
+	    if(subDetId==ForwardSubdetector::HGCHEB) subDetCtr=2;
+
+	    //rec hits : convert energy to keV
+	    float recHitEn=(*(recHits[subDetCtr]))[ recHitsIdMap[recoDetId] ].energy();
+	    float eclus(recHitEn*recEnFracClustered*1e6/mipEn_[subDetCtr]);
+	    if(allEdeps[key].find(recoDetId)==allEdeps[key].end())  allEdeps[key][recoDetId] = 0;
+	    allEdeps[key][recoDetId] += eclus;
+		
+	    //check if maximum found
+	    if(maxEdep[key].second>allEdeps[key][recoDetId]) continue;
+	    maxEdep[key].first=recoDetId;
+	    maxEdep[key].second=allEdeps[key][recoDetId];
+	  }
+	}
+	  
+	  
+      //RECHITS FROM CLUSTERS IN SELECTED PF CANDIDATE
+      key="pf";
+      if(false) //selPF>=0)
+	{
+	  const reco::PFCandidate &cand=(*pflow)[ selPF ];
+	  pfMatchId_=cand.pdgId();
+	  const reco::PFCandidate::ElementsInBlocks&einb=cand.elementsInBlocks();
+	  for(size_t ieleinb=0; ieleinb<einb.size(); ieleinb++)
+	    {
+	      const reco::PFBlockRef blockRef = einb[ieleinb].first;
+	      const edm::OwnVector< reco::PFBlockElement > &eleList=blockRef->elements();
+	      for(unsigned int iEle=0; iEle<eleList.size(); iEle++)
 		{
-		  const reco::PFBlockRef blockRef = einb[ieleinb].first;
-		  const edm::OwnVector< reco::PFBlockElement > &eleList=blockRef->elements();
-		  for(unsigned int iEle=0; iEle<eleList.size(); iEle++)
+		  //look only at EE/HEF/HEB
+		  reco::PFBlockElement::Type eletype = eleList[iEle].type();
+		  if(eletype!=reco::PFBlockElement::HGC_ECAL && eletype!=reco::PFBlockElement::HGC_HCALF && eletype!=reco::PFBlockElement::HGC_HCALB) continue;
+		  
+		  int subDetCtr(0);
+		  if(eletype!=reco::PFBlockElement::HGC_HCALF) subDetCtr=1;
+		  if(eletype!=reco::PFBlockElement::HGC_HCALB) subDetCtr=2;
+		  
+		  //get the cluster
+		  const reco::PFBlockElementCluster *sc = dynamic_cast<const reco::PFBlockElementCluster*>(&(eleList[iEle]));
+		  nClusters_[key]++;
+		  for( const auto& rhf : sc->clusterRef()->hitsAndFractions() )
 		    {
-		      //11-14 (EE/HEF/HEB)
-		      reco::PFBlockElement::Type eletype = eleList[iEle].type();
-		      if(mySubDet==ForwardSubdetector::HGCEE  && eletype!=reco::PFBlockElement::HGC_ECAL)  continue;
-		      if(mySubDet==ForwardSubdetector::HGCHEF && eletype!=reco::PFBlockElement::HGC_HCALF) continue;
-		      if(mySubDet==ForwardSubdetector::HGCHEB && eletype!=reco::PFBlockElement::HGC_HCALB) continue;
-		      
-		      //get the cluster
-		      const reco::PFBlockElementCluster *sc = dynamic_cast<const reco::PFBlockElementCluster*>(&(eleList[iEle]));
-		      nClusters_[key][i]++;
-		      for( const auto& rhf : sc->clusterRef()->hitsAndFractions() )
-			{
-			  uint32_t recoDetId( rhf.first.rawId() );
-			  float recEnFracClustered=rhf.second;
-			  if(recoDetIdMap.find(recoDetId)==recoDetIdMap.end() ) continue;
-			  nHitsInClusters_[key][i]++;
-			  float recHitEn=(*recHits)[ recoDetIdMap[recoDetId] ].energy();
+		      uint32_t recoDetId( rhf.first.rawId() );
+		      float recEnFracClustered=rhf.second;
+		      if(recHitsIdMap.find(recoDetId)==recHitsIdMap.end() ) continue;
+		      float recHitEn=(*(recHits[subDetCtr]))[ recHitsIdMap[recoDetId] ].energy();
 			  
-			  //rec hits : convert energy to keV
-			  float eclus(recHitEn*recEnFracClustered*1e6/mipEn_[i]);
-			  if(allEdeps[key].find(recoDetId)==allEdeps[key].end())  allEdeps[key][recoDetId] = 0;
-			  allEdeps[key][recoDetId] += eclus;
+		      //rec hits : convert energy to keV
+		      float eclus(recHitEn*recEnFracClustered*1e6/mipEn_[subDetCtr]);
+		      if(allEdeps[key].find(recoDetId)==allEdeps[key].end())  allEdeps[key][recoDetId] = 0;
+		      allEdeps[key][recoDetId] += eclus;
 			  
-			  //check if maximum found
-			  if(maxEdep[key].second>allEdeps[key][recoDetId]) continue;
-			  maxEdep[key].first=recoDetId;
-			  maxEdep[key].second=allEdeps[key][recoDetId];
-			}
+		      //check if maximum found
+		      if(maxEdep[key].second>allEdeps[key][recoDetId]) continue;
+		      maxEdep[key].first=recoDetId;
+		      maxEdep[key].second=allEdeps[key][recoDetId];
 		    }
 		}
 	    }
+	}
 	
-	  //now compute the relevant variables for the regression
-	  int nFailed(0);
-	  for(std::map<TString, std::map<uint32_t,float> >::iterator stepIt=allEdeps.begin();
-	      stepIt!=allEdeps.end();
-	      stepIt++)
+      //now compute the relevant variables for the regression
+      int nFailed(0);
+      for(std::map<TString, std::map<uint32_t,float> >::iterator stepIt=allEdeps.begin();
+	  stepIt!=allEdeps.end();
+	  stepIt++)
+	{
+	  TString key(stepIt->first);
+
+	  //check if there is any reasonable energy for the max. hit
+	  if(maxEdep[key].second>0.5)
 	    {
-	      TString key(stepIt->first);
+	      int subDetId((maxEdep[key].first >>25)&0x7);
+	      int subDetCtr(0);
+	      if(subDetId==ForwardSubdetector::HGCHEF) subDetCtr=1;
+	      if(subDetId==ForwardSubdetector::HGCHEB) subDetCtr=2;
 	      
-	      //check if there is any reasonable energy here
-	      if(maxEdep[key].second<0.5) continue;
-	      
-	      //this is the reference
-	      float refX(0),refY(0),refEta(0),refPhi(0);
+	      hitMaxLayer_[key] = ((maxEdep[key].first >> 19) & 0x1f) + layerCtrOffset[subDetCtr]-1; 
+	      hitMax_[key]      = maxEdep[key].second;
 	      try{
-		const GlobalPoint refPos( std::move( geom->getPosition(maxEdep[key].first) ) );
-		refX=refPos.x();
-		refY=refPos.y();
-		refEta=refPos.eta();
-		refPhi=refPos.phi();
+		const GlobalPoint refPos( std::move( geom[subDetCtr]->getPosition(maxEdep[key].first) ) );
+		hitMaxX_[key]   = refPos.x();
+		hitMaxY_[key]   = refPos.y();
+		hitMaxEta_[key] = refPos.eta();
+		hitMaxPhi_[key] = refPos.phi();
 	      }
 	      catch(...){
-		if(maxEdep[key].first<=0) continue;
+		nFailed++;
+	      }
+	    }
+	  
+	  //loop over the hits
+	  float totalEn(0);
+	  for(std::map<uint32_t,float>::iterator detIt=stepIt->second.begin();
+	      detIt!=stepIt->second.end();
+	      detIt++)
+	    {
+
+	      int subDetId((detIt->first>>25)&0x7);
+	      int subDetCtr(0);
+	      if(subDetId==ForwardSubdetector::HGCHEF) subDetCtr=1;
+	      if(subDetId==ForwardSubdetector::HGCHEB) subDetCtr=2;
+	      int hitLayer((detIt->first >> 19) & 0x1f);
+	      float hitEta(0),hitPhi(0),hitX(0),hitY(0);
+	      try{
+		const GlobalPoint pos( std::move( geom[subDetCtr]->getPosition(detIt->first) ) );
+		hitX=pos.x();
+		hitY=pos.y();
+		hitEta=pos.eta();
+		hitPhi=pos.phi();
+	      }catch(...){
 		nFailed++; continue;
 	      }
-
-	      //get the cell size for the reference hit
-	      int layer((maxEdep[key].first >> 19) & 0x1f); 
-	      std::vector<HGCalDDDConstants::hgtrap>::const_iterator recModIt( dddConst.getFirstModule(true) );
-	      std::pair<int,int>  simToReco=dddConst.simToReco(1,layer,false);
-	      for(int klay=1; klay<simToReco.second; klay++) recModIt++;
-	      float cellSize=recModIt->cellSize;
-
-	      //save the layer at which the maximum occurs
-	      layerMax_[key][i]=layer;
-	      hitMax_[key][i]=maxEdep[key].second;
-
-	      //loop over the hits
-	      for(std::map<uint32_t,float>::iterator detIt=stepIt->second.begin();
-		  detIt!=stepIt->second.end();
-		  detIt++)
+	       
+	    
+	      int layerIdx(hitLayer+layerCtrOffset[subDetCtr]-1); 
+	      float en(detIt->second);
+	      totalEn                    += en;
+	      edeps_[key][layerIdx]      += en;
+	      //weightedEdeps_[key][layerIdx] += en*getLayerWeight(layerIdx);
+	      nhits_[key][layerIdx]      +=1;
+	      nhits5mip_[key][layerIdx]  +=1*(en>5);
+	      nhits10mip_[key][layerIdx] +=1*(en>10.);
+	      emeanPhi_[key][layerIdx] += en*hitPhi;
+	      showerMeanPhi_[key]      += en*hitPhi;
+	      emeanEta_[key][layerIdx] += en*hitEta;
+	      showerMeanEta_[key]      += en*hitEta;
+	      emeanX_[key][layerIdx]   += en*hitX;
+	      showerMeanX_[key]        += en*hitX;
+	      emeanY_[key][layerIdx]   += en*hitY;
+	      showerMeanY_[key]        += en*hitY;
+	   
+	      //to shower max
+	      if(hitMax_[key]>0.5)
 		{
-		  float hitEta(0),hitPhi(0),hitX(0),hitY(0);
-		  try{
-		    const GlobalPoint pos( std::move( geom->getPosition(detIt->first) ) );
-		    hitX=pos.x();
-		    hitY=pos.y();
-		    hitEta=pos.eta();
-		    hitPhi=pos.phi();
-		  }catch(...){
-		    nFailed++; continue;
-		  }
-
-		  int idx(abs((hitX-refX)/cellSize));
-		  int idy(abs((hitY-refY)/cellSize));
-		  float rho=sqrt(pow(hitX-refX,2)+pow(hitY-refY,2));
-		  int layerIdx((detIt->first >> 19) & 0x1f); 
-		  layerIdx+=(baseLayerIdx-1);
-		  float en(detIt->second);
-		  nhits_[key][layerIdx]    ++;
-		  edeps_[key][layerIdx]    += en;
-		  if(idx<=1 && idy<=1) edeps3x3_[key][layerIdx] += en;
-		  if(idx<=3 && idy<=3) edeps5x5_[key][layerIdx] += en;
-		  if(en>10.) hasHitAbove10Mip_[key][layerIdx]=true;
-		  edepdR_[key][layerIdx]   += en*rho;
-		  edep2dR_[key][layerIdx]  += en*pow(rho,2);
-		  emeanPhi_[key][layerIdx] += en*hitPhi;
-		  emeanEta_[key][layerIdx] += en*hitEta;
-		  emeanX_[key][layerIdx]   += en*hitX;
-		  emeanY_[key][layerIdx]   += en*hitY;
-		  sihih_[key][layerIdx]    += en*pow(hitEta-refEta,2);
-		  sipip_[key][layerIdx]    += en*pow(deltaPhi(hitPhi,refPhi),2);
-		  sipih_[key][layerIdx]    += en*(hitEta-refEta)*(deltaPhi(hitPhi,refPhi));
+		  float rho=sqrt(pow(hitX-hitMaxX_[key],2)+pow(hitY-hitMaxY_[key],2));
+		  edepdR2hitmax_[key][layerIdx]   += en*rho;
+		  edep2dR2hitmax_[key][layerIdx]  += en*pow(rho,2);
+		  sihih2hitmax_[key][layerIdx]    += en*pow(hitEta-hitMaxEta_[key],2);
+		  sipip2hitmax_[key][layerIdx]    += en*pow(deltaPhi(hitPhi,hitMaxPhi_[key]),2);
+		  sipih2hitmax_[key][layerIdx]    += en*(hitEta-hitMaxEta_[key])*(deltaPhi(hitPhi,hitMaxPhi_[key]));
 		}
 	    }
-	 
-	  //log if failed
-	  if(nFailed) cout << "Failed to position " << nFailed << " det ids for " << i << "-th collection" << endl;
- 
-	  //increment base layer idx
-	  baseLayerIdx += dddConst.layers(true); 
-	}
-      
+	  cout << key << " totalEn=" << totalEn << endl;
 
-      //finalize normalizing by total energy in each layer
-      nlay_=baseLayerIdx;
-      for(std::map<TString, Float_t * >::iterator keyIt=edeps_.begin();
-	  keyIt!=edeps_.end();
-	  keyIt++)
-	{
-	  TString key(keyIt->first);
+	  //compute shower direction
+	  if(totalEn<=0 || isnan(totalEn) || totalEn>1e10) continue;
+	  showerMeanPhi_[key]/=totalEn;
+	  showerMeanEta_[key]/=totalEn;
+	  showerMeanX_[key]/=totalEn;
+	  showerMeanY_[key]/=totalEn;
+
+	  //loop once more over hits to determine distance to shower direction
+	  for(std::map<uint32_t,float>::iterator detIt=stepIt->second.begin();
+	      detIt!=stepIt->second.end();
+	      detIt++)
+	    {
+	      
+	      int subDetId((detIt->first>>25)&0x7);
+	      int subDetCtr(0);
+	      if(subDetId==ForwardSubdetector::HGCHEF) subDetCtr=1;
+	      if(subDetId==ForwardSubdetector::HGCHEB) subDetCtr=2;
+	      int hitLayer((detIt->first >> 19) & 0x1f);
+	      float hitEta(0),hitPhi(0),hitX(0),hitY(0);
+	      try{
+		const GlobalPoint pos( std::move( geom[subDetCtr]->getPosition(detIt->first) ) );
+		hitX=pos.x();
+		hitY=pos.y();
+		hitEta=pos.eta();
+		hitPhi=pos.phi();
+	      }catch(...){
+	      }
+
+	      const HGCalTopology &topo=geom[subDetCtr]->topology();
+	      const HGCalDDDConstants &dddConst=topo.dddConstants(); 
+	      std::vector<HGCalDDDConstants::hgtrap>::const_iterator recModIt( dddConst.getFirstModule(true) );
+	      std::pair<int,int>  simToReco=dddConst.simToReco(1,hitLayer,false);
+	      for(int klay=1; klay<simToReco.second; klay++) recModIt++;
+	      float cellSize=recModIt->cellSize;
+	      int idx(abs((hitX-showerMeanX_[key])/cellSize));
+	      int idy(abs((hitY-showerMeanY_[key])/cellSize));
+
+	      float en(detIt->second);
+	      int layerIdx(hitLayer+layerCtrOffset[subDetCtr]-1);	      
+	      if(idx<=1 && idy<=1) edeps3x3_[key][layerIdx] += en;
+	      if(idx<=3 && idy<=3) edeps5x5_[key][layerIdx] += en;
+	      
+	      float rho=sqrt(pow(hitX-showerMeanX_[key],2)+pow(hitY-showerMeanY_[key],2));
+	      edepdR_[key][layerIdx]   += en*rho;
+	      edep2dR_[key][layerIdx]  += en*pow(rho,2);
+	      sihih_[key][layerIdx]    += en*pow(hitEta-showerMeanEta_[key],2);
+	      sipip_[key][layerIdx]    += en*pow(deltaPhi(hitPhi,showerMeanPhi_[key]),2);
+	      sipih_[key][layerIdx]    += en*(hitEta-showerMeanEta_[key])*(deltaPhi(hitPhi,showerMeanPhi_[key]));
+	    }
+	  
+	  //finalize by normalizing
 	  for(Int_t ilay=0; ilay<nlay_; ilay++)
 	    {
-	      float totalEn=edeps_[key][ilay];
-	      if(totalEn<=0) continue;
-	      emeanPhi_[key][ilay] /= totalEn;	  
-	      emeanEta_[key][ilay] /= totalEn;
-	      emeanX_[key][ilay]   /= totalEn;	  
-	      emeanY_[key][ilay]   /= totalEn;
-	      edepdR_[key][ilay]   /= totalEn;
-	      edep2dR_[key][ilay]  /= totalEn;
-	      sihih_[key][ilay]    /= totalEn;
-	      sipip_[key][ilay]    /= totalEn;
-	      sipih_[key][ilay]    /= totalEn;
+	      float iTotalEn( edeps_[key][ilay] );
+	      if(iTotalEn<=0) continue;
+	      emeanPhi_[key][ilay] /= iTotalEn;	  
+	      emeanEta_[key][ilay] /= iTotalEn;
+	      emeanX_[key][ilay]   /= iTotalEn;	  
+	      emeanY_[key][ilay]   /= iTotalEn;
+	      edepdR_[key][ilay]   /= iTotalEn;
+	      edep2dR_[key][ilay]  /= iTotalEn;
+	      sihih_[key][ilay]    /= iTotalEn;
+	      sipip_[key][ilay]    /= iTotalEn;
+	      sipih_[key][ilay]    /= iTotalEn;
+	      edepdR2hitmax_[key][ilay]   /= iTotalEn;
+	      edep2dR2hitmax_[key][ilay]  /= iTotalEn;
+	      sihih2hitmax_[key][ilay]    /= iTotalEn;
+	      sipip2hitmax_[key][ilay]    /= iTotalEn;
+	      sipih2hitmax_[key][ilay]    /= iTotalEn;
 	    }
+	  	 
 	}
-      
+
+      //log if failed
+      if(nFailed) cout << "Failed to position " << nFailed << " det ids for " << key << " step" << endl;
+           
+      //that's all folks...
       t_->Fill();
     }
 }
