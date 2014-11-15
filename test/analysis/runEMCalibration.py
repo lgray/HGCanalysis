@@ -20,27 +20,23 @@ def runCalibrationStudy(opt):
     vetoTrackInt      = opt.vetoTrackInt
     
     #init phase space regions of interest
-    #etaRanges = [[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75],[2.75,2.9]]
-    #enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[249,251]] 
+    etaRanges = [[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75],[2.75,2.9]]
+    enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[249,251]] 
     
-    etaRanges = [[1.6,2.9]]
-    enRanges  = [[9,11],[29,31],[49,51]]
+    #etaRanges = [[1.6,2.9]]
+    #enRanges  = [[9,11],[29,31],[49,51]]
     
     #init weights and integration ranges
     integRanges       = [[1,1],[2,11],[12,21],[22,30],[31,31],[32,42],[43,54]]
     weights={}
     #weights["Trivial"] = [1.0,  1.0,   1.0,    1.0,    1.0,    1.0,    1.0]
-    #weights["x0"]      = [0.08, 0.620, 0.809,  1.239,  3.580,  3.103,  5.228]
+    weights["x0"]      = [0.08, 0.620, 0.809,  1.239,  3.580,  3.103,  5.228]
     weights["lambda"]  = [0.01, 0.036, 0.043,  0.056,  0.338,  0.273,  0.476]
-    #weights["had_linreg"] = [0.060478641299467166,  0.010821968277230637, 0.0096620531479292698, 0.017915306115493686, 0.045039116195834318, 0.05297744952272318, 0.11989320894062623]
-    #weights["em_linreg"]  = [ 0.041309493816764332,  0.008462210377895853, 0.009629802090212889, 0.016843239031382701, 0.1264599727885049, 0.15573504738067073, 0.2407144864311227]
     weightTitles={}
-    weightTitles["Trivial"] = "Trivial weights"
+    #weightTitles["Trivial"] = "Trivial weights"
     weightTitles["x0"]      = "X_{0}-based weights"
     weightTitles["lambda"]  = "#lambda-based weights"
-    #weightTitles["had_linreg"] = "had lin. regression weights"
-    #weightTitles["em_linreg"]  = "e.m. lin. regression weights"
-
+    
     #prepare workspace (if needed) and output
     outDir="./"
     if wsUrl is None :
@@ -221,16 +217,23 @@ def runCalibrationStudy(opt):
     #derive calibration
     calibModel=ROOT.TF1('calibmodel',"[0]*x+[1]",0,800)
     calibModel.SetLineWidth(1)
-    calibF=ROOT.TFile.Open('%s/calib_%s.root'%(outDir,calibPostFix),'RECREATE')
     for wType in weights :
         calibGr[wType].Fit(calibModel,'MER+')
         calibGr[wType].GetFunction(calibModel.GetName()).SetLineColor(calibGr[wType].GetListOfGraphs().At(0).GetLineColor())
-        calibGr[wType].GetFunction(calibModel.GetName()).Clone('%s_calib'%wType).Write()
-    calibF.Close()
 
     #show results
-    showCalibrationCurves(calibGr=calibGr,outDir=outDir,calibPostFix=calibPostFix)
+    resCorrectionGr=showCalibrationCurves(calibGr=calibGr,calibRanges=etaRanges,outDir=outDir,calibPostFix=calibPostFix)
     showResolutionCurves(resGr=resGr,outDir=outDir,calibPostFix=calibPostFix)
+
+    #save all to file
+    calibF=ROOT.TFile.Open('%s/calib_%s.root'%(outDir,calibPostFix),'RECREATE')
+    for wType in weights :
+        calibGr[wType].GetFunction(calibModel.GetName()).Write('%s_calib'%wType)
+        resCorrectionGr[wType].Write()
+    calibF.Close()
+
+
+
 
 """
 steer 

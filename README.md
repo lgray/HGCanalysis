@@ -34,21 +34,6 @@ For regression use flat gun
 
 python scripts/submitLocalHGCalProduction.py -q 1nd -n 250 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/FlatPtYSingle11_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/particlePtYGun_cfi.py -n 500 -p 11";
 
-For e.m. calibration use 200 events per file x 50 jobs
-
-energies=(10 20 40 50 75 100 250)
-#pids=(22 11 211)
-pids=(211)
-for pid in ${pids[@]}; do
-    for en in ${energies[@]}; do
-        #python scripts/submitLocalHGCalProduction.py -q 1nd -n 50 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION} -p ${pid} -n 200 -e ${en}";
-	#if [[ "${pid}" -eq "22" ]]; then
-           python scripts/submitLocalHGCalProduction.py -q 2nd -n 50 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_EE_AIR -p ${pid} -n 200 -e ${en} -x";
-           #python scripts/submitLocalHGCalProduction.py -q 8nh -n 50 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_EE_HEF_AIR -p ${pid} -n 200 -e ${en} -x -z";
-	fi
-     done
-done
-
 #test alternative physics lists for pions
 phys=("QGSP_FTFP_BERT_EML" "FTFP_BERT_EML" "FTFP_BERT_XS_EML" "QBBC")
 pids=(211)

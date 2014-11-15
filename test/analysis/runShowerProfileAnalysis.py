@@ -32,9 +32,10 @@ fIn=ROOT.TFile.Open('Single211_CMSSW_6_2_0_SLHC20_lgray_SimHits_0.root')
 HGC=fIn.Get('analysis/HGC')
 for i in xrange(0,HGC.GetEntriesFast()):
     HGC.GetEntry(i)
-    if HGC.genEn>11 or HGC.genEn<9 : continue
+    if HGC.hasInteractionBeforeHGC : continue
+    #if HGC.genEn>11 or HGC.genEn<9 : continue
     #if HGC.genEn>31 or HGC.genEn<29 : continue
-    #if HGC.genEn>51 or HGC.genEn<49 : continue
+    if HGC.genEn>51 or HGC.genEn<49 : continue
     nEvts=nEvts+1
     for ilay in xrange(0,HGC.nlay):
         for var in histos:

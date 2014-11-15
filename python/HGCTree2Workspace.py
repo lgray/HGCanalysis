@@ -27,6 +27,7 @@ def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False
     #read all to a RooDataSet
     fin=ROOT.TFile.Open(url)
     HGC=fin.Get('analysis/HGC')
+    simStep=treeVarName.split('_')[1]
     for entry in xrange(0,HGC.GetEntriesFast()+1):
         HGC.GetEntry(entry)
 
@@ -43,6 +44,8 @@ def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False
         ws.var('phi').setVal(genPhi)
         newEntry=ROOT.RooArgSet(ws.var('en'), ws.var('eta'),  ws.var('phi') )
 
+        showerMeanEta=getattr(HGC,'showerMeanEta_%s'%simStep)
+
         #check the amount of energy deposited in the back HEB
         if vetoHEBLeaks:
             sumBackHEB=0
@@ -55,7 +58,8 @@ def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False
             totalEnInIntegRegion=0
             for ilayer in xrange(integRanges[ireg][0],integRanges[ireg][1]+1):
                 totalEnInIntegRegion=totalEnInIntegRegion+(getattr(HGC,treeVarName))[ilayer-1]
-            geomCorrection=ROOT.TMath.TanH(genEta)
+            #geomCorrection=ROOT.TMath.TanH(genEta)
+            geomCorrection=ROOT.TMath.TanH(showerMeanEta)
             ws.var('edep%d'%ireg).setVal(totalEnInIntegRegion*geomCorrection)
             newEntry.add(ws.var('edep%d'%(ireg)))
         ws.data('data').add( newEntry )
@@ -78,7 +82,8 @@ def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False
         with io.open('%s/optim_weights.dat'%outUrl, 'w', encoding='utf-8') as f: f.write(unicode(json.dumps(optimData, sort_keys = True, ensure_ascii=False, indent=4)))
     except:
         print 'Failed to optimize - singular matrix?'
-        raw_input()
+        print 'Matrix: ',optimMatrix
+        print 'Vector: ',optimVec
 
     #all done, write to file
     wsFileUrl='%s/workspace.root'%outUrl
@@ -108,7 +113,7 @@ def showCalibrationFitResults(theVar,theData,thePDF,theLabel,fitName,outDir) :
 """
 shows a set of calibration curves
 """
-def showCalibrationCurves(calibGr,outDir,calibPostFix) :
+def showCalibrationCurves(calibGr,calibRanges,outDir,calibPostFix) :
     canvas=ROOT.TCanvas('c','c',500,500)
     canvas.cd()
     up=ROOT.TPad('up','up',0.0,0.4,1.0,1.0)
@@ -122,6 +127,7 @@ def showCalibrationCurves(calibGr,outDir,calibPostFix) :
     leg.SetTextFont(42)
     leg.SetTextSize(0.045)
     resCalibGr={}
+    resCorrectionGr={}
     igr=0
     for wType in calibGr:
         if igr==0:
@@ -150,7 +156,9 @@ def showCalibrationCurves(calibGr,outDir,calibPostFix) :
 
         #compute the residuals
         resCalibGr[wType]=ROOT.TMultiGraph()
+        resCorrectionGr[wType]=None
         for gr in calibGr[wType].GetListOfGraphs() :
+
             newGr=gr.Clone('%s_res'%gr.GetName())
             newGr.Set(0)
             xval, yval = ROOT.Double(0), ROOT.Double(0)
@@ -163,6 +171,19 @@ def showCalibrationCurves(calibGr,outDir,calibPostFix) :
                 newGr.SetPoint(ip,xval,100*(xrec/xval-1))
                 newGr.SetPointError(ip,xval_error,100*xrec_error/xval)
             resCalibGr[wType].Add(newGr,'p')
+
+            #linear approximation to residuals
+            newGr.Fit('pol0','QME0+')
+            if resCorrectionGr[wType] is None:
+                resCorrectionGr[wType]=gr.Clone('%s_calib_residuals'%wType)
+                resCorrectionGr[wType].SetTitle(calibGr[wType].GetTitle())
+                resCorrectionGr[wType].Set(0)
+            ip=resCorrection[wType].GetN()
+            calibXmin=calibRanges[ip][0]
+            calibXmax=calibRanges[ip][1]
+            resCorrection[wType].SetPoint(ip,0.5*(calibXmax+calibXmin),newGr.GetFunction('pol0').GetParameter(0)/100.)
+            resCorrection[wType].SetPointError(ip,0.5*(calibXmax-calibXmin),newGr.GetFunction('pol0').GetParError(0)/100.)
+
     leg.Draw()
     MyPaveText('#bf{CMS} #it{simulation}').SetTextSize(0.06)
 
@@ -195,6 +216,40 @@ def showCalibrationCurves(calibGr,outDir,calibPostFix) :
     canvas.SaveAs('%s/calib%s.png'%(outDir,calibPostFix))
     up.Delete()
     dp.Delete()
+
+    #now show residual calibration
+    canvas.Clear()
+    igr=0
+    leg=ROOT.TLegend(0.8,0.6,0.9,0.9)
+    leg.SetFillStyle(0)
+    leg.SetBorderSize(0)
+    leg.SetTextFont(42)
+    leg.SetTextSize(0.045)
+    for wType in resCorrectionGr:
+        if igr==0:
+            resCorrectionGr[wType].Draw('ap')
+            resCorrectionGr[wType].GetXaxis().SetTitle('Pseudo-rapidity')
+            resCorrectionGr[wType].GetYaxis().SetTitle('Residual correction')
+            resCorrectionGr[wType].GetYaxis().SetTitleOffset(1.0)
+            resCorrectionGr[wType].GetYaxis().SetTitleSize(0.07)
+            resCorrectionGr[wType].GetYaxis().SetLabelSize(0.05)
+            resCorrectionGr[wType].GetXaxis().SetTitleOffset(1.0)
+            resCorrectionGr[wType].GetXaxis().SetTitleSize(0.07)
+            resCorrectionGr[wType].GetXaxis().SetLabelSize(0.05)
+            resCorrectionGr[wType].GetYaxis().SetRangeUser(1,resCorrectionGr[wType].GetYaxis().GetXmax()*2)
+        else:
+            resCorrectionGr[wType].Draw('p')
+        leg.AddEntry(resCorrectionGr[wType],resCorrectionGr[wType].GetTitle(),"p")
+        igr+=1
+    leg.Draw()
+    MyPaveText('#bf{CMS} #it{simulation}').SetTextSize(0.04)
+    canvas.cd()
+    canvas.Modified()
+    canvas.Update()
+    canvas.SaveAs('%s/rescalib%s.png'%(outDir,calibPostFix))
+    
+    return resCorrectionGr
+    
 
 """
 shows a set of resolution curves
