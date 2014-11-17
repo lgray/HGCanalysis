@@ -178,11 +178,11 @@ def showCalibrationCurves(calibGr,calibRanges,outDir,calibPostFix) :
                 resCorrectionGr[wType]=gr.Clone('%s_calib_residuals'%wType)
                 resCorrectionGr[wType].SetTitle(calibGr[wType].GetTitle())
                 resCorrectionGr[wType].Set(0)
-            ip=resCorrection[wType].GetN()
+            ip=resCorrectionGr[wType].GetN()
             calibXmin=calibRanges[ip][0]
             calibXmax=calibRanges[ip][1]
-            resCorrection[wType].SetPoint(ip,0.5*(calibXmax+calibXmin),newGr.GetFunction('pol0').GetParameter(0)/100.)
-            resCorrection[wType].SetPointError(ip,0.5*(calibXmax-calibXmin),newGr.GetFunction('pol0').GetParError(0)/100.)
+            resCorrectionGr[wType].SetPoint(ip,0.5*(calibXmax+calibXmin),newGr.GetFunction('pol0').GetParameter(0)/100.)
+            resCorrectionGr[wType].SetPointError(ip,0.5*(calibXmax-calibXmin),newGr.GetFunction('pol0').GetParError(0)/100.)
 
     leg.Draw()
     MyPaveText('#bf{CMS} #it{simulation}').SetTextSize(0.06)
@@ -220,23 +220,23 @@ def showCalibrationCurves(calibGr,calibRanges,outDir,calibPostFix) :
     #now show residual calibration
     canvas.Clear()
     igr=0
-    leg=ROOT.TLegend(0.8,0.6,0.9,0.9)
+    leg=ROOT.TLegend(0.2,0.7,0.9,0.9)
     leg.SetFillStyle(0)
     leg.SetBorderSize(0)
     leg.SetTextFont(42)
-    leg.SetTextSize(0.045)
+    leg.SetTextSize(0.035)
     for wType in resCorrectionGr:
         if igr==0:
             resCorrectionGr[wType].Draw('ap')
             resCorrectionGr[wType].GetXaxis().SetTitle('Pseudo-rapidity')
             resCorrectionGr[wType].GetYaxis().SetTitle('Residual correction')
-            resCorrectionGr[wType].GetYaxis().SetTitleOffset(1.0)
-            resCorrectionGr[wType].GetYaxis().SetTitleSize(0.07)
-            resCorrectionGr[wType].GetYaxis().SetLabelSize(0.05)
-            resCorrectionGr[wType].GetXaxis().SetTitleOffset(1.0)
-            resCorrectionGr[wType].GetXaxis().SetTitleSize(0.07)
-            resCorrectionGr[wType].GetXaxis().SetLabelSize(0.05)
-            resCorrectionGr[wType].GetYaxis().SetRangeUser(1,resCorrectionGr[wType].GetYaxis().GetXmax()*2)
+            resCorrectionGr[wType].GetYaxis().SetTitleOffset(0.9)
+            resCorrectionGr[wType].GetYaxis().SetTitleSize(0.05)
+            resCorrectionGr[wType].GetYaxis().SetLabelSize(0.04)
+            resCorrectionGr[wType].GetXaxis().SetTitleOffset(0.9)
+            resCorrectionGr[wType].GetXaxis().SetTitleSize(0.05)
+            resCorrectionGr[wType].GetXaxis().SetLabelSize(0.04)
+            resCorrectionGr[wType].GetYaxis().SetRangeUser(-1.5*resCorrectionGr[wType].GetYaxis().GetXmax(),resCorrectionGr[wType].GetYaxis().GetXmax()*1.5)
         else:
             resCorrectionGr[wType].Draw('p')
         leg.AddEntry(resCorrectionGr[wType],resCorrectionGr[wType].GetTitle(),"p")
@@ -264,7 +264,7 @@ def showResolutionCurves(resGr,outDir,calibPostFix) :
 
     canvas=ROOT.TCanvas('c','c',500,500)
     canvas.cd()
-    leg=ROOT.TLegend(0.75,0.6,0.9,0.93)
+    leg=ROOT.TLegend(0.75,0.5,0.9,0.95)
     leg.SetFillStyle(0)
     leg.SetBorderSize(0)
     leg.SetTextFont(42)
@@ -298,7 +298,7 @@ def showResolutionCurves(resGr,outDir,calibPostFix) :
         sigmaStochErr = ffunc.GetParError(0)
         sigmaConst    = ffunc.GetParameter(1)
         sigmaConstErr = ffunc.GetParError(1)
-        pt.append( MyPaveText('#it{%s} :  #frac{%3.4f}{#sqrt{E}} #oplus %3.4f'%(resGr[wType].GetTitle(),sigmaStoch,sigmaConst),
+        pt.append( MyPaveText('#it{%s} :  %3.4f#scale[0.8]{/#sqrt{E}} #oplus %3.4f'%(resGr[wType].GetTitle(),sigmaStoch,sigmaConst),
                               0.2,0.93-igr*0.05,0.4,0.90-igr*0.05) )
         pt[igr-1].SetTextColor(lcol)
         pt[igr-1].SetTextSize(0.03)

@@ -18,8 +18,9 @@ PILEUP=""
 TAG=""
 PILEUPINPUT=root://eoscms//eos/cms/store/cmst3/group/hgcal/CMSSW/MinBias_CMSSW_6_2_X_SLHC_2014-09-10-0200/
 PHYSLIST="QGSP_FTFP_BERT_EML"
+RECO="1"
 
-while getopts "hp:e:n:c:o:w:j:g:ut:i:l:xz" opt; do
+while getopts "hp:e:n:c:o:w:j:g:ut:i:l:xzr:" opt; do
     case "$opt" in
     h)
         echo ""
@@ -32,6 +33,7 @@ while getopts "hp:e:n:c:o:w:j:g:ut:i:l:xz" opt; do
 	echo "     -w      local work directory (by default /tmp/user)"
 	echo "     -l      GEANT4 physics list: QGSP_FTFP_BERT_EML (default) / FTFP_BERT_EML / FTFP_BERT_XS_EML / QBBC"
         echo "     -j      job number"
+        echo "     -r      run reco (0 or 1-default)"
 	echo "     -g      geometry"
 	echo "             v4:            Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco"
 	echo "             v5 (default) : ${GEOMETRY}"
@@ -61,6 +63,8 @@ while getopts "hp:e:n:c:o:w:j:g:ut:i:l:xz" opt; do
     j)  JOBNB=$OPTARG
 	;;
     g)  GEOMETRY=$OPTARG
+	;;
+    r)  RECO=$OPTARG
 	;;
     x)  EE_AIR="True"
 	;;
@@ -98,32 +102,25 @@ if [ "$PILEUP" = "local" ]; then
 fi
 
 #run cmsDriver
-#cmsDriver.py ${CFI} -n ${NEVENTS} \
-#    --python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
-#    $PILEUP \
-#    -s GEN,SIM --datatier GEN-SIM --eventcontent FEVTDEBUGHLT\
-#    --conditions auto:upgradePLS3 --beamspot Gauss --magField 38T_PostLS1 \
-#    --customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
-#    --geometry ${GEOMETRY} \
-#    --no_exec 
-
-cmsDriver.py ${CFI} -n ${NEVENTS} \
-    --python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
-    $PILEUP \
-    -s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW,RAW2DIGI,L1Reco,RECO --datatier GEN-SIM-DIGI-RECO --eventcontent FEVTDEBUGHLT\
-    --conditions auto:upgradePLS3 --beamspot Gauss --magField 38T_PostLS1 \
-    --customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
-    --geometry ${GEOMETRY} \
-    --no_exec 
-
-echo "cmsDriver.py ${CFI} -n ${NEVENTS} \
-    --python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
-    $PILEUP \
-    -s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW,RAW2DIGI,L1Reco,RECO --datatier GEN-SIM-DIGI-RECO --eventcontent FEVTDEBUGHLT\
-    --conditions auto:upgradePLS3 --beamspot Gauss --magField 38T_PostLS1 \
-    --customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
-    --geometry ${GEOMETRY} \
-    --no_exec"
+if [ "${RECO}" -eq "0" ]; then
+    cmsDriver.py ${CFI} -n ${NEVENTS} \
+	--python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
+	$PILEUP \
+	-s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW --datatier GEN-SIM-DIGI-RAW --eventcontent FEVTDEBUGHLT \
+	--conditions auto:upgradePLS3 --beamspot Gauss --magField 38T_PostLS1 \
+	--customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
+	--geometry ${GEOMETRY} \
+	--no_exec 
+elif [ "${RECO}" -eq "1" ]; then
+    cmsDriver.py ${CFI} -n ${NEVENTS} \
+	--python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
+	$PILEUP \
+	-s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW,RAW2DIGI,L1Reco,RECO --datatier GEN-SIM-DIGI-RECO --eventcontent FEVTDEBUGHLT \
+	--conditions auto:upgradePLS3 --beamspot Gauss --magField 38T_PostLS1 \
+	--customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
+	--geometry ${GEOMETRY} \
+	--no_exec 
+fi
 
 #customize with values to be generated
 echo "process.g4SimHits.StackingAction.SaveFirstLevelSecondary = True" >> ${WORKDIR}/${PYFILE}
@@ -151,8 +148,13 @@ if [[ "${HEF_AIR}" != "" ]]; then
 fi
 
 #customize particle gun
-SUBSTRING="s/MinE = cms.double(0)/MinE = cms.double(${ENERGY})/"
-SUBSTRING="${SUBSTRING};s/MaxE = cms.double(0)/MaxE = cms.double(${ENERGY})/"
+if [[ ${CFI} =~ .*jetGun.* ]]; then
+    SUBSTRING="s/MinP = cms.double(0)/MinP = cms.double(${ENERGY})/"
+    SUBSTRING="${SUBSTRING};s/MaxP = cms.double(0)/MaxP = cms.double(${ENERGY})/"
+else
+    SUBSTRING="s/MinE = cms.double(0)/MinE = cms.double(${ENERGY})/"
+    SUBSTRING="${SUBSTRING};s/MaxE = cms.double(0)/MaxE = cms.double(${ENERGY})/"
+fi
 SUBSTRING="${SUBSTRING};s/ParticleID = cms.vint32(0)/ParticleID = cms.vint32(${PID})/"
 sed -i.bak "${SUBSTRING}" ${WORKDIR}/${PYFILE}
 rm ${WORKDIR}/${PYFILE}.bak

@@ -35,7 +35,7 @@ for ffile in xrange(0,len(allFiles),opt.step):
     scriptFile.write('cd %s/src\n'%cmsswBase)
     scriptFile.write('eval `scram r -sh`\n')
     scriptFile.write('cd %s\n'%jobsDir)
-    scriptFile.write('cmsRun %s/src/UserCode/HGCanalysis/%s 1 %s %d %d\n'%(cmsswBase,opt.cfg,opt.tag,ffile,opt.step))
+    scriptFile.write('cmsRun %s/src/UserCode/HGCanalysis/%s %s %d %d\n'%(cmsswBase,opt.cfg,opt.tag,ffile,opt.step))
     scriptFile.write('cmsStage -f /tmp/psilva/%s_SimHits_%d.root %s\n'%(outputTag,ffile,opt.output))
     scriptFile.write('rm /tmp/psilva/%s_SimHits_%d.root\n'%(outputTag,ffile))
     scriptFile.write('echo "All done for this job\"\n')

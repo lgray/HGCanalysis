@@ -61,6 +61,7 @@ def runCalibrationStudy(opt):
     #readout calibration
     calibPostFix='uncalib'
     calibMap={}
+    calibMapRes={}
     if calibUrl:
         calibPostFix=os.path.basename(calibUrl)
         calibPostFix='_'+calibPostFix.replace('.root','')
@@ -68,6 +69,7 @@ def runCalibrationStudy(opt):
         print 'Reading out calibrations from %s'%calibUrl
         for wType in weights:
             calibMap[wType]=calibF.Get('%s_calib'%wType).Clone()
+            calibMapRes[wType]=calibF.Get('%s_calib_res'%wType).Clone()
         calibF.Close()
 
     #prepare energy estimators
@@ -122,7 +124,14 @@ def runCalibrationStudy(opt):
                 ienVal+= edep0*matParamBeforeHGCMap[wType].Eval(genEta)*int(vetoTrackInt) 
             except:
                 pass
-            ws.var('%sEn_%s'%(wType,calibPostFix)).setVal(ienVal)
+            
+            #compute residual, if available
+            calib_residual=0.0
+            if wType in calibMapRes:
+                calib_residual=calibMapRes[wType].Eval(ROOT.TMath.Abs(ws.var('eta').getVal()))
+
+            #add corrected energy
+            ws.var('%sEn_%s'%(wType,calibPostFix)).setVal(ienVal*(1-calib_residual))
             newEntry.add(ws.var('%sEn_%s'%(wType,calibPostFix)))
         ws.data('data_%s'%calibPostFix).add( newEntry )
 
@@ -226,10 +235,14 @@ def runCalibrationStudy(opt):
     showResolutionCurves(resGr=resGr,outDir=outDir,calibPostFix=calibPostFix)
 
     #save all to file
+    calibModelRes=ROOT.TF1('calibmodelres',"[0]*x*x+[1]*x+[2]",1.45,3.1)
     calibF=ROOT.TFile.Open('%s/calib_%s.root'%(outDir,calibPostFix),'RECREATE')
     for wType in weights :
+        calibGr[wType].Write()
         calibGr[wType].GetFunction(calibModel.GetName()).Write('%s_calib'%wType)
         resCorrectionGr[wType].Write()
+        resCorrectionGr[wType].Fit(calibModelRes,'WMR+')
+        resCorrectionGr[wType].GetFunction(calibModelRes.GetName()).Write('%s_calib_res'%wType)
     calibF.Close()
 
 

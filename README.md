@@ -34,6 +34,13 @@ For regression use flat gun
 
 python scripts/submitLocalHGCalProduction.py -q 1nd -n 250 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/FlatPtYSingle11_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/particlePtYGun_cfi.py -n 500 -p 11";
 
+Jet gun for neutral pions
+
+energies=(10 20 50 100 250)
+for en in ${energies[@]}; do 
+    python scripts/submitLocalHGCalProduction.py -n 10 -q 2nd -s generateEventsFromCfi.sh -o "-c UserCode/HGCanalysis/python/jetGun_cfi.py -r 0 -o /store/cmst3/group/hgcal/CMSSW/Single111_${CMSSW_VERSION} -p 111 -n 500 -e ${en}"; 
+done
+
 #test alternative physics lists for pions
 phys=("QGSP_FTFP_BERT_EML" "FTFP_BERT_EML" "FTFP_BERT_XS_EML" "QBBC")
 pids=(211)

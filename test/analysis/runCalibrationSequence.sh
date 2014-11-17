@@ -34,7 +34,6 @@ fi
 
 #create trees
 if [ "${step}" -eq "2" ]; then
-    exit -1
     pids=(22 211)
     for pid in ${pids[@]}; do
 	cmsRun test/runHGCSimHitsAnalyzer_cfg.py Single${pid}_${CMSSW_VERSION};
@@ -51,7 +50,8 @@ fi
 #EM calibration
 if [ "${step}" -eq "3" ]; then
     
-    samples=("Single22_${CMSSW_VERSION}_SimHits_0" "Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0" "Single22_${CMSSW_VERSION}_EE_HEF_AIR_SimHits_0")       vars=("edep_sim" "edep_rec")
+    samples=("Single22_${CMSSW_VERSION}_SimHits_0" "Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0" "Single22_${CMSSW_VERSION}_EE_HEF_AIR_SimHits_0")       
+    vars=("edep_sim" "edep_rec")
     extraOpts=("" "--vetoTrackInt")
     for sample in ${samples[@]}; do 
 	for var in ${vars[@]}; do
@@ -60,7 +60,6 @@ if [ "${step}" -eq "3" ]; then
 		outDir=${sample}/${var}${opts};
 		mkdir -p ${outDir};
 		mv ${sample}/*.* ${outDir};
-    	        #python test/analysis/runEMCalibration.py -w ${outDir}/workspace.root;
 		python test/analysis/runEMCalibration.py -w ${outDir}/workspace.root -c ${outDir}/calib_uncalib.root;
 		rm core*;
 	    done

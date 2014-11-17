@@ -86,6 +86,14 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       hitMaxPhi_[key]=0;
       t_->Branch("hitMaxPhi_"+key,     &hitMaxPhi_[key],   "hitMaxPhi_"+key+"/F");
 
+      totalE_[key]    = 0;
+      t_->Branch("totalE_"+key,      &totalE_[key],       "totalE_"+key+"[nlay]/F");
+
+      totalX0WgtE_[key]=0;
+      t_->Branch("totalX0WgtE_"+key,   &totalX0WgtE_[key],    "totalX0WgtE_"+key+"[nlay]/F");
+
+      totalLambdaWgtE_[key]=0;
+      t_->Branch("totalLambdaWgtE_"+key,   &totalLambdaWgtE_[key],    "totalLambdaWgtE_"+key+"[nlay]/F");
 
       edeps_[key]    = new Float_t[100];
       t_->Branch("edep_"+key,      edeps_[key],    "edep_"+key+"[nlay]/F");
@@ -449,7 +457,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	    }
 	  
 	  //loop over the hits
-	  float totalEn(0);
+	  float totalEn(0),totalX0WgtEn(0), totalLambdaWgtEn(0);
 	  for(std::map<uint32_t,float>::iterator detIt=stepIt->second.begin();
 	      detIt!=stepIt->second.end();
 	      detIt++)
@@ -475,8 +483,9 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      int layerIdx(hitLayer+layerCtrOffset[subDetCtr]-1); 
 	      float en(detIt->second);
 	      totalEn                    += en;
+	      totalX0WgtEn               += en*getLayerWeight(layerIdx,true);
+	      totalLambdaWgtEn           += en*getLayerWeight(layerIdx,false);
 	      edeps_[key][layerIdx]      += en;
-	      //weightedEdeps_[key][layerIdx] += en*getLayerWeight(layerIdx);
 	      nhits_[key][layerIdx]      +=1;
 	      nhits5mip_[key][layerIdx]  +=1*(en>5);
 	      nhits10mip_[key][layerIdx] +=1*(en>10.);
@@ -500,14 +509,27 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 		  sipih2hitmax_[key][layerIdx]    += en*(hitEta-hitMaxEta_[key])*(deltaPhi(hitPhi,hitMaxPhi_[key]));
 		}
 	    }
-	  cout << key << " totalEn=" << totalEn << endl;
 
-	  //compute shower direction
+	  //compute shower direction (global and local)
 	  if(totalEn<=0 || isnan(totalEn) || totalEn>1e10) continue;
 	  showerMeanPhi_[key]/=totalEn;
 	  showerMeanEta_[key]/=totalEn;
 	  showerMeanX_[key]/=totalEn;
 	  showerMeanY_[key]/=totalEn;
+	  for(Int_t ilay=0; ilay<nlay_; ilay++)
+	    {
+	      float iTotalEn( edeps_[key][ilay] );
+	      if(iTotalEn<=0) continue;
+	      emeanPhi_[key][ilay] /= iTotalEn;	  
+	      emeanEta_[key][ilay] /= iTotalEn;
+	      emeanX_[key][ilay]   /= iTotalEn;	  
+	      emeanY_[key][ilay]   /= iTotalEn;
+	    }
+
+	  //save energy sums
+	  totalE_[key]=totalEn;
+	  totalX0WgtE_[key]=totalX0WgtEn;
+	  totalLambdaWgtE_[key]=totalLambdaWgtEn;
 
 	  //loop once more over hits to determine distance to shower direction
 	  for(std::map<uint32_t,float>::iterator detIt=stepIt->second.begin();
@@ -536,20 +558,20 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      std::pair<int,int>  simToReco=dddConst.simToReco(1,hitLayer,false);
 	      for(int klay=1; klay<simToReco.second; klay++) recModIt++;
 	      float cellSize=recModIt->cellSize;
-	      int idx(abs((hitX-showerMeanX_[key])/cellSize));
-	      int idy(abs((hitY-showerMeanY_[key])/cellSize));
+	      int layerIdx(hitLayer+layerCtrOffset[subDetCtr]-1);	      
 
 	      float en(detIt->second);
-	      int layerIdx(hitLayer+layerCtrOffset[subDetCtr]-1);	      
+	      int idx(abs((hitX-emeanX_[key][layerIdx])/cellSize));
+	      int idy(abs((hitY-emeanY_[key][layerIdx])/cellSize));
 	      if(idx<=1 && idy<=1) edeps3x3_[key][layerIdx] += en;
 	      if(idx<=3 && idy<=3) edeps5x5_[key][layerIdx] += en;
 	      
-	      float rho=sqrt(pow(hitX-showerMeanX_[key],2)+pow(hitY-showerMeanY_[key],2));
+	      float rho=sqrt(pow(hitX-emeanX_[key][layerIdx],2)+pow(hitY-emeanY_[key][layerIdx],2));
 	      edepdR_[key][layerIdx]   += en*rho;
 	      edep2dR_[key][layerIdx]  += en*pow(rho,2);
-	      sihih_[key][layerIdx]    += en*pow(hitEta-showerMeanEta_[key],2);
-	      sipip_[key][layerIdx]    += en*pow(deltaPhi(hitPhi,showerMeanPhi_[key]),2);
-	      sipih_[key][layerIdx]    += en*(hitEta-showerMeanEta_[key])*(deltaPhi(hitPhi,showerMeanPhi_[key]));
+	      sihih_[key][layerIdx]    += en*pow(hitEta-emeanEta_[key][layerIdx],2);
+	      sipip_[key][layerIdx]    += en*pow(deltaPhi(hitPhi,emeanPhi_[key][layerIdx]),2);
+	      sipih_[key][layerIdx]    += en*(hitEta-emeanEta_[key][layerIdx])*(deltaPhi(hitPhi,emeanPhi_[key][layerIdx]));
 	    }
 	  
 	  //finalize by normalizing
@@ -557,10 +579,6 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	    {
 	      float iTotalEn( edeps_[key][ilay] );
 	      if(iTotalEn<=0) continue;
-	      emeanPhi_[key][ilay] /= iTotalEn;	  
-	      emeanEta_[key][ilay] /= iTotalEn;
-	      emeanX_[key][ilay]   /= iTotalEn;	  
-	      emeanY_[key][ilay]   /= iTotalEn;
 	      edepdR_[key][ilay]   /= iTotalEn;
 	      edep2dR_[key][ilay]  /= iTotalEn;
 	      sihih_[key][ilay]    /= iTotalEn;

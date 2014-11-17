@@ -77,6 +77,9 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	hitMaxX_[key]=0; hitMaxY_[key]=0; hitMaxEta_[key]=0; hitMaxPhi_[key]=0;	hitMaxLayer_[key]=0;
 	showerMeanX_[key]=0; showerMeanY_[key]=0; showerMeanEta_[key]=0; showerMeanPhi_[key]=0;
 	nClusters_[key]=0;
+	totalE_[key]=0;
+	totalX0WgtE_[key]=0;
+	totalLambdaWgtE_[key]=0;
 	for(size_t iclu=0; iclu<5; iclu++)
 	  {
 	    clusterEn_[key][iclu]=0;
@@ -95,6 +98,18 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
       }
   }
   
+  inline float getLayerWeight(int layerIdx,bool X0)
+  {
+    if(layerIdx==0)                  return X0 ? 0.080 : 0.01;
+    if(layerIdx>=1 && layerIdx<=10)  return X0 ? 0.620 : 0.036;
+    if(layerIdx>=11 && layerIdx<=20) return X0 ? 0.809 : 0.043;
+    if(layerIdx>=21 && layerIdx<=29) return X0 ? 1.239 : 0.056;
+    if(layerIdx==30)                 return X0 ? 3.580 : 0.338;
+    if(layerIdx>=31 && layerIdx<=41) return X0 ? 3.103 : 0.273;
+    if(layerIdx>=42 && layerIdx<=53) return X0 ? 5.228 : 0.475;
+    return 0.;
+  }
+
   //variables to store in tree
   Int_t genId_;
   Float_t genEn_,genEta_,genPhi_;
@@ -107,6 +122,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   std::map<TString, Float_t *> clusterEn_, clusterZ_, clusterEta_, clusterPhi_;
   std::map<TString, Float_t> hitMax_, hitMaxX_, hitMaxY_, hitMaxEta_, hitMaxPhi_;
   std::map<TString, Int_t> hitMaxLayer_;
+  std::map<TString, Float_t> totalE_, totalX0WgtE_, totalLambdaWgtE_;
   std::map<TString, Float_t *> edeps_, weightedEdeps_, edeps3x3_, edeps5x5_;
   std::map<TString, Int_t *> nhits_, nhits5mip_, nhits10mip_;
   std::map<TString, Float_t *> emeanX_, emeanY_, emeanPhi_,    emeanEta_;
