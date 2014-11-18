@@ -373,6 +373,10 @@ def runCalibrationStudy(opt):
     etaRanges = [[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75],[2.75,2.9]]
     enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[249,251]]
 
+    #small stats for test
+    #etaRanges = [[1.75,2.5]]
+    #enRanges  = [[9,11],[29,31],[49,51]]
+
     weightTitles={}
     weightTitles["lambda"]  = "#lambda-based weights"
     weightTitles["lambda_em"]  = "rescaled #lambda-based weights"
@@ -402,11 +406,11 @@ def runCalibrationStudy(opt):
         except:
             print 'Will compute EE vs HE(F+B) combination slope using %f coefficient for HEB'%(1./hefhebCombSlope)
             ehCombSlope, ehCombSlope_err = computeSubdetectorWeights(enRanges=enRanges,etaRanges=etaRanges,ws=ws,xaxis='EE',yaxis='HEF+HEB/%3.4f'%hefhebCombSlope,outDir=outDir)
-            ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambda_emEnFunc('@0+@1/%f',{lambda_emEn_EE,lambda_emEn_HEFHEB})"%(hefhebCombSlope)) )
-            ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambdaEnFunc('@0+@1+@2',{lambdaEn_EE,lambdaEn_HEF,lambdaEn_HEB})") )
-
+        ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambda_emEnFunc('@0+@1/%f',{lambda_emEn_EE,lambda_emEn_HEFHEB})"%(hefhebCombSlope)) )
+        ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambdaEnFunc('@0+@1+@2',{lambdaEn_EE,lambdaEn_HEF,lambdaEn_HEB})") )
 
     #create the final dataset for calibration
+    print 'Will use the following combination of sub-detectors %d x EE + %3.4f x (HEF + %3.4f x HEB)'%(1-int(opt.noEE),1./hefhebCombSlope,1./ehCombSlope)
     uncalibDataVars=ROOT.RooArgSet(ws.var('en'), ws.var('eta'), ws.var('phi'))
     for wType in weightTitles: 
         ws.factory('%sEn[0,0,999999999]'%wType)
@@ -467,7 +471,7 @@ def runCalibrationStudy(opt):
 
 
     #calibrate the energy estimators (split up in different energies and pseudo-rapidity ranges)
-    nSigmasToFit=2.0
+    nSigmasToFit=3.0
     calibGr={}
     resGr={}
     for wType in weightTitles:
@@ -517,7 +521,7 @@ def runCalibrationStudy(opt):
                 fitName          = 'range%d%d_%s'%(iEtaRange,iEnRange,vName)            
                 ws.var(vName).setRange(fitName,v_min,v_max)
                 ws.var(vName).setRange('fit_%s'%fitName,v_fitMin, v_fitMax)
-                ws.factory('RooCBShape::resol_%s(%s,mean_%s[%f,%f,%f],sigma_%s[%f,%f,%f],alpha_%s[-1.0,-20.0,-0.001],n_%s[1])'%
+                ws.factory('RooCBShape::resol_%s(%s,mean_%s[%f,%f,%f],sigma_%s[%f,%f,%f],alpha_%s[-1.0,-20.0,-0.001],n_%s[2,1,10])'%
                            (fitName,vName,
                             fitName,v_mean,v_min,v_max,
                             fitName,v_sigma,v_sigma*0.001, v_sigma*2,

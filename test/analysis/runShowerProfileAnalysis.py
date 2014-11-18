@@ -33,6 +33,7 @@ HGC=fIn.Get('analysis/HGC')
 for i in xrange(0,HGC.GetEntriesFast()):
     HGC.GetEntry(i)
     if HGC.hasInteractionBeforeHGC : continue
+    if ROOT.TMath.Abs(HGC.genEta)<1.6 or ROOT.TMath.Abs(HGC.genEta)>2.8 : continue
     #if HGC.genEn>11 or HGC.genEn<9 : continue
     #if HGC.genEn>31 or HGC.genEn<29 : continue
     if HGC.genEn>51 or HGC.genEn<49 : continue
