@@ -403,7 +403,7 @@ def runCalibrationStudy(opt):
             print 'Will compute EE vs HE(F+B) combination slope using %f coefficient for HEB'%(1./hefhebCombSlope)
             ehCombSlope, ehCombSlope_err = computeSubdetectorWeights(enRanges=enRanges,etaRanges=etaRanges,ws=ws,xaxis='EE',yaxis='HEF+HEB/%3.4f'%hefhebCombSlope,outDir=outDir)
             ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambda_emEnFunc('@0+@1/%f',{lambda_emEn_EE,lambda_emEn_HEFHEB})"%(hefhebCombSlope)) )
-            ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambdaEnFunc('0*@0+@1+@2',{lambdaEn_EE,lambdaEn_HEF,lambdaEn_HEB})") )
+            ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambdaEnFunc('@0+@1+@2',{lambdaEn_EE,lambdaEn_HEF,lambdaEn_HEB})") )
 
 
     #create the final dataset for calibration
