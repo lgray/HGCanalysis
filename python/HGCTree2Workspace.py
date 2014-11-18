@@ -44,7 +44,8 @@ def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False
         ws.var('phi').setVal(genPhi)
         newEntry=ROOT.RooArgSet(ws.var('en'), ws.var('eta'),  ws.var('phi') )
 
-        showerMeanEta=getattr(HGC,'showerMeanEta_%s'%simStep)
+        #showerMeanEta=getattr(HGC,'showerMeanEta_%s'%simStep)
+        showerMeanEta=genEta
 
         #check the amount of energy deposited in the back HEB
         if vetoHEBLeaks:

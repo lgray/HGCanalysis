@@ -18,7 +18,12 @@ fi
 
 #launch production
 if [ "${step}" -eq "1" ]; then
-    exit -1
+
+    echo "********************************************"
+    echo "launching production"
+    echo "********************************************"    
+
+
     energies=(10 20 40 50 75 100 250)
     pids=(22 211)
     for pid in ${pids[@]}; do
@@ -34,6 +39,11 @@ fi
 
 #create trees
 if [ "${step}" -eq "2" ]; then
+
+    echo "********************************************"
+    echo "creating analysis trees"
+    echo "********************************************"    
+
     pids=(22 211)
     for pid in ${pids[@]}; do
 	cmsRun test/runHGCSimHitsAnalyzer_cfg.py Single${pid}_${CMSSW_VERSION};
@@ -50,6 +60,10 @@ fi
 #EM calibration
 if [ "${step}" -eq "3" ]; then
     
+    echo "********************************************"
+    echo "e.m. calibration"
+    echo "********************************************"
+
     samples=("Single22_${CMSSW_VERSION}_SimHits_0" "Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0" "Single22_${CMSSW_VERSION}_EE_HEF_AIR_SimHits_0")       
     vars=("edep_sim" "edep_rec")
     extraOpts=("" "--vetoTrackInt")
@@ -69,6 +83,30 @@ fi
 
 #Pion calibration
 if [ "${step}" -eq "4" ]; then
-    python test/analysis/runPionCalibration.py -i Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0.root \
-        --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root,HEB:Single22_${CMSSW_VERSION}_EE_HEF_AIR_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root
+
+    echo "********************************************"
+    echo "pion calibration"
+    echo "********************************************"
+
+    vars=("edep_sim" "edep_rec")
+    for var in ${vars[@]}; do
+
+        #HEF + HEB calibration
+	#python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -i Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root --noEE -v ${var}
+
+	#python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -w Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/workspace_uncalib_pion.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/HEFHEB_comb.root --noEE --calib Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/calib_uncalib.root
+
+	#mkdir -p Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}
+	#mv Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/*.* Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}
+
+        #EE + HE(F+B) calibration
+	python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -i Single211_${CMSSW_VERSION}_SimHits_0.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}/HEFHEB_comb.root -v ${var}
+
+	python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -w Single211_${CMSSW_VERSION}_SimHits_0/workspace_uncalib_pion.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/edep_sim--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}/HEFHEB_comb.root --calib Single211_${CMSSW_VERSION}_SimHits_0/calib_uncalib.root
+
+	mkdir -p Single211_${CMSSW_VERSION}_SimHits_0/${var}
+	mv Single211_${CMSSW_VERSION}_SimHits_0/*.* Single211_${CMSSW_VERSION}_SimHits_0/${var}
+    done
+
+    rm core.*
 fi
