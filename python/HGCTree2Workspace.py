@@ -20,7 +20,11 @@ def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False
     outUrl=url.replace('.root','')
     os.system('mkdir -p %s'%outUrl)
     ws=ROOT.RooWorkspace("w")
-    dsVars=ROOT.RooArgSet( ws.factory('eta[1.5,1.45,3.1]'), ws.factory('en[0,0,9999999999]'), ws.factory('phi[0,-3.2,3.2]') )
+    dsVars=ROOT.RooArgSet( ws.factory('eta[1.5,1.45,3.1]'), 
+                           ws.factory('en[0,0,9999999999]'), 
+                           ws.factory('phi[0,-3.2,3.2]'),
+                           ws.factory('length[0,0,9999999.]'), 
+                           ws.factory('volume[0,0,9999999.]') )
     for ireg in xrange(0,len(integRanges)): dsVars.add( ws.factory('edep%d[0,0,99999999]'%ireg) )
     getattr(ws,'import')( ROOT.RooDataSet('data','data',dsVars) )
 
@@ -42,7 +46,14 @@ def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False
         ws.var('en').setVal(genEn)
         ws.var('eta').setVal(genEta)
         ws.var('phi').setVal(genPhi)
-        newEntry=ROOT.RooArgSet(ws.var('en'), ws.var('eta'),  ws.var('phi') )
+        showerLength,showerVolume=0,0
+        try:
+            showerLength, showerVolume=getattr(HGC,'totalLength_%s'%(simStep)),getattr(HGC,'totalVolume_%s'%(simStep))
+        except:
+            pass
+        ws.var('length').setVal(showerLength)
+        ws.var('volume').setVal(showerVolume)
+        newEntry=ROOT.RooArgSet(ws.var('en'), ws.var('eta'),  ws.var('phi'), ws.var('length'), ws.var('volume') )
 
         #showerMeanEta=getattr(HGC,'showerMeanEta_%s'%simStep)
         showerMeanEta=genEta

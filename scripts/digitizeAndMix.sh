@@ -1,11 +1,10 @@
 #!/bin/bash
 
-
 #
 # PARSE CONFIGURATION PARAMETERS
 #
-PULSETAU=0
-CFG=${CMSSW_BASE}/src/UserCode/HGCanalysis/test/rerunDigitization_cfg.py
+PILEUP=0
+CFG=${CMSSW_BASE}/src/UserCode/HGCanalysis/test/digitizeAndMix_cfg.py
 WORKDIR="/tmp/`whoami`/"
 JOBNB=1
 STOREDIR=${WORKDIR}
@@ -13,8 +12,8 @@ while getopts "ho:t:m:p:j:" opt; do
     case "$opt" in
     h)
         echo ""
-        echo "redigitizeAndMix.sh [OPTIONS]"
-	echo "     -p      pulse shape tau"
+        echo "digitizeAndMix.sh [OPTIONS]"
+	echo "     -p      pileup"
 	echo "     -j      job number (file to re-digitize)"
 	echo "     -o      output directory (local or eos)"
 	echo "     -t      process tag"
@@ -23,7 +22,7 @@ while getopts "ho:t:m:p:j:" opt; do
         echo ""
 	exit 0
         ;;
-    p)  PULSETAU=$OPTARG
+    p)  PILEUP=$OPTARG
         ;;
     o)  STOREDIR=$OPTARG
 	;;
@@ -41,21 +40,17 @@ done
 #
 # CONFIGURE JOB
 #
-BASEJOBNAME=HGCEvents_${TAG}_${PULSETAU}_${JOBNB}
+BASEJOBNAME=Events_${JOBNB}_PU${PILEUP}
 BASEJOBNAME=${BASEJOBNAME/","/"_"}
 OUTFILE=${BASEJOBNAME}.root
 PYFILE=${BASEJOBNAME}_cfg.py
 LOGFILE=${BASEJOBNAME}.log
 
-if [ "$PILEUP" = "local" ]; then
-    PILEUP="${PILEUP} --pileup_input ${PILEUPINPUT}"
-fi
-
 #
 # RUN cmsRun and at the end move the output to the required directory
 #
-echo "cmsRun ${CFG} ${PULSETAU} ${TAG} ${JOBNB} 1 ${MINBIASTAG}"
-cmsRun ${CFG} ${PULSETAU} ${TAG} ${JOBNB} 1 ${MINBIASTAG} ${WORKDIR} > ${WORKDIR}/${LOGFILE} 2>&1
+echo "cmsRun ${CFG} ${TAG} ${JOBNB} 1 ${MINBIASTAG} ${PILEUP} ${WORKDIR}"
+cmsRun ${CFG} ${TAG} ${JOBNB} 1 ${MINBIASTAG} ${PILEUP} ${WORKDIR} > ${WORKDIR}/${LOGFILE} 2>&1
 
 #move output
 if [[ $STOREDIR =~ .*/store/cmst3.* ]]; then

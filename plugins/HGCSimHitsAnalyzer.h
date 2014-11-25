@@ -75,11 +75,14 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	TString key(keyIt->first);
 	hitMax_[key]=0;
 	hitMaxX_[key]=0; hitMaxY_[key]=0; hitMaxEta_[key]=0; hitMaxPhi_[key]=0;	hitMaxLayer_[key]=0;
-	showerMeanX_[key]=0; showerMeanY_[key]=0; showerMeanEta_[key]=0; showerMeanPhi_[key]=0;
+	showerMeanX_[key]=0; showerMeanY_[key]=0; showerMeanZ_[key]=0; showerMeanEta_[key]=0; showerMeanPhi_[key]=0;
 	nClusters_[key]=0;
 	totalE_[key]=0;
 	totalX0WgtE_[key]=0;
 	totalLambdaWgtE_[key]=0;
+	totalLength_[key]=0;
+	totalVolume_[key]=0;
+	showerStart_[key]=-1;
 	for(size_t iclu=0; iclu<5; iclu++)
 	  {
 	    clusterEn_[key][iclu]=0;
@@ -92,8 +95,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	    nhits_[key][ilay]=0;          nhits5mip_[key][ilay]=0;      nhits10mip_[key][ilay]=0;
 	    edeps_[key][ilay]=0;          edeps3x3_[key][ilay]=0;       edeps5x5_[key][ilay]=0;
 	    emeanPhi_[key][ilay]=0;       emeanEta_[key][ilay]=0;       emeanX_[key][ilay]=0;       emeanY_[key][ilay]=0;
-	    edepdR_[key][ilay]=0;         edep2dR_[key][ilay]=0;        sihih_[key][ilay]=0;        sipip_[key][ilay]=0;        sipih_[key][ilay]=0;
-	    edepdR2hitmax_[key][ilay]=0;  edep2dR2hitmax_[key][ilay]=0; sihih2hitmax_[key][ilay]=0; sipip2hitmax_[key][ilay]=0; sipih2hitmax_[key][ilay]=0;	    
+	    edepdR_[key][ilay]=0;         edepArea_[key][ilay]=0;        sihih_[key][ilay]=0;        sipip_[key][ilay]=0;        sipih_[key][ilay]=0;
 	  }
       }
   }
@@ -117,17 +119,16 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   Int_t pfMatchId_;
   Bool_t hasInteractionBeforeHGC_;
   Int_t nlay_;
-  std::map<TString, Float_t> showerMeanX_, showerMeanY_, showerMeanEta_, showerMeanPhi_;
+  std::map<TString, Float_t> showerMeanX_, showerMeanY_, showerMeanZ_, showerMeanEta_, showerMeanPhi_;
   std::map<TString,Int_t> nClusters_;
   std::map<TString, Float_t *> clusterEn_, clusterZ_, clusterEta_, clusterPhi_;
   std::map<TString, Float_t> hitMax_, hitMaxX_, hitMaxY_, hitMaxEta_, hitMaxPhi_;
-  std::map<TString, Int_t> hitMaxLayer_;
-  std::map<TString, Float_t> totalE_, totalX0WgtE_, totalLambdaWgtE_;
+  std::map<TString, Int_t> hitMaxLayer_, showerStart_;
+  std::map<TString, Float_t> totalE_, totalX0WgtE_, totalLambdaWgtE_, totalLength_, totalVolume_;
   std::map<TString, Float_t *> edeps_, weightedEdeps_, edeps3x3_, edeps5x5_;
   std::map<TString, Int_t *> nhits_, nhits5mip_, nhits10mip_;
   std::map<TString, Float_t *> emeanX_, emeanY_, emeanPhi_,    emeanEta_;
-  std::map<TString, Float_t *> sihih_,        sipip_,        sipih_,        edepdR_,        edep2dR_;
-  std::map<TString, Float_t *> sihih2hitmax_, sipip2hitmax_, sipih2hitmax_, edepdR2hitmax_, edep2dR2hitmax_;
+  std::map<TString, Float_t *> sihih_,        sipip_,        sipih_,        edepdR_,        edepArea_;
 
   //tree and summary ntuple
   TTree *t_;
@@ -140,7 +141,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   
   //hgcal
   std::vector<std::string> hitCollections_, recHitCollections_, geometrySource_;
-  std::string pfClustersCollection_;
+  std::string pfClustersCollection_, emPFClustersCollection_;
 
   //Geant4
   std::string g4TracksSource_, g4VerticesSource_;

@@ -7,38 +7,55 @@ if [ -z ${step} ]; then
     echo ""
     echo -e "\e[7mrunCalibrationSequence.sh\e[27m wraps up the steps for a basic calibration of HGCal simulation"
     echo "The step number must be provided as argument to run"
-    echo "   1  produce the relevant particle gun samples"
-    echo "   2  convert the EDM files to simple trees for calibration"
-    echo "   3  perform the calibration of the e.m. scale of the subdetectors"
-    echo "   4  perform the calibration of the hadronic sub-detectors"
+    echo "   1  produce the relevant particle gun samples SIM-DIGI-RECO"
+    echo "   2  redigitize and mix pileup (optional) DIGI-RECO"
+    echo "   4  convert the EDM files to simple trees for calibration"
+    echo "   5  perform the calibration of the e.m. scale of the subdetectors"
+    echo "   6  perform the calibration of the hadronic sub-detectors"
     echo ""
     exit -1
 fi
 
 
 #launch production
+energies=(10 20 40 50 75 100 250)
+pids=(22 211)
 if [ "${step}" -eq "1" ]; then
 
     echo "********************************************"
-    echo "launching production"
+    echo "launching SIM production"
     echo "********************************************"    
 
-
-    energies=(10 20 40 50 75 100 250)
-    pids=(22 211)
     for pid in ${pids[@]}; do
 	for en in ${energies[@]}; do
-            python scripts/submitLocalHGCalProduction.py -q 1nd -n 50 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION} -p ${pid} -n 200 -e ${en}";
+            python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO -p ${pid} -n 150 -e ${en}";
 	    if [[ "${pid}" -eq "22" ]]; then
-		python scripts/submitLocalHGCalProduction.py -q 2nd -n 50 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_EE_AIR -p ${pid} -n 200 -e ${en} -x";
-		python scripts/submitLocalHGCalProduction.py -q 8nh -n 50 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_EE_HEF_AIR -p ${pid} -n 200 -e ${en} -x -z";
-	    fi
+		python scripts/submitLocalHGCalProduction.py -q 2nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_EE_AIR/RECO -p ${pid} -n 150 -e ${en} -x";
+		python scripts/submitLocalHGCalProduction.py -q 8nh -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_EE_HEF_AIR/RECO -p ${pid} -n 150 -e ${en} -x -z";
+            fi
+	done
+    done
+fi
+
+
+if [ "${step}" -eq "2" ]; then
+
+    echo "********************************************"
+    echo "launching DIGI production"
+    echo "********************************************"    
+    
+    pileup=(50 100 140)
+    for pid in ${pids[@]}; do
+	inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}`);
+	nFiles=${#inputFiles[@]};
+	for pu in ${pileup[@]}; do
+	    python scripts/submitLocalHGCalProduction.py -q 2nd -n ${nFiles} -s digitizeAndMix.sh -o "-p ${pu} -o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/ReRECO_Pileup${pu} -t Single${pid}_${CMSSW_VERSION}/RECO -m MinBias_${CMSSW_VERSION}";
 	done
     done
 fi
 
 #create trees
-if [ "${step}" -eq "2" ]; then
+if [ "${step}" -eq "3" ]; then
 
     echo "********************************************"
     echo "creating analysis trees"
@@ -58,14 +75,18 @@ if [ "${step}" -eq "2" ]; then
 fi
 
 #EM calibration
-if [ "${step}" -eq "3" ]; then
+if [ "${step}" -eq "4" ]; then
     
     echo "********************************************"
     echo "e.m. calibration"
     echo "********************************************"
 
-    samples=("Single22_${CMSSW_VERSION}_SimHits_0" "Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0" "Single22_${CMSSW_VERSION}_EE_HEF_AIR_SimHits_0")       
-    vars=("edep_sim" "edep_rec")
+    #samples=("Single22_${CMSSW_VERSION}_SimHits_0" "Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0" "Single22_${CMSSW_VERSION}_EE_HEF_AIR_SimHits_0")       
+    #vars=("edep_sim" "edep_rec")
+
+    samples=("Single22_CMSSW_6_2_0_SLHC20_clus_SimHits_0")
+    vars=("edep_sim" "edep_rec" "edep_clus")
+
     extraOpts=("" "--vetoTrackInt")
     for sample in ${samples[@]}; do 
 	for var in ${vars[@]}; do
@@ -82,7 +103,7 @@ if [ "${step}" -eq "3" ]; then
 fi
 
 #Pion calibration
-if [ "${step}" -eq "4" ]; then
+if [ "${step}" -eq "5" ]; then
 
     echo "********************************************"
     echo "pion calibration"
@@ -111,20 +132,26 @@ if [ "${step}" -eq "4" ]; then
     rm core.*
 fi
 
-#pion calibration (for now feedback for Lindsey mostly)
-if [ "${step}" -eq "5" ]; then
+#pion calibration
+if [ "${step}" -eq "7" ]; then
 
     echo "********************************************"
-    echo "pion calibration (cluster level)"
+    echo "pion calibration with software compensation"
     echo "********************************************"
 
-    vars=("edep_clus")
+    vars=("edep_rec") #"edep_sim" "edep_rec")
     for var in ${vars[@]}; do
 
-        #EE + HE(F+B) calibration
-	python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -i Single211_${CMSSW_VERSION}_lgray_SimHits_0.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/edep_rec--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/edep_rec--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/edep_rec--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/edep_rec/HEFHEB_comb.root --ehComb Single211_${CMSSW_VERSION}_SimHits_0/edep_rec/EEHEFHEB_comb.root  -v ${var}
+	outDir=Single211_${CMSSW_VERSION}_RECO_SimHits/${var};
+	mkdir -p ${outDir};
 
-	python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -w Single211_${CMSSW_VERSION}_lgray_SimHits_0/workspace_uncalib_pion.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/edep_rec--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/edep_rec--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/edep_rec--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/edep_rec/HEFHEB_comb.root --ehComb Single211_${CMSSW_VERSION}_SimHits_0/edep_rec/EEHEFHEB_comb.root  -v ${var}  --calib Single211_${CMSSW_VERSION}_lgray_SimHits_0/calib_uncalib.root
+	#python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -i Single211_CMSSW_6_2_0_SLHC20_RECO_SimHits.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}/HEFHEB_comb.root;
 
+	#mv Single211_${CMSSW_VERSION}_RECO_SimHits/*.* ${outDir}
+	
+	python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -w ${outDir}/workspace_uncalib_pion.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}/HEFHEB_comb.root --calib ${outDir}/calib_uncalib.root;
+
+	mv Single211_${CMSSW_VERSION}_RECO_SimHits/*.* ${outDir}
+      	
     done
 fi

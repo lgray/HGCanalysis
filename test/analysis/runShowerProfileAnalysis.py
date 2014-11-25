@@ -1,148 +1,210 @@
+#!/usr/bin/env python
+
 import ROOT
 from UserCode.HGCanalysis.PlotUtils import *
 from array import array
+import os,sys
+import optparse
+import commands
 
-#prepare histograms
-steps=['sim','rec','clus']
-stepTitle=['SimHit','RecHit','PFCluster']
-#hitEnArray=[ i*0.5 for i in xrange(0,20)] + [i*5+10 for i in xrange(0,18)] + [i*50+100 for i in xrange(0,19)]
-#nEnPts=len(hitEnArray)-1
+"""
+Draws the final plots
+"""
+def showProfiles(histos,norm,genEn,output):
+    
+    stepTitle={'sim':'SimHit','rec':'RecHit','clus':'Cluster','pf':'PF candidate'}
+    
+    #show the histograms
+    canvas     = ROOT.TCanvas('c','c',500,500)
+    profCanvas = ROOT.TCanvas('profc','profc',500,500)
+    for var in histos:
 
-baseHistos={
-    'edep':     ROOT.TH2F('edep',   ';HGC layer;Energy [MIP];hits / event ',               54,0,54,100,0,50),
-    'emeanPhi': ROOT.TH2F('dphi',   ';HGC layer;#phi(E wgt)-#phi(gen) [rad];hits / event', 54,0,54,50,-3,3),
-    'emeanEta': ROOT.TH2F('deta',   ';HGC layer;#eta(E wgt)-#eta(gen);hits / event',       54,0,54,50,-3,3),
-    'nhits':    ROOT.TH2F('nhits',  ';HGC layer;Number of hits;hits / event',              54,0,54,100,0,100),
-    'edepdR':   ROOT.TH2F('edepdR', ';HGC layer;<#Delta R>',                               54,0,54,100,0,100)
-    #'sihih':    ROOT.TH2F('sihih',  ';HGC layer;#sigma(#eta,#eta);hits / event',           54,0,54,50,0,2),
-    #'sipip':    ROOT.TH2F('sipip',  ';HGC layer;#sigma(#phi,#phi);hits / event',           54,0,54,50,0,20),
-    #'sipih':    ROOT.TH2F('sipih',  ';HGC layer;#sigma(#eta,#phi);hits / event',           54,0,54,50,-2,2)
-}
-histos={}
-for var in baseHistos:
-    histos[var]={}
-    baseHistos[var].Sumw2()
-    for step in steps:
-        histos[var][step]=baseHistos[var].Clone('%s_%s'%(var,step))
-        histos[var][step].SetDirectory(0)
+        #inclusive distributions
+        canvas.Clear()
+        leg=ROOT.TLegend(0.2,0.8,0.5,0.94)
+        leg.SetFillStyle(0)
+        leg.SetBorderSize(0)
+        leg.SetTextFont(42)
+        leg.SetTextSize(0.035)
+        varProj=[]
+        for step in histos[var]:
+            nproj=len(varProj)
+            varProj.append( histos[var][step].ProjectionY('%s_%s_proj'%(var,step),1,histos[var][step].GetXaxis().GetNbins()) )
+            varProj[nproj].SetMarkerStyle(20+nproj)
+            varProj[nproj].SetMarkerColor(37+nproj)
+            varProj[nproj].SetLineColor(37+nproj)
+            varProj[nproj].SetTitle(stepTitle[step])
+            varProj[nproj].SetDirectory(0)
+            varProj[nproj].GetYaxis().SetTitle('PDF')
+            fixExtremities(varProj[nproj])
+            varProj[nproj].Scale(norm)
+            leg.AddEntry(varProj[nproj],varProj[nproj].GetTitle(),'p')
+            if nproj==0 :
+                varProj[nproj].Draw('e1')
+                varProj[nproj].GetYaxis().SetRangeUser(0,varProj[nproj].GetMaximum()*1.5)
+            else:
+                varProj[nproj].Draw('e1same')
+        leg.Draw()
+        simpt=MyPaveText('#bf{CMS} #it{simulation}   E=%3.1f GeV'%genEn)
+        simpt.SetTextSize(0.035)
+        simpt.SetTextFont(42)    
 
-#fill histos
-nEvts=0
-fIn=ROOT.TFile.Open('Single211_CMSSW_6_2_0_SLHC20_lgray_SimHits_0.root')
-HGC=fIn.Get('analysis/HGC')
-for i in xrange(0,HGC.GetEntriesFast()):
-    HGC.GetEntry(i)
-    if HGC.hasInteractionBeforeHGC : continue
-    if ROOT.TMath.Abs(HGC.genEta)<1.6 or ROOT.TMath.Abs(HGC.genEta)>2.8 : continue
-    #if HGC.genEn>11 or HGC.genEn<9 : continue
-    #if HGC.genEn>31 or HGC.genEn<29 : continue
-    if HGC.genEn>51 or HGC.genEn<49 : continue
-    nEvts=nEvts+1
-    for ilay in xrange(0,HGC.nlay):
-        for var in histos:
-            for step in histos[var]:
-                if getattr(HGC,'edep_%s'%(step))[ilay]==0: continue
-                val=getattr(HGC,'%s_%s'%(var,step))[ilay]
-                if var=='emeanPhi' : val=ROOT.TVector2.Phi_mpi_pi(val-HGC.genPhi)
-                if var=='emeanEta' : val=val-HGC.genEta
-                weight=1
-                if var.find('edep')>=0 :
-                    ybinToFill=histos[var][step].GetYaxis().FindBin(val)
-                    weight=1./histos[var][step].GetYaxis().GetBinWidth(ybinToFill)
-                histos[var][step].Fill(ilay, val, weight)
+        #profiles
+        profCanvas.Clear()
+        profleg=ROOT.TLegend(0.2,0.8,0.5,0.94) 
+        profleg.SetFillStyle(0)
+        profleg.SetBorderSize(0)
+        profleg.SetTextFont(42)
+        profleg.SetTextSize(0.035)
+        varProfs=[]
+        probSum = array('d', [0.5])
+        quantiles = array('d', [0.0])
+        for step in histos[var]:
 
-#show these profiles
-customROOTstyle()
-ROOT.gROOT.SetBatch(False)
+            nprof=len(varProfs)
+            varProfs.append( ROOT.TGraphErrors() )
+            varProfs[nprof].SetMarkerStyle(20+nprof)
+            varProfs[nprof].SetMarkerColor(37+nprof)
+            varProfs[nprof].SetLineColor(37+nprof)
+            varProfs[nprof].SetTitle(stepTitle[step])
+            for xbin in xrange(1, histos[var][step].GetXaxis().GetNbins() ):
 
+                #coordinates for this projection
+                xcen=histos[var][step].GetXaxis().GetBinCenter(xbin)
+                xerr=0.5*histos[var][step].GetXaxis().GetBinWidth(xbin)
+                
+                #compute the median
+                yproj=histos[var][step].ProjectionY('yproj',xbin,xbin)
+                fixExtremities(yproj)
+                yproj.GetQuantiles(1,quantiles,probSum)
 
-layersToProfile=[1,15,31,44] #10,20,31,35,44,50]
-allLegs=[]
-allProjs=[]
-
-#show the histograms
-canvas = ROOT.TCanvas('c','c',800,800)
-for var in histos:
-    canvas.Clear()
-    canvas.Divide(2,2)
-
-    ipad=0
-    longProfiles=[]
-    for step in histos[var]:
-        ipad=ipad+1
-
-        histos[var][step].Scale(1./nEvts)
-
-        #main distribution
-        pad=canvas.cd(ipad)
-        pad.SetLogz()
-        pad.SetRightMargin(0.12)
-        histos[var][step].Draw('colz')
-        histos[var][step].GetYaxis().SetTitleOffset(1.7)
-        histos[var][step].GetZaxis().SetTitleOffset(-0.3)
-        MyPaveText(stepTitle[ipad-1],0.8)
-        if ipad==1:
-            simpt=MyPaveText('#bf{CMS} #it{simulation}')
-            simpt.SetTextSize(0.035)
-            simpt.SetTextFont(42)
+                #add to graph
+                np=varProfs[nprof].GetN()
+                varProfs[nprof].SetPoint(np,xcen,quantiles[0])
+                varProfs[nprof].SetPointError(np,xerr,1.253*yproj.GetMeanError())
         
-        #profile
-        #pad=canvas.cd(4)
-        #pad.SetLogy()
-        #if var.find('edep')>=0 : pad.SetLogx()
-        longProfiles.append( ROOT.TGraphErrors() )
-        longProfiles[ipad-1].SetName(step)
-        longProfiles[ipad-1].SetTitle(stepTitle[ipad-1])
-        longProfiles[ipad-1].SetMarkerStyle(20+ipad)
-        longProfiles[ipad-1].SetFillStyle(0)
-        #allLegs.append( ROOT.TLegend(0.7,0.65,0.95,0.9) )
-        #nLegs=len(allLegs)-1
-        #allLegs[nLegs].SetFillStyle(0)
-        #allLegs[nLegs].SetBorderSize(0)
-        #allLegs[nLegs].SetTextFont(42)
-        #allLegs[nLegs].SetTextSize(0.035)
-        for xbin in xrange(1,histos[var][step].GetXaxis().GetNbins()+1):
-            projH=histos[var][step].ProjectionY('pfy_%d_%d'%(xbin,ipad),xbin,xbin)
-            fixExtremities(projH)
-            np=longProfiles[ipad-1].GetN()
-            longProfiles[ipad-1].SetPoint(np,xbin,projH.GetMean())
-            longProfiles[ipad-1].SetPointError(np,0,projH.GetMeanError())
+            profleg.AddEntry(varProfs[nprof],varProfs[nprof].GetTitle(),'p')
+            if nprof==0 :
+                varProfs[nprof].Draw('ap')
+                varProfs[nprof].GetYaxis().SetRangeUser(0,varProfs[nprof].GetYaxis().GetXmax()*2)
+                varProfs[nprof].GetYaxis().SetTitle('Median %s'%histos[var][step].GetYaxis().GetTitle())
+                varProfs[nprof].GetXaxis().SetTitle(histos[var][step].GetXaxis().GetTitle())
+            else:
+                varProfs[nprof].Draw('p')
 
-            #draw in profile bins
-            #if xbin in layersToProfile:
-            #    iproj=len(allProjs)
-            #    allProjs.append(projH.Clone())
-            #    allProjs[iproj].SetLineColor(iproj%len(layersToProfile)+1)
-            #    allProjs[iproj].SetLineWidth(iproj%2+2)
-            #    if xbin==1 : 
-            #        allProjs[iproj].Draw("hist")
-            #        allProjs[iproj].GetYaxis().SetLabelSize(0.04)
-            #        allProjs[iproj].GetYaxis().SetTitleSize(0.04)
-            #        allProjs[iproj].GetYaxis().SetTitle("#hits / event")
-            #    else : 
-            #        allProjs[iproj].Draw('histsame')
-            #    allProjs[iproj].SetTitle('Layer #%d'%xbin)
-            #    allLegs[nLegs].AddEntry(allProjs[iproj],allProjs[iproj].GetTitle(),'l')
-        #allLegs[nLegs].Draw()
+        profleg.Draw()
+        profpt=MyPaveText('#bf{CMS} #it{simulation}   E=%3.1f GeV'%genEn)
+        profpt.SetTextSize(0.035)
+        profpt.SetTextFont(42)    
 
-    #draw the profiles on the last canvas
-    pad=canvas.cd(4)
-    longProfiles[0].Draw('ap')
-    longProfiles[0].GetXaxis().SetTitleSize(0.04)
-    longProfiles[0].GetXaxis().SetLabelSize(0.04)
-    longProfiles[0].GetYaxis().SetTitleSize(0.04)
-    longProfiles[0].GetYaxis().SetLabelSize(0.04)
-    longProfiles[0].GetYaxis().SetTitle('<%s>'%histos[var]['sim'].GetYaxis().GetTitle())
-    longProfiles[0].GetYaxis().SetTitleOffset(1.2)
-    longProfiles[0].GetXaxis().SetTitle('HGC layer')
-    for il in xrange(1,len(longProfiles)) : longProfiles[il].Draw('p')
-    leg=pad.BuildLegend()
-    leg.SetFillStyle(0)
-    leg.SetBorderSize(0)
-    leg.SetTextFont(42)
-    leg.SetTextSize(0.04)
+        #raw_input()
+        #save to png
+        for c in [canvas,profCanvas]:
+            c.Modified()
+            c.cd()
+            c.SaveAs('%s/%s_%s_en%d.png'%(output,var,c.GetName(),genEn))
 
-    canvas.cd()
-    canvas.Modified()
-    canvas.Update()
-    raw_input()
+
+"""
+Loops over the trees and profiles the showers
+"""
+def runShowerProfileAnalysis(opt) :
+    
+    #prepare histograms
+    steps=['sim','rec']
+    baseHistos={
+        'length': ROOT.TH2F('length',';Pseudo-rapidity;Length [#lambda];Events',5,1.5,3.0,10,0,15),
+        'width':ROOT.TH2F('width',';HGC layer;Area [cm^{2}];Events',54,0,54,25,0,200),
+        'rho':ROOT.TH2F('rho',';HGC layer;<#rho> [cm];Events',54,0,54,20,0,50),
+        'volume':ROOT.TH2F('volume',';Pseudo-rapidity;Volume [cm^{2}#lambda];Events',   5,1.5,3.0,50,0,10000),
+        'edep':     ROOT.TH2F('edep',   ';HGC layer;Energy [MIP];Events ',              54,0,54,100,0,1e3),
+        'nhits':    ROOT.TH2F('nhits',  ';HGC layer;Number of hits;Events',             54,0,54,100,0,100),
+        'sihih':    ROOT.TH2F('sihih',  ';HGC layer;#sigma(#eta,#eta);hits / event',    54,0,54,50,0,0.2),
+        'sipip':    ROOT.TH2F('sipip',  ';HGC layer;#sigma(#phi,#phi);hits / event',    54,0,54,50,0,0.2),
+        'sipih':    ROOT.TH2F('sipih',  ';HGC layer;#sigma(#eta,#phi);hits / event',    54,0,54,50,0,0.2)
+        }
+    histos={}
+    for var in baseHistos:
+        histos[var]={}
+        baseHistos[var].Sumw2()
+        for step in steps:
+            histos[var][step]=baseHistos[var].Clone('%s_%s'%(var,step))
+            histos[var][step].SetDirectory(0)
+
+    #fill histos
+    nEvts=0
+    fIn=ROOT.TFile.Open(opt.input)
+    HGC=fIn.Get('analysis/HGC')
+    for i in xrange(0,HGC.GetEntriesFast()):
+        HGC.GetEntry(i)
+
+        #kinematics filter
+        if HGC.genEn>opt.en+1 or HGC.genEn<opt.en-1 : continue 
+
+        #interaction in HGC
+        if HGC.hasInteractionBeforeHGC : continue
+
+        #fully contained shower in HGC
+        sumBackHEB=0
+        for ilayer in [51,52,53]:
+            sumBackHEB+=(getattr(HGC,'edep_sim'))[ilayer-1]
+        if sumBackHEB>3 : continue
+
+        #count selected event
+        nEvts=nEvts+1
+
+        for step in histos['length'] :
+            showerLength=getattr(HGC,'totalLength_%s'%(step))
+            histos['length'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerLength)
+            showerVol=getattr(HGC,'totalVolume_%s'%(step))
+            histos['volume'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerVol)
+
+        for ilay in xrange(0,HGC.nlay):
+            for step in histos['width']:
+            
+                #require some energy deposit in the layer
+                if getattr(HGC,'edep_%s'%(step))[ilay]==0: continue
+
+                #width
+                layerWidth=getattr(HGC,'edepArea_%s'%(step))[ilay]
+                histos['width'][step].Fill(ilay,layerWidth)
+                
+                #average distance
+                rho=getattr(HGC,'edepdR_%s'%(step))[ilay]
+                histos['rho'][step].Fill(ilay,rho)
+
+                #other simple variables
+                for var in ['edep','nhits','sihih','sipip','sipih']:
+                    histos[var][step].Fill(ilay,getattr(HGC,'%s_%s'%(var,step))[ilay])
+
+    showProfiles(histos=histos,norm=1./nEvts,genEn=opt.en,output=opt.output)
+
+
+"""
+steer 
+"""
+def main():
+    
+    usage = 'usage: %prog [options]'
+    parser = optparse.OptionParser(usage)
+    parser.add_option('-i',      '--in' ,      dest='input',        help='Input file',              default=None)
+    parser.add_option('-o',      '--out' ,     dest='output',       help='Output directory',        default='./')
+    parser.add_option('-e' ,     '--en' ,      dest='en',           help='energy to profile [GeV]', default=None, type=float)
+    (opt, args) = parser.parse_args()
+                                       
+    #check inputs
+    if opt.input is None and opt.en is None:
+        parser.print_help()
+        sys.exit(1)
+
+    #basic ROOT customization
+    customROOTstyle()
+    #ROOT.gROOT.SetBatch(False)
+    ROOT.gROOT.SetBatch(True)
+    ROOT.gStyle.SetOptTitle(0)
+    ROOT.gStyle.SetOptStat(0)
+
+    runShowerProfileAnalysis(opt)
+    
+if __name__ == "__main__":
+    sys.exit(main())

@@ -14,13 +14,10 @@ JOBNB=1
 GEOMETRY="Extended2023HGCalMuon,Extended2023HGCalMuonReco"
 EE_AIR=""
 HEF_AIR=""
-PILEUP=""
 TAG=""
-PILEUPINPUT=root://eoscms//eos/cms/store/cmst3/group/hgcal/CMSSW/MinBias_CMSSW_6_2_X_SLHC_2014-09-10-0200/
 PHYSLIST="QGSP_FTFP_BERT_EML"
-RECO="1"
 
-while getopts "hp:e:n:c:o:w:j:g:ut:i:l:xzr:" opt; do
+while getopts "hp:e:n:c:o:w:j:g:t:l:xz" opt; do
     case "$opt" in
     h)
         echo ""
@@ -33,14 +30,11 @@ while getopts "hp:e:n:c:o:w:j:g:ut:i:l:xzr:" opt; do
 	echo "     -w      local work directory (by default /tmp/user)"
 	echo "     -l      GEANT4 physics list: QGSP_FTFP_BERT_EML (default) / FTFP_BERT_EML / FTFP_BERT_XS_EML / QBBC"
         echo "     -j      job number"
-        echo "     -r      run reco (0 or 1-default)"
 	echo "     -g      geometry"
 	echo "             v4:            Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco"
 	echo "             v5 (default) : ${GEOMETRY}"
 	echo "     -x      exclude EE (turn into air)"
 	echo "     -z      exclude HEF (turn into air)"
-	echo "     -u      Turn on Pileup"
-        echo "     -i      pileup input file"
         echo "     -t      tag to name output file"
 	echo "     -h      help"
         echo ""
@@ -64,17 +58,11 @@ while getopts "hp:e:n:c:o:w:j:g:ut:i:l:xzr:" opt; do
 	;;
     g)  GEOMETRY=$OPTARG
 	;;
-    r)  RECO=$OPTARG
-	;;
     x)  EE_AIR="True"
 	;;
     z)  HEF_AIR="True"
 	;;
-    u)  PILEUP="--pileup AVE_140_BX_25ns"
-        ;;
     t)  TAG=$OPTARG
-        ;;
-    i)  PILEUPINPUT=$OPTARG
         ;;
     esac
 done
@@ -91,36 +79,20 @@ if [ "$TAG" = "" ]; then
        TAG="${TAG}_NOHEF"
    fi
 fi
-BASEJOBNAME=HGCEvents_${TAG}_${JOBNB}
+BASEJOBNAME=Events_${TAG}_${JOBNB}
 BASEJOBNAME=${BASEJOBNAME/","/"_"}
 OUTFILE=${BASEJOBNAME}.root
 PYFILE=${BASEJOBNAME}_cfg.py
 LOGFILE=${BASEJOBNAME}.log
 
-if [ "$PILEUP" = "local" ]; then
-    PILEUP="${PILEUP} --pileup_input ${PILEUPINPUT}"
-fi
-
 #run cmsDriver
-if [ "${RECO}" -eq "0" ]; then
-    cmsDriver.py ${CFI} -n ${NEVENTS} \
-	--python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
-	$PILEUP \
-	-s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW --datatier GEN-SIM-DIGI-RAW --eventcontent FEVTDEBUGHLT \
-	--conditions auto:upgradePLS3 --beamspot Gauss --magField 38T_PostLS1 \
-	--customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
-	--geometry ${GEOMETRY} \
-	--no_exec 
-elif [ "${RECO}" -eq "1" ]; then
-    cmsDriver.py ${CFI} -n ${NEVENTS} \
-	--python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
-	$PILEUP \
-	-s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW,RAW2DIGI,L1Reco,RECO --datatier GEN-SIM-DIGI-RECO --eventcontent FEVTDEBUGHLT \
-	--conditions auto:upgradePLS3 --beamspot Gauss --magField 38T_PostLS1 \
-	--customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
-	--geometry ${GEOMETRY} \
-	--no_exec 
-fi
+cmsDriver.py ${CFI} -n ${NEVENTS} \
+    --python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
+    -s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW,RAW2DIGI,L1Reco,RECO --datatier GEN-SIM-DIGI-RECO --eventcontent FEVTDEBUGHLT \
+    --conditions auto:upgradePLS3 --beamspot Gauss --magField 38T_PostLS1 \
+    --customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
+    --geometry ${GEOMETRY} \
+    --no_exec 
 
 #customize with values to be generated
 echo "process.g4SimHits.StackingAction.SaveFirstLevelSecondary = True" >> ${WORKDIR}/${PYFILE}

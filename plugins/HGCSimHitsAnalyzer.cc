@@ -7,6 +7,7 @@
 #include "DataFormats/ParticleFlowReco/interface/PFBlockFwd.h"
 #include "DataFormats/ParticleFlowReco/interface/PFBlock.h"
 #include "DataFormats/ParticleFlowReco/interface/PFBlockElementCluster.h"
+#include "DataFormats/EgammaReco/interface/SuperCluster.h"
 
 #include "DetectorDescription/OfflineDBLoader/interface/GeometryInfoDump.h"
 #include "Geometry/Records/interface/IdealGeometryRecord.h"
@@ -36,6 +37,7 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   hitCollections_           = iConfig.getUntrackedParameter< std::vector<std::string> >("hitCollections");
   recHitCollections_        = iConfig.getUntrackedParameter< std::vector<std::string> >("recHitCollections");
   pfClustersCollection_     = iConfig.getUntrackedParameter< std::string >("pfClustersCollection");
+  emPFClustersCollection_   = iConfig.getUntrackedParameter< std::string >("emPFClustersCollection");
   geometrySource_           = iConfig.getUntrackedParameter< std::vector<std::string> >("geometrySource");
   mipEn_                    = iConfig.getUntrackedParameter< std::vector<double> >("mipEn");
   pfCandAssociationCone_    = iConfig.getUntrackedParameter< double >("pfCandAssociationCone");
@@ -68,6 +70,8 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       t_->Branch("showerMeanX_"+key,       &showerMeanX_[key],     "showerMeanX_"+key+"/F");
       showerMeanY_[key]=0;
       t_->Branch("showerMeanY_"+key,       &showerMeanY_[key],     "showerMeanY_"+key+"/F");
+      showerMeanZ_[key]=0;
+      t_->Branch("showerMeanZ_"+key,       &showerMeanZ_[key],     "showerMeanZ_"+key+"/F");
       showerMeanEta_[key]=0;
       t_->Branch("showerMeanEta_"+key,     &showerMeanEta_[key],   "showerMeanEta_"+key+"/F");
       showerMeanPhi_[key]=0;
@@ -76,7 +80,7 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       hitMax_[key]=0;
       t_->Branch("hitMax_"+key,        &hitMax_[key],      "hitMax_"+key+"/F");
       hitMaxLayer_[key]=0;
-      t_->Branch("hitMaxLayer_"+key,   &hitMaxLayer_[key], "hitMaxLayer_"+key+"/F");
+      t_->Branch("hitMaxLayer_"+key,   &hitMaxLayer_[key], "hitMaxLayer_"+key+"/I");
       hitMaxX_[key]=0;
       t_->Branch("hitMaxX_"+key,       &hitMaxX_[key],     "hitMaxX_"+key+"/F");
       hitMaxY_[key]=0;
@@ -87,13 +91,22 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       t_->Branch("hitMaxPhi_"+key,     &hitMaxPhi_[key],   "hitMaxPhi_"+key+"/F");
 
       totalE_[key]    = 0;
-      t_->Branch("totalE_"+key,      &totalE_[key],       "totalE_"+key+"[nlay]/F");
+      t_->Branch("totalE_"+key,      &totalE_[key],       "totalE_"+key+"/F");
 
       totalX0WgtE_[key]=0;
-      t_->Branch("totalX0WgtE_"+key,   &totalX0WgtE_[key],    "totalX0WgtE_"+key+"[nlay]/F");
+      t_->Branch("totalX0WgtE_"+key,   &totalX0WgtE_[key],    "totalX0WgtE_"+key+"/F");
 
       totalLambdaWgtE_[key]=0;
-      t_->Branch("totalLambdaWgtE_"+key,   &totalLambdaWgtE_[key],    "totalLambdaWgtE_"+key+"[nlay]/F");
+      t_->Branch("totalLambdaWgtE_"+key,   &totalLambdaWgtE_[key],    "totalLambdaWgtE_"+key+"/F");
+
+      totalLength_[key]=0;
+      t_->Branch("totalLength_"+key,   &totalLength_[key],    "totalLength_"+key+"/F");
+
+      totalVolume_[key]=0;
+      t_->Branch("totalVolume_"+key,   &totalVolume_[key],    "totalVolume_"+key+"/F");
+
+      showerStart_[key]=-1;
+      t_->Branch("showerStart_"+key,   &showerStart_[key],    "showerStart_"+key+"/I");
 
       edeps_[key]    = new Float_t[100];
       t_->Branch("edep_"+key,      edeps_[key],    "edep_"+key+"[nlay]/F");
@@ -128,33 +141,18 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       edepdR_[key]    = new Float_t[100];
       t_->Branch("edepdR_"+key,      edepdR_[key],    "edepdR_"+key+"[nlay]/F");
       
-      edepdR2hitmax_[key]    = new Float_t[100];
-      t_->Branch("edepdR2hitmax_"+key,      edepdR2hitmax_[key],    "edepdR2hitmax_"+key+"[nlay]/F");
-      
-      edep2dR_[key]    = new Float_t[100];
-      t_->Branch("edep2dR_"+key,      edep2dR_[key],    "edep2dR_"+key+"[nlay]/F");
+      edepArea_[key]    = new Float_t[100];
+      t_->Branch("edepArea_"+key,      edepArea_[key],    "edepArea_"+key+"[nlay]/F");
 
-      edep2dR2hitmax_[key]    = new Float_t[100];
-      t_->Branch("edep2dR2hitmax_"+key,      edep2dR2hitmax_[key],    "edep2dR2hitmax_"+key+"[nlay]/F");
-      
       sihih_[key]    = new Float_t[100];
       t_->Branch("sihih_"+key,     sihih_[key],    "sihih_"+key+"[nlay]/F");
-      
-      sihih2hitmax_[key]    = new Float_t[100];
-      t_->Branch("sihih2hitmax_"+key,     sihih2hitmax_[key],    "sihih2hitmax_"+key+"[nlay]/F");
       
       sipip_[key]    = new Float_t[100];
       t_->Branch("sipip_"+key,     sipip_[key],    "sipip_"+key+"[nlay]/F");
       
-      sipip2hitmax_[key]    = new Float_t[100];
-      t_->Branch("sipip2hitmax_"+key,     sipip2hitmax_[key],    "sipip2hitmax_"+key+"[nlay]/F");
-      
       sipih_[key]    = new Float_t[100];
       t_->Branch("sipih_"+key,     sipih_[key],    "sipih_"+key+"[nlay]/F");
 
-      sipih2hitmax_[key]    = new Float_t[100];
-      t_->Branch("sipih2hitmax_"+key,     sipih2hitmax_[key],    "sipih2hitmax_"+key+"[nlay]/F");
-      
       nClusters_[key]=0;
       t_->Branch("nClusters_"+key,      &(nClusters_[key]),        "nClusters_"+key+"/I");
       
@@ -206,6 +204,8 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
   //PF clusters and candidates
   edm::Handle<reco::PFClusterCollection> pfClusters;
   iEvent.getByLabel(edm::InputTag(pfClustersCollection_,""),pfClusters);
+  edm::Handle<reco::SuperClusterCollection> emPFClusters;
+  iEvent.getByLabel(edm::InputTag(emPFClustersCollection_,""),emPFClusters);
   edm::Handle<reco::PFCandidateCollection> pflow;
   iEvent.getByLabel("particleFlow",pflow);
 
@@ -236,15 +236,13 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 
       //match particle flow candidates to gen candidate
       int selPF(-1);
-      float drToClosest(999999.);
       for(size_t ipf=0; ipf<pflow->size(); ipf++)
 	{
 	  const reco::PFCandidate &cand=(*pflow)[ipf];
 	  float dr=deltaR(p,cand);
 	  if(dr>pfCandAssociationCone_) continue;
-	  if(dr>drToClosest) continue;
-	  drToClosest=dr;
-	  selPF=ipf;
+	  if(selPF<0) selPF=ipf;
+	  else if(cand.energy()>(*pflow)[selPF].energy()) selPF=ipf;
 	}
 
       //sim tracks and vertices
@@ -301,6 +299,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      //save it if interesting (convert energy to keV)
 	      float hitEnInMIPs(hit_it->energy()*1e6/mipEn_[i]);
 	      if(hitEnInMIPs<0.5) continue;
+	      if(i==2 && hitEnInMIPs<1.0) continue;
 	      if(allEdeps[key].find(recoDetId)==allEdeps[key].end()) allEdeps[key][recoDetId] = 0;
 	      allEdeps[key][recoDetId] += hitEnInMIPs;
 	      
@@ -344,7 +343,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  if(dR>pfClusterAssociationCone_) continue;
 	  pToClusters.push_back(&(*c_it));
 	}	 
-
+      
       nClusters_[key]=pToClusters.size();
       sort(pToClusters.begin(),pToClusters.end(),sortClustersByEnergy);
       if(pToClusters.size())
@@ -356,7 +355,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      clusterPhi_[key][iclu]=pToClusters[iclu]->phi();
 	      clusterZ_[key][iclu]=pToClusters[iclu]->position().z();
 	    }
-
+	  
 	  for( const auto& rhf : pToClusters[0]->hitsAndFractions() ) {
 	    uint32_t recoDetId( rhf.first.rawId() );
 	    float recEnFracClustered=rhf.second;
@@ -366,27 +365,86 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	    int subDetCtr(0);
 	    if(subDetId==ForwardSubdetector::HGCHEF) subDetCtr=1;
 	    if(subDetId==ForwardSubdetector::HGCHEB) subDetCtr=2;
-
+	    
 	    //rec hits : convert energy to keV
 	    float recHitEn=(*(recHits[subDetCtr]))[ recHitsIdMap[recoDetId] ].energy();
 	    float eclus(recHitEn*recEnFracClustered*1e6/mipEn_[subDetCtr]);
 	    if(allEdeps[key].find(recoDetId)==allEdeps[key].end())  allEdeps[key][recoDetId] = 0;
 	    allEdeps[key][recoDetId] += eclus;
-		
+	    
 	    //check if maximum found
 	    if(maxEdep[key].second>allEdeps[key][recoDetId]) continue;
 	    maxEdep[key].first=recoDetId;
 	    maxEdep[key].second=allEdeps[key][recoDetId];
 	  }
 	}
-	  
-	  
-      //RECHITS FROM CLUSTERS IN SELECTED PF CANDIDATE
+       
+      
+      //RECHITS FROM SUPERCLUSTERS (e/gamma) or CLUSTERS IN  SELECTED PF CANDIDATE
       key="pf";
-      if(false) //selPF>=0)
+      if(abs(genId_)==11 || abs(genId_)==22)
+	{
+	  //pick the leading supercluster (there should be only one in principle)
+	  const reco::SuperCluster * pToCluster=0;
+	  for(reco::SuperClusterCollection::const_iterator c_it=emPFClusters->begin();   
+	      c_it!=emPFClusters->end(); 
+	      c_it++)
+	    {
+	      float dR=deltaR(c_it->position(),p);
+	      if(dR>pfClusterAssociationCone_) continue;
+	      if(pToCluster==0) pToCluster=&(*c_it);
+	      else if(pToCluster->energy()<c_it->energy()) pToCluster=&(*c_it);
+	    }	 
+
+	  if(pToCluster)
+	    {
+	      nClusters_[key]     = pToCluster->clustersSize();
+
+	      //supercluster
+	      clusterEn_[key][0]  = pToCluster->energy();
+	      clusterEta_[key][0] = pToCluster->eta();
+	      clusterPhi_[key][0] = pToCluster->phi();
+	      clusterZ_[key][0]   = pToCluster->position().z();
+
+	      //seed cluster
+	      clusterEn_[key][1]  = pToCluster->seed()->energy();
+	      clusterEta_[key][1] = pToCluster->seed()->eta();
+	      clusterPhi_[key][1] = pToCluster->seed()->phi();
+	      clusterZ_[key][1]   = pToCluster->seed()->position().z();
+	      
+	      for(reco::CaloCluster_iterator cIt = pToCluster->clustersBegin(); cIt!=pToCluster->clustersEnd(); cIt++)
+		{
+		  for( const auto& rhf : (*cIt)->hitsAndFractions() ) 
+		    {
+		      uint32_t recoDetId( rhf.first.rawId() );
+		      float recEnFracClustered=rhf.second;
+		      if(recHitsIdMap.find(recoDetId)==recHitsIdMap.end()) continue;
+		      
+		      int subDetId((recoDetId >>25)&0x7);
+		      int subDetCtr(-1);
+		      if(subDetId==ForwardSubdetector::HGCEE) subDetCtr=0;
+		      if(subDetId==ForwardSubdetector::HGCHEF) subDetCtr=1;
+		      if(subDetId==ForwardSubdetector::HGCHEB) subDetCtr=2;
+		      
+		      //rec hits : convert energy to keV
+		      float recHitEn=(*(recHits[subDetCtr]))[ recHitsIdMap[recoDetId] ].energy();
+		      float eclus(recHitEn*recEnFracClustered*1e6/mipEn_[subDetCtr]);
+		      if(allEdeps[key].find(recoDetId)==allEdeps[key].end())  allEdeps[key][recoDetId] = 0;
+		      allEdeps[key][recoDetId] += eclus;
+		      
+		      //check if maximum found
+		      if(maxEdep[key].second>allEdeps[key][recoDetId]) continue;
+		      maxEdep[key].first=recoDetId;
+		      maxEdep[key].second=allEdeps[key][recoDetId];
+		    }
+		}
+	    }
+	}
+      else if(false) //selPF>=0)
 	{
 	  const reco::PFCandidate &cand=(*pflow)[ selPF ];
 	  pfMatchId_=cand.pdgId();
+	  
 	  const reco::PFCandidate::ElementsInBlocks&einb=cand.elementsInBlocks();
 	  for(size_t ieleinb=0; ieleinb<einb.size(); ieleinb++)
 	    {
@@ -404,8 +462,8 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 		  
 		  //get the cluster
 		  const reco::PFBlockElementCluster *sc = dynamic_cast<const reco::PFBlockElementCluster*>(&(eleList[iEle]));
-		  nClusters_[key]++;
-		  for( const auto& rhf : sc->clusterRef()->hitsAndFractions() )
+   	          nClusters_[key]++;
+	          for( const auto& rhf : sc->clusterRef()->hitsAndFractions() )
 		    {
 		      uint32_t recoDetId( rhf.first.rawId() );
 		      float recEnFracClustered=rhf.second;
@@ -423,7 +481,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 		      maxEdep[key].second=allEdeps[key][recoDetId];
 		    }
 		}
-	    }
+	}
 	}
 	
       //now compute the relevant variables for the regression
@@ -468,11 +526,12 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      if(subDetId==ForwardSubdetector::HGCHEF) subDetCtr=1;
 	      if(subDetId==ForwardSubdetector::HGCHEB) subDetCtr=2;
 	      int hitLayer((detIt->first >> 19) & 0x1f);
-	      float hitEta(0),hitPhi(0),hitX(0),hitY(0);
+	      float hitEta(0),hitPhi(0),hitX(0),hitY(0),hitZ(0);
 	      try{
 		const GlobalPoint pos( std::move( geom[subDetCtr]->getPosition(detIt->first) ) );
 		hitX=pos.x();
 		hitY=pos.y();
+		hitZ=pos.z();
 		hitEta=pos.eta();
 		hitPhi=pos.phi();
 	      }catch(...){
@@ -497,17 +556,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      showerMeanX_[key]        += en*hitX;
 	      emeanY_[key][layerIdx]   += en*hitY;
 	      showerMeanY_[key]        += en*hitY;
-	   
-	      //to shower max
-	      if(hitMax_[key]>0.5)
-		{
-		  float rho=sqrt(pow(hitX-hitMaxX_[key],2)+pow(hitY-hitMaxY_[key],2));
-		  edepdR2hitmax_[key][layerIdx]   += en*rho;
-		  edep2dR2hitmax_[key][layerIdx]  += en*pow(rho,2);
-		  sihih2hitmax_[key][layerIdx]    += en*pow(hitEta-hitMaxEta_[key],2);
-		  sipip2hitmax_[key][layerIdx]    += en*pow(deltaPhi(hitPhi,hitMaxPhi_[key]),2);
-		  sipih2hitmax_[key][layerIdx]    += en*(hitEta-hitMaxEta_[key])*(deltaPhi(hitPhi,hitMaxPhi_[key]));
-		}
+	      showerMeanZ_[key]        += en*hitZ;
 	    }
 
 	  //compute shower direction (global and local)
@@ -516,6 +565,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  showerMeanEta_[key]/=totalEn;
 	  showerMeanX_[key]/=totalEn;
 	  showerMeanY_[key]/=totalEn;
+	  showerMeanZ_[key]/=totalEn;
 	  for(Int_t ilay=0; ilay<nlay_; ilay++)
 	    {
 	      float iTotalEn( edeps_[key][ilay] );
@@ -542,11 +592,12 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      if(subDetId==ForwardSubdetector::HGCHEF) subDetCtr=1;
 	      if(subDetId==ForwardSubdetector::HGCHEB) subDetCtr=2;
 	      int hitLayer((detIt->first >> 19) & 0x1f);
-	      float hitEta(0),hitPhi(0),hitX(0),hitY(0);
+	      float hitEta(0),hitPhi(0),hitX(0),hitY(0),hitZ(0);
 	      try{
 		const GlobalPoint pos( std::move( geom[subDetCtr]->getPosition(detIt->first) ) );
 		hitX=pos.x();
 		hitY=pos.y();
+		hitZ=pos.z();
 		hitEta=pos.eta();
 		hitPhi=pos.phi();
 	      }catch(...){
@@ -566,30 +617,40 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      if(idx<=1 && idy<=1) edeps3x3_[key][layerIdx] += en;
 	      if(idx<=3 && idy<=3) edeps5x5_[key][layerIdx] += en;
 	      
-	      float rho=sqrt(pow(hitX-emeanX_[key][layerIdx],2)+pow(hitY-emeanY_[key][layerIdx],2));
+	      float refRho(showerMeanEta_[key]!=0 ? fabs(hitZ/TMath::SinH(showerMeanEta_[key])) : 0. );
+	      float refX( refRho*TMath::Cos( showerMeanPhi_[key] ) );
+	      float refY( refRho*TMath::Sin( showerMeanPhi_[key] ) );
+	      
+	      float rho=sqrt(pow(hitX-refX,2)+pow(hitY-refY,2));
 	      edepdR_[key][layerIdx]   += en*rho;
-	      edep2dR_[key][layerIdx]  += en*pow(rho,2);
+	      edepArea_[key][layerIdx]  += en*pow(rho,2);
 	      sihih_[key][layerIdx]    += en*pow(hitEta-emeanEta_[key][layerIdx],2);
 	      sipip_[key][layerIdx]    += en*pow(deltaPhi(hitPhi,emeanPhi_[key][layerIdx]),2);
 	      sipih_[key][layerIdx]    += en*(hitEta-emeanEta_[key][layerIdx])*(deltaPhi(hitPhi,emeanPhi_[key][layerIdx]));
 	    }
 	  
 	  //finalize by normalizing
+	  int hitLayCtr(0);
 	  for(Int_t ilay=0; ilay<nlay_; ilay++)
 	    {
 	      float iTotalEn( edeps_[key][ilay] );
 	      if(iTotalEn<=0) continue;
+	      hitLayCtr++;
+	      if(showerStart_[key]<0 && hitLayCtr==3) showerStart_[key]=ilay;
 	      edepdR_[key][ilay]   /= iTotalEn;
-	      edep2dR_[key][ilay]  /= iTotalEn;
-	      sihih_[key][ilay]    /= iTotalEn;
-	      sipip_[key][ilay]    /= iTotalEn;
-	      sipih_[key][ilay]    /= iTotalEn;
-	      edepdR2hitmax_[key][ilay]   /= iTotalEn;
-	      edep2dR2hitmax_[key][ilay]  /= iTotalEn;
-	      sihih2hitmax_[key][ilay]    /= iTotalEn;
-	      sipip2hitmax_[key][ilay]    /= iTotalEn;
-	      sipih2hitmax_[key][ilay]    /= iTotalEn;
+	      edepArea_[key][ilay] /= iTotalEn;
+	      edepArea_[key][ilay] = TMath::Pi()*(edepArea_[key][ilay]-pow(edepdR_[key][ilay],2));
+	      if(edepArea_[key][ilay]<0) edepArea_[key][ilay]=0;
+
+	      sihih_[key][ilay]    /= iTotalEn; sihih_[key][ilay]=sqrt(sihih_[key][ilay]);
+	      sipip_[key][ilay]    /= iTotalEn; sipip_[key][ilay]=sqrt(sipip_[key][ilay]);
+	      sipih_[key][ilay]    /= iTotalEn; sipih_[key][ilay]=sqrt(fabs(sipih_[key][ilay]));
+	      
+	      float corrOverburden(getLayerWeight(ilay,false)*TMath::TanH(fabs(showerMeanEta_[key])));
+	      totalLength_[key] += corrOverburden;
+	      totalVolume_[key] += edepArea_[key][ilay]*corrOverburden;
 	    }
+
 	  	 
 	}
 

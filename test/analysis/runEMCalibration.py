@@ -31,7 +31,7 @@ def runCalibrationStudy(opt):
     weights={}
     #weights["Trivial"] = [1.0,  1.0,   1.0,    1.0,    1.0,    1.0,    1.0]
     weights["x0"]      = [0.08, 0.620, 0.809,  1.239,  3.580,  3.103,  5.228]
-    weights["lambda"]  = [0.01, 0.036, 0.043,  0.056,  0.338,  0.273,  0.476]
+    #weights["lambda"]  = [0.01, 0.036, 0.043,  0.056,  0.338,  0.273,  0.476]
     weightTitles={}
     #weightTitles["Trivial"] = "Trivial weights"
     weightTitles["x0"]      = "X_{0}-based weights"
@@ -182,11 +182,15 @@ def runCalibrationStudy(opt):
                 v_min, v_max       = v_mean-5*v_sigma, v_mean+5*v_sigma
                 v_fitMin, v_fitMax = v_mean-nSigmasToFit*v_sigma, v_mean+nSigmasToFit*v_sigma
 
+                if v_mean<=0 or v_sigma<=0: 
+                    print 'Something wrong for E in ',enRanges[iEnRange],' eta in ',etaRanges[iEtaRange],' with ',wType,' weights'
+                    continue
+
                 #define PDF
                 fitName          = 'range%d%d_%s'%(iEtaRange,iEnRange,vName)            
                 ws.var(vName).setRange(fitName,v_min,v_max)
                 ws.var(vName).setRange('fit_%s'%fitName,v_fitMin, v_fitMax)
-                ws.factory('RooCBShape::resol_%s(%s,mean_%s[%f,%f,%f],sigma_%s[%f,%f,%f],alpha_%s[0.001.,0.0001,20.0],n_%s[1])'%
+                ws.factory('RooCBShape::resol_%s(%s,mean_%s[%f,%f,%f],sigma_%s[%f,%f,%f],alpha_%s[0.001.,0.0001,20.0],n_%s[2,1,5])'%
                            (fitName,vName,
                             fitName,v_mean,v_min,v_max,
                             fitName,v_sigma,v_sigma*0.001, v_sigma*2,
@@ -199,7 +203,7 @@ def runCalibrationStudy(opt):
                 meanFit, meanFit_error   = ws.var('mean_%s'%fitName).getVal(), ws.var('mean_%s'%fitName).getError()
                 sigmaFit, sigmaFit_error = ws.var('sigma_%s'%fitName).getVal(), ws.var('sigma_%s'%fitName).getError()
 
-                #save results
+                #save result
                 np=etaSliceCalibGr[wType].GetN()
                 etaSliceCalibGr[wType].SetPoint(np,genEn_mean,meanFit)
                 etaSliceCalibGr[wType].SetPointError(np,0,meanFit_error)
@@ -259,7 +263,7 @@ def main():
     parser.add_option('-w',      '--ws' ,      dest='wsUrl',        help='Workspace file',                                 default=None)
     parser.add_option('-c',      '--calib' ,   dest='calibUrl',     help='Calibration file',                               default=None)
     parser.add_option('--vetoTrackInt',        dest='vetoTrackInt', help='flag if tracker interactions should be removed', default=False, action="store_true")
-    parser.add_option('-v',      '--var' ,     dest='treeVarName',  help='Variable to use as energy estimotor',            default='edep_sim')
+    parser.add_option('-v',      '--var' ,     dest='treeVarName',  help='Variable to use as energy estimator',            default='edep_sim')
     (opt, args) = parser.parse_args()
 
      #check inputs                                                                                                                                                                                                  

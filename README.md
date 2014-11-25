@@ -53,6 +53,12 @@ for pid in ${pids[@]}; do
     done
 done
 
+
+a=(lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_140PU lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_200PU lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_20PU lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_75PU lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_NoPU)
+for i in ${a[@]}; do 
+    cmsRun test/runHGCSimHitsAnalyzer_cfg.py ${i}; 
+done
+
 ### Minimum bias (1000 events per file x 500 jobs, should be ok for later mixing with particle gun)
 
 python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/MinBias_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/minBias_cfi.py -n 500";
@@ -85,10 +91,13 @@ cmsRun runHGCSimHitsAnalyzer_cfg.py
 
 Submit several jobs to the batch and store the output in EOS
 
-pids=(11 211)
-ifiles=(0 100 200 300 400 500 600 700)
+pids=(211)
 for pid in ${pids[@]}; do
-    for ifile in ${ifiles[@]}; do
-    	cmsRun test/runHGCSimHitsAnalyzer_cfg.py Single${pid}_${CMSSW_VERSION}_v2 ${ifile} 100 & 
+    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO | awk '{print $5}'`);
+    nFiles=${#inputFiles[@]};	
+    nJobs=$((nFiles/10));
+    for i in `seq 0 ${nJobs}`; do
+    	startFile=$((i*10));
+    	cmsRun test/runHGCSimHitsAnalyzer_cfg.py Single${pid}_${CMSSW_VERSION}/RECO ${startFile} 10 & 
     done
 done

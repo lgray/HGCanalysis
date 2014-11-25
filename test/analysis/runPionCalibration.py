@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import ROOT
+import numpy as numpy
 import array
 import io, os, sys
 import optparse
@@ -39,7 +40,6 @@ def computeSubdetectorWeights(enRanges,etaRanges,ws,xaxis,yaxis,outDir) :
 
         canvas.Clear()
         canvas.Divide(divx,2)   
-        
         for ieta in xrange(0,len(etaRanges)):
             genEta_min=etaRanges[ieta][0]
             genEta_max=etaRanges[ieta][1]
@@ -206,6 +206,201 @@ def computeSubdetectorWeights(enRanges,etaRanges,ws,xaxis,yaxis,outDir) :
 
     return finalCombSlope, finalCombSlope_err
 
+
+
+
+
+"""
+draws the correlation between showerVolume and energy estimator
+"""
+def computeCompensationWeights(enRanges,etaRanges,ws,outDir):
+
+    divx=len(etaRanges)/2
+    while True:
+        if divx*2 >= len(etaRanges) : break
+        divx+=1
+
+    #optimize in energy density ranges
+    uRanges=[[0,0.05],[0.05,0.1],[0.1,0.15],[0.15,0.2],[0.2,0.3],[0.3,0.4]]
+
+    weightOptimGr=[]
+    aGr=ROOT.TGraphErrors()
+    aGr.SetMarkerStyle(20)
+    aGr.SetName('swweights_slope')
+    bGr=aGr.Clone()
+    bGr.SetName('swweights_offset')
+
+    canvas=ROOT.TCanvas('c','c',350*divx,700)
+    all2DScatters=[]
+    all2DProfiles=[]
+    all1DProfiles=[]
+    for ien in xrange(0,len(enRanges)):
+        genEn_min=enRanges[ien][0]
+        genEn_max=enRanges[ien][1]
+        genEn_mean=0.5*(genEn_max+genEn_min)
+
+        #sums for weight optimization
+        nSum=[0]*len(uRanges)
+        densSum=[0]*len(uRanges)
+        eSum=[0]*len(uRanges)
+        e2Sum=[0]*len(uRanges)
+
+        iprof1d=len(all1DProfiles)
+        all1DProfiles.append( ROOT.TH1F('hprof1d%d'%ien,'Energy=%d GeV;U (shower density) [GeV/Volume];PDF'%genEn_mean,50,0,1) )
+        all1DProfiles[iprof1d].SetDirectory(0)
+        all1DProfiles[iprof1d].Sumw2()
+
+        canvas.Clear()
+        canvas.Divide(divx,2)   
+        
+        for ieta in xrange(0,len(etaRanges)):
+            genEta_min=etaRanges[ieta][0]
+            genEta_max=etaRanges[ieta][1]
+
+            #fill a new profile
+            redData=ws.data('data_uncalib_final').reduce('en>=%f && en<=%f && eta>=%f && eta<=%f'%(genEn_min,genEn_max,genEta_min,genEta_max))
+            if redData.numEntries()<10 : continue
+
+            iprof=len(all2DScatters)
+            all2DScatters.append( ROOT.TH2F('hprof%d%d'%(ieta,ien),';E_{rec} [GeV];Shower density [GeV/Volume];Events',30,0.5*genEn_mean,3*genEn_mean,50,0,1) )
+            all2DScatters[iprof].SetDirectory(0)
+            all2DScatters[iprof].Sumw2()
+            for ientry in xrange(0,redData.numEntries()):
+                entryVars=redData.get(ientry)
+                egen=entryVars.find('en').getVal()                
+                erec=entryVars.find('lambda_emEn').getVal()                
+                vol=entryVars.find('volume').getVal()
+                dens=0
+                if vol>0 : dens=erec/vol 
+                all2DScatters[iprof].Fill(erec,dens)
+                all1DProfiles[iprof1d].Fill(dens,1./redData.numEntries())
+
+                #compute sums for maximization
+                for iuRange in xrange(0,len(uRanges)):
+                    if dens<uRanges[iuRange][0] or dens>uRanges[iuRange][1] : continue
+                    nSum[iuRange]    += 1
+                    densSum[iuRange] += dens
+                    eSum[iuRange]    += erec/egen
+                    e2Sum[iuRange]   += ROOT.TMath.Power(erec/egen,2)
+
+            #show profile
+            p=canvas.cd(ieta+1)
+            p.SetLogz()
+            p.SetRightMargin(0.1)
+            
+            all2DProfiles.append( all2DScatters[iprof].ProfileX('%s_prof'%all2DScatters[iprof].GetName()) )
+            all2DProfiles[iprof].SetMarkerStyle(20)
+            all2DScatters[iprof].Draw('colz')
+            all2DScatters[iprof].GetZaxis().SetTitleOffset(-0.5)            
+            all2DProfiles[iprof].Draw('e1same')
+            MyPaveText('#it{%3.1f<#eta<%3.1f}'%(genEta_min,genEta_max),0.4,0.95,0.8,0.8).SetTextSize(0.04)
+            if ieta==0 : MyPaveText('#bf{CMS} #it{simulation}    Energy=%d GeV'%genEn_mean)
+            
+        #save
+        canvas.Modified()
+        canvas.Update()
+        canvas.SaveAs('%s/showerdens_%d_profile.png'%(outDir,ien))
+
+        #now optimize weights for this energy
+        weightOptimGr.append( ROOT.TGraph() )
+        weightOptimGr[ien].SetName('sweights%d'%ien)
+        weightOptimGr[ien].SetTitle('Energy=%d GeV'%genEn_mean)
+        weightOptimGr[ien].SetMarkerStyle(20)
+        for iuRange in xrange(0,len(uRanges)):
+            if nSum[iuRange]<2 : continue
+            np=weightOptimGr[ien].GetN()
+            weightOptimGr[ien].SetPoint(np,densSum[iuRange]/nSum[iuRange],eSum[iuRange]/e2Sum[iuRange])
+        weightOptimGr[ien].Fit('pol1','MQR+')
+
+        #save evolution of the parameters for this energy
+        a,a_err=weightOptimGr[ien].GetFunction('pol1').GetParameter(1),weightOptimGr[ien].GetFunction('pol1').GetParError(1)
+        aGr.SetPoint(ien,genEn_mean,a)
+        aGr.SetPointError(ien,0,a_err)
+        b,b_err=weightOptimGr[ien].GetFunction('pol1').GetParameter(0),weightOptimGr[ien].GetFunction('pol1').GetParError(0)
+        bGr.SetPoint(ien,genEn_mean,b)
+        bGr.SetPointError(ien,0,b_err)
+        
+    #compare shower densities for different events
+    canvas.Clear()
+    canvas.SetWindowSize(500,500)
+    canvas.SetCanvasSize(500,500)
+    canvas.SetLogy()
+    leg=ROOT.TLegend(0.6,0.6,0.9,0.94)
+    leg.SetFillStyle(0)
+    leg.SetBorderSize(0)
+    leg.SetTextFont(42)
+    leg.SetTextSize(0.03)
+    for iprof1d in xrange(0,len(all1DProfiles)):
+        all1DProfiles[iprof1d].SetLineColor(1+iprof1d)
+        if iprof1d==0 : 
+            all1DProfiles[iprof1d].Draw('hist')
+            all1DProfiles[iprof1d].GetYaxis().SetRangeUser(1e-3,1.0)
+        else:
+            all1DProfiles[iprof1d].Draw('histsame')
+        leg.AddEntry(all1DProfiles[iprof1d],all1DProfiles[iprof1d].GetTitle(),'l')
+    leg.Draw()
+    MyPaveText('#bf{CMS} #it{simulation}')
+    canvas.Modified()
+    canvas.Update()
+    canvas.SaveAs('%s/showerdens.png'%outDir)
+
+    #compare evolution
+    canvas.Clear()
+    canvas.SetWindowSize(1000,500)
+    canvas.SetCanvasSize(1000,500)
+    canvas.Divide(2,1)
+    canvas.cd(2)    
+    aGr.Draw('ap')
+    aGr.GetXaxis().SetTitle('Energy [GeV]')
+    aGr.GetYaxis().SetTitle('Weight function slope')
+    aGr.GetYaxis().SetTitleOffset(1.4)
+    aFunc=ROOT.TF1('afunc','[0]+[1]*exp(x*[2])',0,1000)
+    aFunc.SetParLimits(0,-1,2)
+    aFunc.SetParLimits(1,-2,0)
+    aFunc.SetParLimits(2,-2,0)
+    aGr.Fit(aFunc,'MR+')
+    MyPaveText('slope(E)=q_{1}+q_{2}e^{(q_{3}E)}\\q_{1}=%3.4f#pm%3.4f\\q_{2}=%3.4f#pm%3.4f\\q_{3}=%3.4f#pm%3.4f'
+            %(aFunc.GetParameter(0),aFunc.GetParError(0),
+              aFunc.GetParameter(1),aFunc.GetParError(1),
+              aFunc.GetParameter(2),aFunc.GetParError(2)),
+               0.4,0.3,0.9,0.6)
+
+    canvas.cd(1)
+    bGr.Draw('ap')
+    bGr.GetXaxis().SetTitle('Energy [GeV]')
+    bGr.GetYaxis().SetTitle('Weight function offset')
+    bGr.GetYaxis().SetTitleOffset(1.4)
+    bFunc=ROOT.TF1('bfunc','[0]*(1-exp(x*[1]))+[2]',0,1000)
+    bFunc.SetParLimits(0,-1,1)
+    bFunc.SetParLimits(1,-1,0)
+    bFunc.SetParLimits(2,-1,1)
+    bGr.Fit(bFunc,'MR+')
+    MyPaveText('offset(E)=p_{1}[1-e^{(p_{2}E)}]+p_{3}\\p_{1}=%3.4f#pm%3.4f\\p_{2}=%3.4f#pm%3.4f\\p_{3}=%3.4f#pm%3.4f'
+               %(bFunc.GetParameter(0),bFunc.GetParError(0),
+                 bFunc.GetParameter(1),bFunc.GetParError(1),
+                 bFunc.GetParameter(2),bFunc.GetParError(2)),
+               0.4,0.3,0.9,0.6)
+    MyPaveText('#bf{CMS} #it{simulation}')
+
+    canvas.Modified()
+    canvas.Update()
+    canvas.SaveAs('%s/swcompweights.png'%outDir)
+    canvas.SaveAs('%s/swcompweights.C'%outDir)
+
+    #save weights to file
+    fOut=ROOT.TFile('%s/swcompweights.root'%outDir,'RECREATE')
+    fOut.cd()
+    aGr.Write()
+    bGr.Write()
+    for w in weightOptimGr : w.Write()
+    fOut.Close()
+    
+
+
+
+
+
+
 """
 Adapts the workspace for pion calibration
 """
@@ -298,7 +493,7 @@ def adaptWorkspaceForPionCalibration(opt,outDir):
 
 
     #finally create dataset for calibration (only sub-detector sums at this point)
-    uncalibDataVars=ROOT.RooArgSet(ws.var('en'), ws.var('eta'), ws.var('phi'))
+    uncalibDataVars=ROOT.RooArgSet(ws.var('en'), ws.var('eta'), ws.var('phi'), ws.var('length'), ws.var('volume'))
     for wType in weights: 
         for subDet in subDets:
             ws.factory('%sEn_%s[0,0,999999999]'%(wType,subDet))
@@ -312,7 +507,7 @@ def adaptWorkspaceForPionCalibration(opt,outDir):
         entryVars=ws.data('data').get(ientry)
         newEntry=ROOT.RooArgSet()
 
-        for baseVar in ['en','eta','phi']: 
+        for baseVar in ['en','eta','phi','length','volume']: 
             ws.var(baseVar).setVal( entryVars.find(baseVar).getVal() )
             newEntry.add( ws.var(baseVar) )
 
@@ -411,7 +606,7 @@ def runCalibrationStudy(opt):
 
     #create the final dataset for calibration
     print 'Will use the following combination of sub-detectors %d x EE + %3.4f x (HEF + %3.4f x HEB)'%(1-int(opt.noEE),1./hefhebCombSlope,1./ehCombSlope)
-    uncalibDataVars=ROOT.RooArgSet(ws.var('en'), ws.var('eta'), ws.var('phi'))
+    uncalibDataVars=ROOT.RooArgSet(ws.var('en'), ws.var('eta'), ws.var('phi'),ws.var('length'),ws.var('volume'))
     for wType in weightTitles: 
         ws.factory('%sEn[0,0,999999999]'%wType)
         ws.var('%sEn'%wType).SetTitle( '%s'%weightTitles[wType] )
@@ -440,7 +635,7 @@ def runCalibrationStudy(opt):
         entryVars=ws.data('data_uncalib').get(ientry)
         newEntry=ROOT.RooArgSet()
 
-        for baseVar in ['en','eta','phi']: 
+        for baseVar in ['en','eta','phi','length','volume']: 
             ws.var(baseVar).setVal( entryVars.find(baseVar).getVal() )
             newEntry.add( ws.var(baseVar) )
                 
@@ -577,6 +772,9 @@ def runCalibrationStudy(opt):
         resCorrectionGr[wType].Fit(calibModelRes,'WMR+')
         resCorrectionGr[wType].GetFunction(calibModelRes.GetName()).Write('%s_calib_res'%wType)
     calibF.Close()
+
+    #compute compensation weights
+    computeCompensationWeights(enRanges,etaRanges,ws,outDir)
 
 """
 steer 

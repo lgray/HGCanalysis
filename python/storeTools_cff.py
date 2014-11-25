@@ -29,8 +29,18 @@ def fillFromStore(dir,ffile=0,step=-1,generatePfn=True):
         prefix='rfio'
         lscommand ='rfdir ' + dir + ' | awk \'{print $9}\''
         lsout = commands.getstatusoutput(lscommand)[1].split()
-
-    elif(dir.find('/store/')==0):
+    elif dir.find('srm')>=0 :
+        print 'Will use lcg-ls to query (make sure your proxy is initiated)'
+        prefix='root://cmsxrootd.fnal.gov//'
+        lscommand = 'lcg-ls -D srmv2 -b %s'%dir
+        lsout = commands.getstatusoutput(lscommand)[1].split()
+        for l in lsout : 
+            if l.find('.root')<0 : continue
+            xrootdName=prefix+l
+            xrootdName=xrootdName.replace('/eos/uscms/','')
+            localdataset.extend( [ xrootdName ] )
+        return localdataset
+    elif dir.find('/store/')==0:
         prefix='eoscms'
         lscommand = 'cmsLs ' + dir + ' | grep root | awk \'{print $5}\''
         lsouttmp = commands.getstatusoutput(lscommand)[1].split()
@@ -49,8 +59,7 @@ def fillFromStore(dir,ffile=0,step=-1,generatePfn=True):
             if(basename.find('tree_')==0) : continue
             if(basename.find('histogram')==0): continue
             lsout.append(l)
-        print 'Discarded ' + str(nduplicate)  + ' files duplicated in cmsLs output'
-       
+        print 'Discarded ' + str(nduplicate)  + ' files duplicated in cmsLs output'       
     elif(dir.find('.root')<0):
         prefix='file'
         lscommand='ls ' + dir
@@ -67,7 +76,7 @@ def fillFromStore(dir,ffile=0,step=-1,generatePfn=True):
             if( (step<0) or  (step>0 and ifile<ffile+step) ):
                 
                 sline=''
-                if(prefix=='eoscms') :
+                if prefix=='eoscms':
                     if(generatePfn) :
                         sline='root://eoscms//eos/cms/'+line
                         #sline=commands.getstatusoutput('cmsPfn ' + line )[1]
