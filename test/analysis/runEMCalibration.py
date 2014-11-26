@@ -21,7 +21,9 @@ def runCalibrationStudy(opt):
     
     #init phase space regions of interest
     etaRanges = [[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75],[2.75,2.9]]
-    enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[249,251]] 
+    enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[149,151],[249,251]] 
+    if treeVarName.find('pf')>=0:
+        enRanges  = [[49,51],[74,75],[99,101],[149,151],[249,251]] 
     
     #etaRanges = [[1.6,2.9]]
     #enRanges  = [[9,11],[29,31],[49,51]]
@@ -138,7 +140,7 @@ def runCalibrationStudy(opt):
 
 
     #calibrate the energy estimators (split up in different energies and pseudo-rapidity ranges)
-    nSigmasToFit=2 #2.8
+    nSigmasToFit=2.8 #2.8
     calibGr={}
     resGr={}
     for wType in weights:
@@ -179,7 +181,7 @@ def runCalibrationStudy(opt):
                 #prepare the fit to this slice
                 vName = '%sEn_%s'%(wType,calibPostFix)
                 v_mean, v_sigma    = redData.mean(ws.var(vName)), redData.sigma(ws.var(vName))
-                v_min, v_max       = v_mean-5*v_sigma, v_mean+5*v_sigma
+                v_min, v_max       = v_mean-2*v_sigma, v_mean+2*v_sigma
                 v_fitMin, v_fitMax = v_mean-nSigmasToFit*v_sigma, v_mean+nSigmasToFit*v_sigma
 
                 if v_mean<=0 or v_sigma<=0: 
@@ -190,7 +192,7 @@ def runCalibrationStudy(opt):
                 fitName          = 'range%d%d_%s'%(iEtaRange,iEnRange,vName)            
                 ws.var(vName).setRange(fitName,v_min,v_max)
                 ws.var(vName).setRange('fit_%s'%fitName,v_fitMin, v_fitMax)
-                ws.factory('RooCBShape::resol_%s(%s,mean_%s[%f,%f,%f],sigma_%s[%f,%f,%f],alpha_%s[0.001.,0.0001,20.0],n_%s[2,1,5])'%
+                ws.factory('RooCBShape::resol_%s(%s,mean_%s[%f,%f,%f],sigma_%s[%f,%f,%f],alpha_%s[0.001.,0.0001,20.0],n_%s[2,0.5,3])'%
                            (fitName,vName,
                             fitName,v_mean,v_min,v_max,
                             fitName,v_sigma,v_sigma*0.001, v_sigma*2,
