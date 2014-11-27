@@ -17,7 +17,19 @@ def showProfiles(histos,norm,genEn,output):
     #show the histograms
     canvas     = ROOT.TCanvas('c','c',500,500)
     profCanvas = ROOT.TCanvas('profc','profc',500,500)
+    canvas2D   = ROOT.TCanvas('c2d','c2d',1000,1000)
     for var in histos:
+
+        #show 2D
+        canvas2D.Clear()
+        canvas2D.Divide(2,2)
+        i2dCtr=0
+        for step in histos[var]:
+            i2dCtr=i2dCtr+1
+            canvas2D.cd(i2dCtr).SetLogz()
+            histos[var][step].Draw('colz')
+            MyPaveText(stepTitle[step],0.5,0.8,0.9,0.9).SetTextSize(0.05)
+            if i2dCtr==0 : MyPaveText('#bf{CMS} #it{simulation}   E=%3.1f GeV'%genEn).SetTextSize(0.05)
 
         #inclusive distributions
         canvas.Clear()
@@ -30,6 +42,7 @@ def showProfiles(histos,norm,genEn,output):
         for step in histos[var]:
             nproj=len(varProj)
             varProj.append( histos[var][step].ProjectionY('%s_%s_proj'%(var,step),1,histos[var][step].GetXaxis().GetNbins()) )
+            if varProj[nproj].Integral()==0 : continue
             varProj[nproj].SetMarkerStyle(20+nproj)
             varProj[nproj].SetMarkerColor(37+nproj)
             varProj[nproj].SetLineColor(37+nproj)
@@ -75,6 +88,7 @@ def showProfiles(histos,norm,genEn,output):
                 
                 #compute the median
                 yproj=histos[var][step].ProjectionY('yproj',xbin,xbin)
+                if yproj.Integral()==0 : continue
                 fixExtremities(yproj)
                 yproj.GetQuantiles(1,quantiles,probSum)
 
@@ -86,7 +100,7 @@ def showProfiles(histos,norm,genEn,output):
             profleg.AddEntry(varProfs[nprof],varProfs[nprof].GetTitle(),'p')
             if nprof==0 :
                 varProfs[nprof].Draw('ap')
-                varProfs[nprof].GetYaxis().SetRangeUser(0,varProfs[nprof].GetYaxis().GetXmax()*2)
+                varProfs[nprof].GetYaxis().SetRangeUser(0,varProfs[nprof].GetYaxis().GetXmax()*1.5)
                 varProfs[nprof].GetYaxis().SetTitle('Median %s'%histos[var][step].GetYaxis().GetTitle())
                 varProfs[nprof].GetXaxis().SetTitle(histos[var][step].GetXaxis().GetTitle())
             else:
@@ -99,7 +113,7 @@ def showProfiles(histos,norm,genEn,output):
 
         #raw_input()
         #save to png
-        for c in [canvas,profCanvas]:
+        for c in [canvas,profCanvas,canvas2D]:
             c.Modified()
             c.cd()
             c.SaveAs('%s/%s_%s_en%d.png'%(output,var,c.GetName(),genEn))
@@ -110,18 +124,21 @@ Loops over the trees and profiles the showers
 """
 def runShowerProfileAnalysis(opt) :
     
+    maxLayers=54
+    if opt.input.find('22')>=0 or opt.input.find('photon')>=0 or opt.input.find('11')>=0 : maxLayers=35
+
     #prepare histograms
-    steps=['sim','rec']
+    steps=['sim','rec','clus']
     baseHistos={
         'length': ROOT.TH2F('length',';Pseudo-rapidity;Length [#lambda];Events',5,1.5,3.0,10,0,15),
-        'width':ROOT.TH2F('width',';HGC layer;Area [cm^{2}];Events',54,0,54,25,0,200),
-        'rho':ROOT.TH2F('rho',';HGC layer;<#rho> [cm];Events',54,0,54,20,0,50),
+        'width':ROOT.TH2F('width',';HGC layer;Area [cm^{2}];Events',maxLayers,0,maxLayers,25,0,200),
+        'rho':ROOT.TH2F('rho',';HGC layer;<#rho> [cm];Events',maxLayers,0,maxLayers,20,0,50),
         'volume':ROOT.TH2F('volume',';Pseudo-rapidity;Volume [cm^{2}#lambda];Events',   5,1.5,3.0,50,0,10000),
-        'edep':     ROOT.TH2F('edep',   ';HGC layer;Energy [MIP];Events ',              54,0,54,100,0,1e3),
-        'nhits':    ROOT.TH2F('nhits',  ';HGC layer;Number of hits;Events',             54,0,54,100,0,100),
-        'sihih':    ROOT.TH2F('sihih',  ';HGC layer;#sigma(#eta,#eta);hits / event',    54,0,54,50,0,0.2),
-        'sipip':    ROOT.TH2F('sipip',  ';HGC layer;#sigma(#phi,#phi);hits / event',    54,0,54,50,0,0.2),
-        'sipih':    ROOT.TH2F('sipih',  ';HGC layer;#sigma(#eta,#phi);hits / event',    54,0,54,50,0,0.2)
+        'edep':     ROOT.TH2F('edep',   ';HGC layer;Energy [MIP];Events ',              maxLayers,0,maxLayers,1000,0,5e3),
+        'nhits':    ROOT.TH2F('nhits',  ';HGC layer;Number of hits;Events',             maxLayers,0,maxLayers,1000,0,1000),
+        'sihih':    ROOT.TH2F('sihih',  ';HGC layer;#sigma(#eta,#eta);hits / event',    maxLayers,0,maxLayers,50,0,0.2),
+        'sipip':    ROOT.TH2F('sipip',  ';HGC layer;#sigma(#phi,#phi);hits / event',    maxLayers,0,maxLayers,50,0,0.2),
+        'sipih':    ROOT.TH2F('sipih',  ';HGC layer;#sigma(#eta,#phi);hits / event',    maxLayers,0,maxLayers,50,0,0.2)
         }
     histos={}
     for var in baseHistos:
@@ -161,9 +178,10 @@ def runShowerProfileAnalysis(opt) :
 
         for ilay in xrange(0,HGC.nlay):
             for step in histos['width']:
-            
-                #require some energy deposit in the layer
-                if getattr(HGC,'edep_%s'%(step))[ilay]==0: continue
+
+                #require some energy deposit in the layer and 1 hit
+                if getattr(HGC,'edep_%s'%(step))[ilay]<0.5: continue
+                if getattr(HGC,'nhits_%s'%(step))[ilay]==0: continue
 
                 #width
                 layerWidth=getattr(HGC,'edepArea_%s'%(step))[ilay]
