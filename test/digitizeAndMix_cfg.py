@@ -1,6 +1,7 @@
 import FWCore.ParameterSet.Config as cms
 
-process = cms.Process('ReRECO')
+procName='ReRECO'
+process = cms.Process(procName)
 
 # import of standard configurations
 process.load('Configuration.StandardSequences.Services_cff')
@@ -20,7 +21,7 @@ process.load('Configuration.StandardSequences.EndOfProcess_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(1)
+    input = cms.untracked.int32(25)
 )
 
 #configure from command line
@@ -67,12 +68,14 @@ process.output = cms.OutputModule("PoolOutputModule",
     )
 )
 
-process.output.outputCommands.append('drop *_*_*_RECO')
+#for the moment keep only the bare minimum
+process.output.outputCommands.append('drop *_*_*_*')
 process.output.outputCommands.append('keep recoGenParticles_*__RECO')
 process.output.outputCommands.append('keep *_genParticles__RECO')
 process.output.outputCommands.append('keep SimTracks_g4SimHits__RECO')
 process.output.outputCommands.append('keep SimVertexs_g4SimHits__RECO')
 process.output.outputCommands.append('keep PCaloHits_g4SimHits_HGCHits*_RECO')
+process.output.outputCommands.append('keep *_mix_HGCDigis*_%s'%procName)
 
 print process.output.outputCommands
 
@@ -101,7 +104,8 @@ process.endjob_step = cms.EndPath(process.endOfProcess)
 process.output_step = cms.EndPath(process.output)
 
 # Schedule definition
-process.schedule = cms.Schedule(process.digitisation_step,process.L1simulation_step,process.digi2raw_step,process.raw2digi_step,process.L1Reco_step,process.reconstruction_step,process.endjob_step,process.output_step)
+#process.schedule = cms.Schedule(process.digitisation_step,process.L1simulation_step,process.digi2raw_step,process.raw2digi_step,process.L1Reco_step,process.reconstruction_step,process.endjob_step,process.output_step)
+process.schedule = cms.Schedule(process.digitisation_step,process.L1simulation_step,process.digi2raw_step,process.endjob_step,process.output_step)
 
 # customisation of the process.
 
@@ -111,14 +115,17 @@ from SLHCUpgradeSimulations.Configuration.combinedCustoms import cust_2023HGCalM
 #call to customisation function cust_2023HGCalMuon imported from SLHCUpgradeSimulations.Configuration.combinedCustoms
 process = cust_2023HGCalMuon(process)
 
-process.mix.digitizers.hgceeDigitizer.digiCfg.shaperTau      = cms.double(0)
-process.mix.digitizers.hgchebackDigitizer.digiCfg.shaperTau  = cms.double(0)
-process.mix.digitizers.hgchefrontDigitizer.digiCfg.shaperTau = cms.double(0)
+#custom digitization
+from SimCalorimetry.HGCSimProducers.customHGCdigitizer_cfi import customHGCdigitizer
+customHGCdigitizer(process,'femodel',True)
 
 print 'Will digitize with the following parameters'
 print process.source.fileNames
 print 'Sample %s starting at %s and processing %d files'%(preFix,process.source.fileNames[0],step)
 print 'MinBias from %s will be used to generate <PU>=%f starting with %s'%(minBiasPreFix,avgPU,mixFileNames[0])
 print 'Output will be store in %s'%process.output.fileName
+
+
+
 
 # End of customisation functions
