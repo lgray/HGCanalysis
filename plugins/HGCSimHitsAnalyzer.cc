@@ -36,8 +36,8 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   //configure analyzer
   hitCollections_           = iConfig.getUntrackedParameter< std::vector<std::string> >("hitCollections");
   recHitCollections_        = iConfig.getUntrackedParameter< std::vector<std::string> >("recHitCollections");
-  pfClustersCollection_     = iConfig.getUntrackedParameter< std::string >("pfClustersCollection");
-  emPFClustersCollection_   = iConfig.getUntrackedParameter< std::string >("emPFClustersCollection");
+  pfClustersCollection_     = iConfig.getUntrackedParameter< edm::InputTag >("pfClustersCollection");
+  emPFClustersCollection_   = iConfig.getUntrackedParameter< edm::InputTag >("emPFClustersCollection");
   geometrySource_           = iConfig.getUntrackedParameter< std::vector<std::string> >("geometrySource");
   mipEn_                    = iConfig.getUntrackedParameter< std::vector<double> >("mipEn");
   pfCandAssociationCone_    = iConfig.getUntrackedParameter< double >("pfCandAssociationCone");
@@ -59,10 +59,23 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   t_->Branch("nlay",        &nlay_,       "nlay/I");
   t_->Branch("pfMatchId",   &pfMatchId_,  "pfMatchId/I");
 
+  nSeeds_ = 0;
+  t_->Branch("nSeeds",      &nSeeds_,        "nSeeds/I");  
+  seedSimMatch_ = new Int_t[1000];
+  t_->Branch("seedSimMatch", seedSimMatch_, "seedSimMatch[nSeeds]/I");
+  seedDet_ = new Int_t[1000];
+  t_->Branch("seedDet", seedDet_, "seedDet[nSeeds]/I");
+  seedEn_ = new Float_t[1000];
+  t_->Branch("seedEn", seedEn_, "seedEn[nSeeds]/F");
+  seedSwissCross_ = new Float_t[1000];
+  t_->Branch("seedSwissCross", seedSwissCross_, "seedSwissCross[nSeeds]/F");
+  seedOver3x3_ = new Float_t[1000];
+  t_->Branch("seedOver3x3", seedOver3x3_, "seedOver3x3[nSeeds]/F");
+
   for(size_t istep=0; istep<4; istep++)
     {
       TString key("sim");
-      if(istep==1) key="rec";
+      if(istep==1) key="rec";     
       if(istep==2) key="clus";
       if(istep==3) key="pf";
 
@@ -203,9 +216,9 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 
   //PF clusters and candidates
   edm::Handle<reco::PFClusterCollection> pfClusters;
-  iEvent.getByLabel(edm::InputTag(pfClustersCollection_,""),pfClusters);
+  iEvent.getByLabel(pfClustersCollection_,pfClusters);
   edm::Handle<reco::SuperClusterCollection> emPFClusters;
-  iEvent.getByLabel(edm::InputTag(emPFClustersCollection_,""),emPFClusters);
+  iEvent.getByLabel(emPFClustersCollection_,emPFClusters);
   edm::Handle<reco::PFCandidateCollection> pflow;
   iEvent.getByLabel("particleFlow",pflow);
 
@@ -264,6 +277,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       maxEdep["rec"]   = std::pair<uint32_t,float>(0,0);
       maxEdep["clus"]  = std::pair<uint32_t,float>(0,0);     
       maxEdep["pf"]    = std::pair<uint32_t,float>(0,0);
+      uint32_t seedHitCtr(0);
       for(size_t i=0; i<hitCollections_.size(); i++)
 	{
 	  uint32_t mySubDet(ForwardSubdetector::HGCEE);
@@ -309,18 +323,55 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      maxEdep[key].second=allEdeps[key][recoDetId];
 	    }
 
-	  //RECO: save rec hits where sim hits exist
+	  //RECO: save rec hits where sim hits exist, also save all seedable clusters with sim match information
 	  key="rec";
 	  uint32_t recHitCtr(0);
+	  
 	  for(HGCRecHitCollection::const_iterator hit_it=recHits[i]->begin(); hit_it!=recHits[i]->end(); hit_it++,recHitCtr++)
 	    {
 	      uint32_t recoDetId(hit_it->id());
 	      recHitsIdMap[recoDetId]=recHitCtr;
-	      if(allEdeps["sim"].find(recoDetId)==allEdeps["sim"].end()) continue;
 
 	      //convert energy to keV
 	      float hitEn(hit_it->energy()*1e6/mipEn_[i]);
 	      if(hitEn<0.5) continue;
+
+	      bool has_sim_match = allEdeps["sim"].find(recoDetId) != allEdeps["sim"].end();
+
+	      /*
+	      bool is_seed = (hitEn >= 1.0);
+	      double e3x3 = hit_it->energy();
+	      double eSwissCross = hit_it->energy();
+	      const auto& topo = geom[i]->topology();
+	      auto hitid = DetId(recoDetId);
+	      auto neighbours = topo.getWindow(hitid,3,3);
+	      for( const auto& neighbour : neighbours ) {
+		if( !is_seed ) continue;
+		const auto rhitr = recHits[i]->find(neighbour);
+		if( rhitr != recHits[i]->end() ) {
+		  if( rhitr->energy() > hit_it->energy() ) {
+		    is_seed = false;
+		  }
+		  if( rhitr->id() == topo.goNorth(hitid) ) eSwissCross += rhitr->energy();
+		  if( rhitr->id() == topo.goSouth(hitid) ) eSwissCross += rhitr->energy();
+		  if( rhitr->id() == topo.goEast(hitid) ) eSwissCross += rhitr->energy();
+		  if( rhitr->id() == topo.goWest(hitid) ) eSwissCross += rhitr->energy();
+		  e3x3 += rhitr->energy();		  
+		}
+	      }
+	      if( is_seed && seedHitCtr < 1000 && i == 2) {
+		seedSimMatch_[seedHitCtr] = has_sim_match;
+		seedDet_[seedHitCtr] = i;
+		seedEn_[seedHitCtr] = hitEn;      
+		seedSwissCross_[seedHitCtr] = hit_it->energy()/eSwissCross; 
+		seedOver3x3_[seedHitCtr] = hit_it->energy()/e3x3;
+		++seedHitCtr;		
+	      }
+	      */
+						   
+
+	      if(!has_sim_match) continue;
+	      
 	      if(allEdeps[key].find(recoDetId)==allEdeps[key].end()) allEdeps[key][recoDetId] = 0;
 	      allEdeps[key][recoDetId] += hitEn;
 	      
@@ -329,8 +380,11 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      maxEdep[key].first=recoDetId;
 	      maxEdep[key].second=allEdeps[key][recoDetId];
 	    }
+	  
 	}
+      nSeeds_ = seedHitCtr;
 
+      std::cout << "nSeeds: " << nSeeds_ << std::endl;      
 
       //CLUSTERS
       TString key("clus");

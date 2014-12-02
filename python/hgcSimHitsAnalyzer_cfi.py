@@ -10,6 +10,6 @@ analysis = cms.EDAnalyzer("HGCSimHitsAnalyzer",
                           g4VerticesSource         = cms.untracked.string('g4SimHits'),
                           pfCandAssociationCone    = cms.untracked.double(0.3),
                           pfClusterAssociationCone = cms.untracked.double(0.3),
-                          pfClustersCollection     = cms.untracked.string('particleFlowClusterHGCEE'),
-                          emPFClustersCollection   = cms.untracked.string('particleFlowSuperClusterHGCEE')
+                          pfClustersCollection     = cms.untracked.InputTag('particleFlowClusterHGCEE::reRECO'),
+                          emPFClustersCollection   = cms.untracked.InputTag('particleFlowSuperClusterHGCEE::reRECO')
                           )

@@ -68,6 +68,14 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
     genHitX_=0; genHitY_=0; genHitZ_=0;
     hasInteractionBeforeHGC_=false;
     pfMatchId_=0;
+    nSeeds_ = 0;
+    for( unsigned i = 0 ; i < 1000; ++i ) {
+      seedSimMatch_[i] = 0;
+      seedDet_[i] = -1;
+      seedEn_[i] = 0.0f;      
+      seedSwissCross_[i] = 0.0f; 
+      seedOver3x3_[i] = 0.0f;
+    }
     for(std::map<TString, Float_t * >::iterator keyIt=edeps_.begin();
 	keyIt!=edeps_.end();
 	keyIt++)
@@ -119,7 +127,10 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   Int_t pfMatchId_;
   Bool_t hasInteractionBeforeHGC_;
   Int_t nlay_;
-  std::map<TString, Float_t> showerMeanX_, showerMeanY_, showerMeanZ_, showerMeanEta_, showerMeanPhi_;
+  Int_t nSeeds_;
+  Int_t *seedSimMatch_, *seedDet_;
+  Float_t *seedEn_, *seedSwissCross_, *seedOver3x3_;
+  std::map<TString, Float_t> showerMeanX_, showerMeanY_, showerMeanZ_, showerMeanEta_, showerMeanPhi_;  
   std::map<TString,Int_t> nClusters_;
   std::map<TString, Float_t *> clusterEn_, clusterZ_, clusterEta_, clusterPhi_;
   std::map<TString, Float_t> hitMax_, hitMaxX_, hitMaxY_, hitMaxEta_, hitMaxPhi_;
@@ -141,7 +152,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   
   //hgcal
   std::vector<std::string> hitCollections_, recHitCollections_, geometrySource_;
-  std::string pfClustersCollection_, emPFClustersCollection_;
+  edm::InputTag pfClustersCollection_, emPFClustersCollection_;
 
   //Geant4
   std::string g4TracksSource_, g4VerticesSource_;

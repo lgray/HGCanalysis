@@ -15,7 +15,7 @@ process.load('Configuration.StandardSequences.MagneticField_38T_PostLS1_cff')
 
 ## MessageLogger
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
-process.MessageLogger.cerr.FwkReport.reportEvery = 5000
+process.MessageLogger.cerr.FwkReport.reportEvery = 1
 process.options   = cms.untracked.PSet( wantSummary = cms.untracked.bool(False),
                                         SkipEvent = cms.untracked.vstring('ProductNotFound')
                                         ) 
@@ -58,7 +58,7 @@ elif preFix.find('lpc:')>=0:
 else :
     process.source.fileNames=fillFromStore('/store/cmst3/group/hgcal/CMSSW/%s'%preFix,ffile,step)
 process.source.duplicateCheckMode = cms.untracked.string('noDuplicateCheck')
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(2000) )
 
 #load the analyzer
 import getpass
