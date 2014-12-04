@@ -139,6 +139,7 @@ rm ${WORKDIR}/${PYFILE}.bak
 if [[ "${TKFILTER}" != "" ]]; then
     echo "Adding hgcTrackerInteractionsFilter"
     echo "process.load('UserCode.HGCanalysis.hgcTrackerInteractionsFilter_cfi')" >> ${WORKDIR}/${PYFILE}
+    echo "getattr(process,'simulation_step')._seq = getattr(process,'simulation_step')._seq * process.trackerIntFilter" >> ${WORKDIR}/${PYFILE}
 fi
 
 #
