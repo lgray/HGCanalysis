@@ -640,7 +640,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      edepdR_[key][ilay]   /= iTotalEn;
 	      edepArea_[key][ilay] /= iTotalEn;
 	      edepArea_[key][ilay] = TMath::Pi()*(edepArea_[key][ilay]-pow(edepdR_[key][ilay],2));
-	      if(edepArea_[key][ilay]<0) edepArea_[key][ilay]=0;
+	      //if(edepArea_[key][ilay]<0) edepArea_[key][ilay]=0;
 
 	      sihih_[key][ilay]    /= iTotalEn; sihih_[key][ilay]=sqrt(sihih_[key][ilay]);
 	      sipip_[key][ilay]    /= iTotalEn; sipip_[key][ilay]=sqrt(sipip_[key][ilay]);
@@ -648,7 +648,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      
 	      float corrOverburden(getLayerWeight(ilay,false)*TMath::TanH(fabs(showerMeanEta_[key])));
 	      totalLength_[key] += corrOverburden;
-	      totalVolume_[key] += edepArea_[key][ilay]*corrOverburden;
+	      totalVolume_[key] += (edepArea_[key][ilay]>0 ? edepArea_[key] : 0 )*corrOverburden;
 	    }
 
 	  	 

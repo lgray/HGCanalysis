@@ -151,7 +151,35 @@ if [ "${step}" -eq "7" ]; then
 	
 	python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -w ${outDir}/workspace_uncalib_pion.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}/HEFHEB_comb.root --calib ${outDir}/calib_uncalib.root;
 
-	mv Single211_${CMSSW_VERSION}_RECO_SimHits/*.* ${outDir}
+	#python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -w ${outDir}/workspace_uncalib_pion.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}/HEFHEB_comb.root --calib ${outDir}/calib_uncalib.root --compWeights ${outDir}/swcompweights.root;
+
+	python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -w ${outDir}/workspace_uncalib_pion.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}/HEFHEB_comb.root --calib ${outDir}/calib_uncalib.root --compWeights ${outDir}/swcompweights.root --compCalib ${outDir}/calib__calib_uncalib_swcomp.root; 
       	
+    done
+fi
+
+
+#e.m. calibration
+if [ "${step}" -eq "8" ]; then
+
+    echo "********************************************"
+    echo "e.m. final calibration"
+    echo "********************************************"
+
+    vars=("edep_sim" "edep_rec" "edep_clus" "edep_pf")
+    photontag=Single22_CMSSW_6_2_0_SLHC20_new_hgc_clusters_electrons_RECO_SimHits
+    #tag=${photontag}
+    #extraOpt="--vetoTrackInt"
+    tag=Single11_CMSSW_6_2_0_SLHC20_new_hgc_clusters_electrons-v2_RECO_SimHits
+    extraOpt=""
+    for var in ${vars[@]}; do
+
+	outDir=${tag}/${var};
+	mkdir -p ${outDir};
+
+	#python test/analysis/runEMCalibration.py ${extraOpt} -i ${tag}.root -v ${var};
+	#mv ${tag}/*.* ${outDir};
+
+	python test/analysis/runEMCalibration.py $extraOpt -w ${outDir}/workspace.root -c ${photontag}/${var}/calib_uncalib.root -v ${var};
     done
 fi

@@ -22,6 +22,9 @@ def runCalibrationStudy(opt):
     #init phase space regions of interest
     etaRanges = [[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75],[2.75,2.9]]
     enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[149,151],[249,251]] 
+    if (url and url.find('Single11_')>=0) or (wsUrl and wsUrl.find('Single11_')>=0) :
+        enRanges=[[19,21],[39,41],[49,51],[74,75],[99,101],[149,151],[249,251]]
+        etaRanges=[[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75]]
     if treeVarName.find('pf')>=0:
         enRanges  = [[49,51],[74,75],[99,101],[149,151],[249,251]] 
     

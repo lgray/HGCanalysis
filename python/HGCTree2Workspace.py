@@ -71,7 +71,7 @@ def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False
             for ilayer in xrange(integRanges[ireg][0],integRanges[ireg][1]+1):
                 totalEnInIntegRegion=totalEnInIntegRegion+(getattr(HGC,treeVarName))[ilayer-1]
             #geomCorrection=ROOT.TMath.TanH(genEta)
-            geomCorrection=ROOT.TMath.TanH(showerMeanEta)
+            geomCorrection=1./ROOT.TMath.TanH(showerMeanEta)
             ws.var('edep%d'%ireg).setVal(totalEnInIntegRegion*geomCorrection)
             newEntry.add(ws.var('edep%d'%(ireg)))
         ws.data('data').add( newEntry )
@@ -266,9 +266,14 @@ def showCalibrationCurves(calibGr,calibRanges,outDir,calibPostFix) :
 """
 shows a set of resolution curves
 """
-def showResolutionCurves(resGr,outDir,calibPostFix) :
+def showResolutionCurves(resGr,outDir,calibPostFix,model=0) :
 
-    resolModel=ROOT.TF1('resolmodel',"sqrt([0]*[0]/x+[1]*[1])",0,1000)
+    resolModel=None
+    if model==0  : resolModel=ROOT.TF1('resolmodel',"sqrt([0]*[0]/x+[1]*[1])",0,1000)
+    else : 
+        resolModel=ROOT.TF1('resolmodel',"sqrt([0]*[0]/x+[1]*[1]+[2]*[2]/(x*x))",0,1000)
+        resolModel.SetParameter(2,0)
+        resolModel.SetParLimits(2,0.05,0.1)
     resolModel.SetParameter(0,0.2);
     resolModel.SetParLimits(0,0,2);
     resolModel.SetParameter(1,0);
@@ -310,8 +315,13 @@ def showResolutionCurves(resGr,outDir,calibPostFix) :
         sigmaStochErr = ffunc.GetParError(0)
         sigmaConst    = ffunc.GetParameter(1)
         sigmaConstErr = ffunc.GetParError(1)
-        pt.append( MyPaveText('#it{%s} :  %3.4f#scale[0.8]{/#sqrt{E}} #oplus %3.4f'%(resGr[wType].GetTitle(),sigmaStoch,sigmaConst),
-                              0.2,0.93-igr*0.05,0.4,0.90-igr*0.05) )
+        if model==0 :
+            pt.append( MyPaveText('#it{%s} :  %3.4f#scale[0.8]{/#sqrt{E}} #oplus %3.4f'%(resGr[wType].GetTitle(),sigmaStoch,sigmaConst),
+                                  0.2,0.93-igr*0.05,0.4,0.90-igr*0.05) )
+        else :
+            sigmaNoise = ffunc.GetParameter(2)
+            pt.append( MyPaveText('#it{%s} :  %3.4f#scale[0.8]{/#sqrt{E}} #oplus %3.4f#scale[0.8]{/E} #oplus %3.4f'%(resGr[wType].GetTitle(),sigmaStoch,sigmaNoise,sigmaConst),
+                                  0.2,0.93-igr*0.05,0.4,0.90-igr*0.05) )
         pt[igr-1].SetTextColor(lcol)
         pt[igr-1].SetTextSize(0.03)
 

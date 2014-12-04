@@ -36,6 +36,7 @@ def fillFromStore(dir,ffile=0,step=-1,generatePfn=True):
         lsout = commands.getstatusoutput(lscommand)[1].split()
         for l in lsout : 
             if l.find('.root')<0 : continue
+            if l.find('step3')<0 : continue #RECO files
             xrootdName=prefix+l
             xrootdName=xrootdName.replace('/eos/uscms/','')
             localdataset.extend( [ xrootdName ] )
