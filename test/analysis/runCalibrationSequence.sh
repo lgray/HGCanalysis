@@ -18,7 +18,8 @@ fi
 
 
 #launch production
-energies=(5 10 20 40 50 75 100 125 175 250)
+energies=(5 10 400)
+#energies=(5 10 20 40 50 75 100 125 175 250)
 pids=(211 2212) #22
 if [ "${step}" -eq "1" ]; then
 
