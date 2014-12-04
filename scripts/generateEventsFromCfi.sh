@@ -16,8 +16,9 @@ EE_AIR=""
 HEF_AIR=""
 TAG=""
 PHYSLIST="QGSP_FTFP_BERT_EML"
+TKFILTER=""
 
-while getopts "hp:e:n:c:o:w:j:g:t:l:xz" opt; do
+while getopts "hp:e:n:c:o:w:j:g:t:l:xzf" opt; do
     case "$opt" in
     h)
         echo ""
@@ -36,6 +37,7 @@ while getopts "hp:e:n:c:o:w:j:g:t:l:xz" opt; do
 	echo "     -x      exclude EE (turn into air)"
 	echo "     -z      exclude HEF (turn into air)"
         echo "     -t      tag to name output file"
+	echo "     -f      filter events interacting before HGC"
 	echo "     -h      help"
         echo ""
 	exit 0
@@ -64,6 +66,8 @@ while getopts "hp:e:n:c:o:w:j:g:t:l:xz" opt; do
 	;;
     t)  TAG=$OPTARG
         ;;
+    f)  TKFILTER="True"
+	;;
     esac
 done
 
@@ -130,6 +134,12 @@ fi
 SUBSTRING="${SUBSTRING};s/ParticleID = cms.vint32(0)/ParticleID = cms.vint32(${PID})/"
 sed -i.bak "${SUBSTRING}" ${WORKDIR}/${PYFILE}
 rm ${WORKDIR}/${PYFILE}.bak
+
+#check if filter is required
+if [[ "${TKFILTER}" != "" ]]; then
+    echo "Adding hgcTrackerInteractionsFilter"
+    echo "process.load('UserCode.HGCanalysis.hgcTrackerInteractionsFilter_cfi')" >> ${WORKDIR}/${PYFILE}
+fi
 
 #
 # RUN cmsRun and at the end move the output to the required directory
