@@ -100,7 +100,11 @@ cmsDriver.py ${CFI} -n ${NEVENTS} \
 
 #customize with values to be generated
 echo "process.g4SimHits.StackingAction.SaveFirstLevelSecondary = True" >> ${WORKDIR}/${PYFILE}
-echo "process.RandomNumberGeneratorService.generator.initialSeed = cms.untracked.uint32(${JOBNB})" >> ${WORKDIR}/${PYFILE}
+m_randseed=${JOBNB}
+let "m_randseed=${RANDOM} + ${m_randseed}"
+#m_randseed=${JOBNB} 
+echo "Random seed for this job is $m_randseed"
+echo "process.RandomNumberGeneratorService.generator.initialSeed = cms.untracked.uint32(${m_randseed})" >> ${WORKDIR}/${PYFILE}
 echo "process.source.firstEvent=cms.untracked.uint32($((NEVENTS*(JOBNB-1)+1)))" >> ${WORKDIR}/${PYFILE}
 
 #use a different physics list

@@ -32,8 +32,8 @@ python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFrom
 
 For regression use flat gun
 
-python scripts/submitLocalHGCalProduction.py -q 2nw -n 2500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/FlatPtYSingle22_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/particlePtYGun_cfi.py -n 200 -p 22 -f";
-python scripts/submitLocalHGCalProduction.py -q 1nw -n 2500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/FlatPtYSingle22_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/particlePtYGun_cfi.py -n 200 -p 22 -f";
+python scripts/submitLocalHGCalProduction.py -q 2nw -n 2500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/FlatPtYSingle22_${CMSSW_VERSION}/RECO_a -c UserCode/HGCanalysis/python/particlePtYGun_cfi.py -n 200 -p 22 -f";
+python scripts/submitLocalHGCalProduction.py -q 1nw -n 2500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/FlatPtYSingle22_${CMSSW_VERSION}/RECO_b -c UserCode/HGCanalysis/python/particlePtYGun_cfi.py -n 200 -p 22 -f";
 
 Jet gun for neutral pions
 
