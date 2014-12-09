@@ -221,7 +221,8 @@ def computeCompensationWeights(enRanges,etaRanges,ws,outDir):
         divx+=1
 
     #optimize in energy density ranges
-    uRanges=[[0,0.05],[0.05,0.1],[0.1,0.15],[0.15,0.2],[0.2,0.3],[0.3,0.4]]
+    #uRanges=[[0,0.1],[0.1,0.2],[0.2,0.3],[0.3,0.5]]
+    uRanges=[[0,0.2],[0.2,0.4],[0.4,0.6],[0.6,0.8]]
 
     weightOptimGr=[]
     aGr=ROOT.TGraphErrors()
@@ -422,15 +423,15 @@ def adaptWorkspaceForPionCalibration(opt,outDir):
     subDetRanges       = ['EE', 'EE',  'EE',   'EE',   'HEF',  'HEF',  'HEB']
 
     weights            = {}
-    weights["lambda"]    = [0.01, 0.036, 0.043,  0.056,  0.338,  0.273,  0.476]
+    #weights["lambda"]    = [0.01, 0.036, 0.043,  0.056,  0.338,  0.273,  0.476]
     weights["lambda_em"] = [0.01, 0.036, 0.043,  0.056,  0.338,  0.273,  0.476]
     weightTitles={}
-    weightTitles["lambda"]  = "#lambda-based weights"
+    #weightTitles["lambda"]  = "#lambda-based weights"
     weightTitles["lambda_em"]  = "#lambda-based + e.m. scale weights"
 
     #prepare workspace (if needed) and output
     if wsUrl is None :
-        wsUrl=prepareWorkspace(url=url,integRanges=integRanges,vetoTrackInt=vetoTrackInt,vetoHEBLeaks=vetoHEBLeaks,treeVarName=treeVarName)
+        wsUrl=prepareWorkspace(url=url,integRanges=integRanges,vetoTrackInt=vetoTrackInt,vetoHEBLeaks=vetoHEBLeaks,treeVarName=treeVarName,addRaw=False)
     
     #get the workspace from the file
     wsOutF=ROOT.TFile.Open(wsUrl)
@@ -555,7 +556,7 @@ def runCalibrationStudy(opt):
     wsUrl=opt.wsUrl
     outDir="./"
     if wsUrl is None:
-        outDir=opt.input.replace('.root','')
+        outDir=os.path.basename(opt.input).replace('.root','')
         os.system('mkdir -p '+outDir)
     else:
         outDir=os.path.dirname(wsUrl)
@@ -565,15 +566,16 @@ def runCalibrationStudy(opt):
     wsOutF.Close()
 
     #init phase space regions of interest
-    etaRanges = [[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75],[2.75,2.9]]
-    enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[249,251]]
-
+    etaRanges = [[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75]]
+    enRanges  = [[4,6],[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[124,126],[174,176],[249,251],[399,401]]
+    #enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[149,151],[249,251]]
+    #enRanges = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[249,251]]
     #small stats for test
     #etaRanges = [[1.75,2.5]]
     #enRanges  = [[9,11],[29,31],[49,51]]
 
     weightTitles={}
-    weightTitles["lambda"]  = "#lambda-based weights"
+    #weightTitles["lambda"]  = "#lambda-based weights"
     weightTitles["lambda_em"]  = "rescaled #lambda-based weights"
 
 
@@ -591,8 +593,8 @@ def runCalibrationStudy(opt):
     #determine how to combine EE and HE(F+B)
     ehCombSlope, ehCombSlope_err = 1.0, 0.0
     if opt.noEE:
-        ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambda_emEnFunc('0*@0+@1',{lambda_emEn_EE,lambda_emEn_HEFHEB})") )
-        ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambdaEnFunc('0*@0+@1+@2',{lambdaEn_EE,lambdaEn_HEF,lambdaEn_HEB})") )
+        for wgt in weightTitles:
+            ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::%sEnFunc('0*@0+@1',{%sEn_EE,%sEn_HEFHEB})"%(wgt,wgt,wgt) ) )
     else:
         try:
             ehFin=ROOT.TFile.Open(opt.ehCombUrl)
@@ -601,8 +603,8 @@ def runCalibrationStudy(opt):
         except:
             print 'Will compute EE vs HE(F+B) combination slope using %f coefficient for HEB'%(1./hefhebCombSlope)
             ehCombSlope, ehCombSlope_err = computeSubdetectorWeights(enRanges=enRanges,etaRanges=etaRanges,ws=ws,xaxis='EE',yaxis='HEF+HEB/%3.4f'%hefhebCombSlope,outDir=outDir)
-        ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambda_emEnFunc('@0+@1/%f',{lambda_emEn_EE,lambda_emEn_HEFHEB})"%(hefhebCombSlope)) )
-        ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambdaEnFunc('@0+@1+@2',{lambdaEn_EE,lambdaEn_HEF,lambdaEn_HEB})") )
+        for wgt in weightTitles:
+            ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::%sEnFunc('@0+@1/%f',{%sEn_EE,%sEn_HEFHEB})"%(wgt,hefhebCombSlope,wgt,wgt)) )
 
     #create the final dataset for calibration
     print 'Will use the following combination of sub-detectors %d x EE + %3.4f x (HEF + %3.4f x HEB)'%(1-int(opt.noEE),1./hefhebCombSlope,1./ehCombSlope)
@@ -794,6 +796,7 @@ def runCalibrationStudy(opt):
 
     #derive calibration
     calibModel=ROOT.TF1('calibmodel',"[0]*x+[1]",0,800)
+    #calibModel=ROOT.TF1('calibmodel',"x>100 ? [0]*x+[1] : [2]*x*x+[3]*x+[4]",0,1000)
     calibModel.SetLineWidth(1)
     for wType in weightTitles :
         calibGr[wType].Fit(calibModel,'MER+')

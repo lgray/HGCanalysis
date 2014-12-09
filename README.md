@@ -90,13 +90,14 @@ To submit the production of the ntuples you can use the following script (it wil
 cmsRun runHGCSimHitsAnalyzer_cfg.py
 
 Submit several jobs to the batch and store the output in EOS
-tags=("Single22_CMSSW_6_2_0_SLHC20_new_hgc_clusters_electrons-fullcalib") #"Single22_${CMSSW_VERSION}_new_hgc_clusters_electrons-v2" "Single11_${CMSSW_VERSION}_new_hgc_clusters_electrons-v2")
+tags=("Single211_CMSSW_6_2_0_SLHC21") # "Single2212_CMSSW_6_2_0_SLHC21")
+#tags=("Single22_CMSSW_6_2_0_SLHC21")
 for tag in ${tags[@]}; do
-    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/${tag}/RECO | awk '{print $5}'`);
+    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/${tag}/RECO-v4 | awk '{print $5}'`);
     nFiles=${#inputFiles[@]};	
-    nJobs=$((nFiles/25));
+    nJobs=$((nFiles/50));
     for i in `seq 0 ${nJobs}`; do
-    	startFile=$((i*25));
-    	cmsRun test/runHGCSimHitsAnalyzer_cfg.py ${tag}/RECO ${startFile} 25 & 
+    	startFile=$((i*=50));
+    	cmsRun test/runHGCSimHitsAnalyzer_cfg.py ${tag}/RECO-v4 ${startFile} 50 & 
     done
 done

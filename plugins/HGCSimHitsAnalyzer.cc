@@ -110,6 +110,15 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
 
       edeps_[key]    = new Float_t[100];
       t_->Branch("edep_"+key,      edeps_[key],    "edep_"+key+"[nlay]/F");
+
+      if(key=="rec")
+	{
+	  ctrledeps_[key]    = new Float_t[100];
+	  t_->Branch("ctrledep_"+key,      ctrledeps_[key],    "ctrledep_"+key+"[nlay]/F");
+	  
+	  ctrlnhits_[key]    = new Int_t[100];
+	  t_->Branch("ctrlnhits_"+key,     ctrlnhits_[key],    "ctrlnhits_"+key+"[nlay]/I");
+	}
       
       edeps3x3_[key]    = new Float_t[100];
       t_->Branch("edep3x3_"+key,      edeps3x3_[key],    "edep3x3_"+key+"[nlay]/F");
@@ -254,9 +263,10 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       
       //hits
       std::unordered_map<uint32_t,uint32_t> recHitsIdMap; //needed to decode hits in clusters
-      std::map<TString, std::map<uint32_t,float> > allEdeps;
+      std::map<TString, std::map<uint32_t,float> > allEdeps, allCtrlEdeps;
       allEdeps["sim"]  = std::map<uint32_t,float>();
       allEdeps["rec"]  = std::map<uint32_t,float>();
+      allCtrlEdeps["rec"]= std::map<uint32_t,float>();
       allEdeps["clus"] = std::map<uint32_t,float>();
       allEdeps["pf"]   = std::map<uint32_t,float>();
       std::map<TString, std::pair<uint32_t,float> > maxEdep;
@@ -309,18 +319,32 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      maxEdep[key].second=allEdeps[key][recoDetId];
 	    }
 
-	  //RECO: save rec hits where sim hits exist
+	  //RECO: save rec hits where sim hits exist or after shifting phi
 	  key="rec";
 	  uint32_t recHitCtr(0);
 	  for(HGCRecHitCollection::const_iterator hit_it=recHits[i]->begin(); hit_it!=recHits[i]->end(); hit_it++,recHitCtr++)
 	    {
-	      uint32_t recoDetId(hit_it->id());
-	      recHitsIdMap[recoDetId]=recHitCtr;
-	      if(allEdeps["sim"].find(recoDetId)==allEdeps["sim"].end()) continue;
-
 	      //convert energy to keV
 	      float hitEn(hit_it->energy()*1e6/mipEn_[i]);
 	      if(hitEn<0.5) continue;
+
+	      uint32_t recoDetId(hit_it->id());
+	      recHitsIdMap[recoDetId]=recHitCtr;
+	      const GlobalPoint pos( std::move( geom[i]->getPosition(recoDetId) ) );	  
+	      float dEta(pos.eta()-genEta_);
+	      float dPhi(fabs(deltaPhi(pos.phi(),genPhi_)));
+	      if(allEdeps["sim"].find(recoDetId)==allEdeps["sim"].end())
+		{
+		  //control region
+		  if(dEta<0.1 && dPhi>TMath::Pi()-0.1 && dPhi<TMath::Pi()+0.1)
+		    {
+		      if(allCtrlEdeps[key].find(recoDetId)==allCtrlEdeps[key].end()) allCtrlEdeps[key][recoDetId] = 0;
+		      allCtrlEdeps[key][recoDetId] += hitEn;
+		    }
+		  continue;
+		}
+
+	      //signal region
 	      if(allEdeps[key].find(recoDetId)==allEdeps[key].end()) allEdeps[key][recoDetId] = 0;
 	      allEdeps[key][recoDetId] += hitEn;
 	      
@@ -648,10 +672,27 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      
 	      float corrOverburden(getLayerWeight(ilay,false)*TMath::TanH(fabs(showerMeanEta_[key])));
 	      totalLength_[key] += corrOverburden;
-	      totalVolume_[key] += (edepArea_[key][ilay]>0 ? edepArea_[key] : 0 )*corrOverburden;
-	    }
 
-	  	 
+	      //do not use HEB for the volume
+	      if(ilay>=41) continue;
+	      totalVolume_[key] += (edepArea_[key][ilay]>0 ? edepArea_[key][ilay] : 0 )*corrOverburden;
+	    }	 
+	}
+
+      //rec hits for control region
+      for(std::map<uint32_t,float>::iterator ctrlIt=allCtrlEdeps["rec"].begin();
+	  ctrlIt!= allCtrlEdeps["rec"].end();
+	  ctrlIt++)
+	{
+	  int subDetId((ctrlIt->first>>25)&0x7);
+	  int subDetCtr(0);
+	  if(subDetId==ForwardSubdetector::HGCHEF) subDetCtr=1;
+	  if(subDetId==ForwardSubdetector::HGCHEB) subDetCtr=2;
+	  int hitLayer((ctrlIt->first >> 19) & 0x1f);
+	  int layerIdx(hitLayer+layerCtrOffset[subDetCtr]-1); 
+	  float en(ctrlIt->second);
+	  ctrlnhits_["rec"][layerIdx]++;
+	  ctrledeps_["rec"][layerIdx]+= en;
 	}
 
       //log if failed
