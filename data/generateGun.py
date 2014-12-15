@@ -3,7 +3,7 @@ import ROOT
 #transverse momentum
 pt=ROOT.TGraph()
 pt.SetName("pt")
-minPt,maxPt=1.,100.
+minPt,maxPt=1.,200.
 nPts=1000
 dPt=(maxPt-minPt)/nPts
 for i in xrange(0,nPts): pt.SetPoint(i,minPt+i*dPt,1.)

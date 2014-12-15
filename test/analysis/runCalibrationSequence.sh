@@ -18,8 +18,9 @@ fi
 
 
 #launch production
-energies=(10 20 40 50 75 100 250)
-pids=(22 211)
+energies=(5 10 400)
+#energies=(5 10 20 40 50 75 100 125 175 250)
+pids=(211 2212) #22
 if [ "${step}" -eq "1" ]; then
 
     echo "********************************************"
@@ -28,7 +29,7 @@ if [ "${step}" -eq "1" ]; then
 
     for pid in ${pids[@]}; do
 	for en in ${energies[@]}; do
-            python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO -p ${pid} -n 150 -e ${en}";
+            python scripts/submitLocalHGCalProduction.py -q 1nd -n 200 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO-v2 -p ${pid} -n 200 -e ${en}";
 	    if [[ "${pid}" -eq "22" ]]; then
 		python scripts/submitLocalHGCalProduction.py -q 2nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_EE_AIR/RECO -p ${pid} -n 150 -e ${en} -x";
 		python scripts/submitLocalHGCalProduction.py -q 8nh -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_EE_HEF_AIR/RECO -p ${pid} -n 150 -e ${en} -x -z";
