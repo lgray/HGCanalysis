@@ -117,8 +117,8 @@ process = cust_2023HGCalMuon(process)
 
 #custom digitization
 from SimCalorimetry.HGCSimProducers.customHGCdigitizer_cfi import customHGCdigitizer
-#customHGCdigitizer(process=process,vesion="femodel",debug=True)
-customHGCdigitizer(process=process,version="simple0",debug=True)
+customHGCdigitizer(process=process,version="femodel-v0",debug=True)
+#customHGCdigitizer(process=process,version="simple0",debug=True)
 
 print 'Will digitize with the following parameters'
 print process.source.fileNames

@@ -8,7 +8,7 @@ CFG=${CMSSW_BASE}/src/UserCode/HGCanalysis/test/digitizeAndMix_cfg.py
 WORKDIR="/tmp/`whoami`/"
 JOBNB=1
 STOREDIR=${WORKDIR}
-while getopts "ho:t:m:p:j:" opt; do
+while getopts "ho:t:m:p:j:c:" opt; do
     case "$opt" in
     h)
         echo ""
@@ -17,11 +17,14 @@ while getopts "ho:t:m:p:j:" opt; do
 	echo "     -j      job number (file to re-digitize)"
 	echo "     -o      output directory (local or eos)"
 	echo "     -t      process tag"
+        echo "     -c      cfg file"
         echo "     -m      min. bias tag"
 	echo "     -h      help"
         echo ""
 	exit 0
         ;;
+    c)  CFG=$OPTARG
+	;;
     p)  PILEUP=$OPTARG
         ;;
     o)  STOREDIR=$OPTARG

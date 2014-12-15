@@ -151,9 +151,7 @@ float HGCOccupancyAnalyzer::analyzeHEDigis(size_t isd,edm::Handle<HGCHEDigiColle
 	  //monitor energy profiles, integration times and busy states
 	  occHistos_[isd].mipHistos_[layer]->Fill(adc_i*0.25,fabs(eta),it);
 	  occHistos_[isd].busyHistos_[layer]->Fill((gain_i==1 && adc_i==0),fabs(eta),it);
-	  if(gain_i==0)
-	    occHistos_[isd].totHistos_[layer]->Fill(0.,fabs(eta),it);
-      	  else if (gain_i==1 && adc_i!=0)
+	  if (gain_i==1 && adc_i!=0)
 	    {
 	      size_t totalIntegTime(1);
 	      for(int jt=it+1; jt<=itSampleIdx; jt++)
@@ -197,9 +195,7 @@ float HGCOccupancyAnalyzer::analyzeEEDigis(size_t isd,edm::Handle<HGCEEDigiColle
 	  //monitor energy profiles, integration times and busy states
 	  occHistos_[isd].mipHistos_[layer]->Fill(adc_i*0.25,fabs(eta),it);
 	  occHistos_[isd].busyHistos_[layer]->Fill((gain_i==1 && adc_i==0),fabs(eta),it);
-	  if(gain_i==0)
-	    occHistos_[isd].totHistos_[layer]->Fill(0.,fabs(eta),it);
-	  else if (gain_i==1 && adc_i!=0)
+	  if (gain_i==1 && adc_i!=0)
 	    {
 	      size_t totalIntegTime(1);
 	      for(int jt=it+1; jt<=itSampleIdx; jt++)

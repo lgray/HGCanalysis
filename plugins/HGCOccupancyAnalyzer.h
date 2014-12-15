@@ -90,7 +90,7 @@ public:
     mipHistos_[layer] = (*fs_)->make<TH3F>(name+"_mip",";# MIPs;Pseudo-rapidity;Time sample [bx]",200,0,50,10,1.5,3.0,10,0,10);
     mipHistos_[layer]->Sumw2();
 
-    totHistos_[layer] = (*fs_)->make<TH3F>(name+"_tot",";ToT [bx];Pseudo-rapidity;Time sample [bx]",10,0,10,10,1.5,3.0,10,0,10);
+    totHistos_[layer] = (*fs_)->make<TH3F>(name+"_tot",";ToT [bx];Pseudo-rapidity;Time sample [bx]",9,1,10,10,1.5,3.0,10,0,10);
     totHistos_[layer]->Sumw2();
 
     busyHistos_[layer] = (*fs_)->make<TH3F>(name+"_busy",";Busy state;Pseudo-rapidity;Time sample [bx]",2,0,2,10,1.5,3.0,10,0,10);
@@ -101,6 +101,12 @@ public:
 
     dataVolHistos_[layer] = (*fs_)->make<TH2F>(name+"_datavol",";Data volume [bit];Pseudo-rapidity",60,0,12,10,1.5,3.0);
     dataVolHistos_[layer]->Sumw2();
+
+    dataVolTypeHistos_[layer] = (*fs_)->make<TH2F>(name+"_datavoltype",";Data volume [bit];Pseudo-rapidity",3,0,3,10,1.5,3.0);
+    dataVolTypeHistos_[layer]->GetXaxis()->SetBinLabel(1,"=1 bit");
+    dataVolTypeHistos_[layer]->GetXaxis()->SetBinLabel(2,"=8 bits");
+    dataVolTypeHistos_[layer]->GetXaxis()->SetBinLabel(3,"=12 bits");
+    dataVolTypeHistos_[layer]->Sumw2();
 
     trigCountHistos_[layer] = new TH1F(name+"_trigcount",";Trigger volume [bit];Pseudo-rapidity",10,1.5,3.0);
     trigCountHistos_[layer]->SetDirectory(0);
@@ -139,7 +145,12 @@ public:
   {
     eta=fabs(eta);
 
-    dataCountHistos_[layer]->Fill(eta,computeDataVol(adc,eta));
+    int dataVol=computeDataVol(adc,eta);
+    dataCountHistos_[layer]->Fill(eta,dataVol);
+    if(dataVol==1)  dataVolTypeHistos_[layer]->Fill(0.,eta);
+    if(dataVol==8)  dataVolTypeHistos_[layer]->Fill(1.,eta);
+    if(dataVol==12) dataVolTypeHistos_[layer]->Fill(2.,eta);
+
     trigCountHistos_[layer]->Fill(eta,computeTriggerVol(adc,eta));
     for(size_t ithr=0; ithr<thr_.size(); ithr++)
       {
@@ -211,7 +222,7 @@ public:
 	      {
 		float eta=countH->GetXaxis()->GetBinCenter(xbin);
 		float cts=countH->GetBinContent(xbin);
-		float norm=normH->GetBinContent(xbin);
+		float norm=normH->GetBinContent(xbin)*2; //we have two endcaps
 		float occ(norm>0 ? cts/norm : 0.);
 		occH->Fill(occ,eta);
 	      }
@@ -225,7 +236,7 @@ public:
 	TH1F *trigH=trigCountHistos_[it->first];
 	for(int xbin=1; xbin<=dataH->GetXaxis()->GetNbins(); xbin++)
 	  {
-	    float ncells=normH->GetBinContent(xbin);
+	    float ncells=normH->GetBinContent(xbin)*2; //we have two endcaps
 	    float eta=dataH->GetXaxis()->GetBinCenter(xbin);
 
 	    float data=dataH->GetBinContent(xbin);
@@ -254,21 +265,37 @@ public:
 	it!=mipHistos_.end();
 	it++)
       {
-	//for the energy spectrum divide by the number of cells analyzed
+
+	//divide by the number of cells analyzed
 	TH1F *normH=normHistos_[it->first];
 	for(int ybin=1; ybin<=it->second->GetYaxis()->GetNbins(); ybin++)
 	  {
-	    float ncells=normH->GetBinContent(ybin);
+	    float ncells=normH->GetBinContent(ybin)*2; //we have two endcaps
 	    if(ncells==0) continue;
 
+	    //energy spectrum 
 	    for(int xbin=0; xbin<=it->second->GetXaxis()->GetNbins()+1; xbin++)
 	      {
-		float counts=it->second->GetBinContent(xbin,ybin);
-		float countsErr=it->second->GetBinError(xbin,ybin);
-		it->second->SetBinContent(xbin,ybin,counts/(nEvents_*ncells));
-		it->second->SetBinError(xbin,ybin,countsErr/(nEvents_*ncells));
+		for(int zbin=0; zbin<=it->second->GetZaxis()->GetNbins()+1; zbin++)
+		  {
+		    float counts=it->second->GetBinContent(xbin,ybin,zbin);
+		    float countsErr=it->second->GetBinError(xbin,ybin,zbin);
+		    it->second->SetBinContent(xbin,ybin,counts/(nEvents_*ncells));
+		    it->second->SetBinError(xbin,ybin,countsErr/(nEvents_*ncells));
+		  }
+	      }
+
+	    //data type sent
+	    for(int xbin=0; xbin<=dataVolTypeHistos_[it->first]->GetXaxis()->GetNbins(); xbin++)
+	      {
+		float counts=dataVolTypeHistos_[it->first]->GetBinContent(xbin,ybin);
+		float countsErr=dataVolTypeHistos_[it->first]->GetBinError(xbin,ybin);
+		dataVolTypeHistos_[it->first]->SetBinContent(xbin,ybin,counts/(nEvents_*ncells));
+		dataVolTypeHistos_[it->first]->SetBinError(xbin,ybin,countsErr/(nEvents_*ncells));
 	      }
 	  }
+
+
 
 	//normalized by the number of events (already averaged per cells)
 	for(std::map<int,TH2F *>::iterator jt=occHistos_[it->first].begin();
@@ -294,7 +321,7 @@ public:
   //all histos are public and can be manipulated...
   std::map< int, TH1F *>                normHistos_;
   std::map< int, TH1F *>                dataCountHistos_, trigCountHistos_;
-  std::map< int, TH2F *>                dataVolHistos_,   trigVolHistos_;
+  std::map< int, TH2F *>                dataVolHistos_,   trigVolHistos_, dataVolTypeHistos_;
   std::map< int, std::map<int,TH1F *> > countHistos_;
   std::map< int, std::map<int,TH2F *> > occHistos_;
   std::map< int, TH3F *>                mipHistos_, totHistos_, busyHistos_;
