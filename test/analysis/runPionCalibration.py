@@ -566,8 +566,9 @@ def runCalibrationStudy(opt):
     wsOutF.Close()
 
     #init phase space regions of interest
-    etaRanges = [[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75]]
-    enRanges  = [[4,6],[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[124,126],[174,176],[249,251],[399,401]]
+    etaRanges = [[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5]]#,[2.5,2.75]]
+    #enRanges  = [[4,6],[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[124,126],[174,176],[249,251],[399,401]]
+    enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[124,126],[174,176],[249,251],[399,401]]
     #enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[149,151],[249,251]]
     #enRanges = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[249,251]]
     #small stats for test
@@ -625,8 +626,10 @@ def runCalibrationStudy(opt):
         calibF=ROOT.TFile.Open(opt.calibUrl)
         print 'Reading out calibrations from %s'%opt.calibUrl
         for wType in weightTitles:
-            calibMap[wType]=calibF.Get('%s_calib'%wType).Clone()
-            calibMapRes[wType]=calibF.Get('%s_calib_res'%wType).Clone()
+            calibMap[wType]=calibF.Get('%s_calib'%wType).Clone() 
+            calibMapRes[wType]=[]
+            for ietaRange in xrange(0,len(etaRanges)):
+                calibMapRes[wType].append( calibF.Get('calib_%d_%s_res'%(ietaRange,wType)).Clone() )
         calibF.Close()
     except:
         print 'No calibration will be applied'
@@ -647,7 +650,10 @@ def runCalibrationStudy(opt):
             print 'Reading out sw compensation calibrations from %s'%opt.compCalib
             for wType in weightTitles:
                 swCompCalibMap[wType]=calibF.Get('%s_calib'%wType).Clone('swcompcalib')
-                swCompCalibMapRes[wType]=calibF.Get('%s_calib_res'%wType).Clone('swcompcalibres')
+                swCompCalibMapRes[wType]=[]
+                for ietaRange in xrange(0,len(etaRanges)):
+                    swCompCalibMapRes[wType].append( calibF.Get('calib_%d_%s_res'%(ietaRange,wType)).Clone() )
+                #swCompCalibMapRes[wType]=calibF.Get('%s_calib_res'%wType).Clone('swcompcalibres')
             calibF.Close()
             calibPostFix+='_calib'
         except:
@@ -665,6 +671,13 @@ def runCalibrationStudy(opt):
             ws.var(baseVar).setVal( entryVars.find(baseVar).getVal() )
             newEntry.add( ws.var(baseVar) )
             
+        etaRangeIdx=-1
+        etaVal=ROOT.TMath.Abs(ws.var('eta').getVal())
+        for etaRange in etaRanges:
+            etaRangeIdx+=1
+            if etaVal>etaRange[0] and etaVal<etaRange[1]: 
+                break
+
         shVol=ws.var('volume').getVal()
     
         for wType in weightTitles :
@@ -680,7 +693,7 @@ def runCalibrationStudy(opt):
             #compute residual, if available -> this should change to shower mean eta...
             calib_residual = 0.0
             if wType in calibMapRes:
-                calib_residual=calibMapRes[wType].Eval(ROOT.TMath.Abs(ws.var('eta').getVal()))
+                calib_residual=calibMapRes[wType][etaRangeIdx].Eval(ROOT.TMath.Abs(ws.var('en').getVal()))/100.
                 
             #calibrated energy estimator
             ienVal=((ienVal-calib_offset)/calib_slope)*(1-calib_residual)
@@ -697,7 +710,8 @@ def runCalibrationStudy(opt):
                 if wType in swCompCalibMap:
                     swcomp_calib_offset   = swCompCalibMap[wType].GetParameter(1)
                     swcomp_calib_slope    = swCompCalibMap[wType].GetParameter(0)
-                    swcomp_calib_residual = swCompCalibMapRes[wType].Eval(ROOT.TMath.Abs(ws.var('eta').getVal()))
+                    swcomp_calib_residual = swCompCalibMapRes[wType][etaRangeIdx].Eval(ROOT.TMath.Abs(ws.var('en').getVal()))/100.
+                    #swcomp_calib_residual = swCompCalibMapRes[wType].Eval(ROOT.TMath.Abs(ws.var('eta').getVal()))
                 ienVal=((ienVal-swcomp_calib_offset)/swcomp_calib_slope)*(1-swcomp_calib_residual)
                 
             #add corrected value
@@ -803,7 +817,7 @@ def runCalibrationStudy(opt):
         calibGr[wType].GetFunction(calibModel.GetName()).SetLineColor(calibGr[wType].GetListOfGraphs().At(0).GetLineColor())
 
     #show results
-    resCorrectionGr=showCalibrationCurves(calibGr=calibGr,calibRanges=etaRanges,outDir=outDir,calibPostFix=calibPostFix)
+    resCorrectionGr,resCalibGr=showCalibrationCurves(calibGr=calibGr,calibRanges=etaRanges,outDir=outDir,calibPostFix=calibPostFix)
     showResolutionCurves(resGr=resGr,outDir=outDir,calibPostFix=calibPostFix,model=0)
 
     #save all to file
@@ -812,6 +826,9 @@ def runCalibrationStudy(opt):
     for wType in weightTitles :
         calibGr[wType].Write()
         calibGr[wType].GetFunction(calibModel.GetName()).Write('%s_calib'%wType)
+        for gr in resCalibGr[wType].GetListOfGraphs():
+            gr.Fit(calibModelRes,'WMR+')
+            gr.Write()            
         resCorrectionGr[wType].Write()
         resCorrectionGr[wType].Fit(calibModelRes,'WMR+')
         resCorrectionGr[wType].GetFunction(calibModelRes.GetName()).Write('%s_calib_res'%wType)

@@ -272,7 +272,7 @@ def showCalibrationCurves(calibGr,calibRanges,outDir,calibPostFix) :
     canvas.Update()
     canvas.SaveAs('%s/rescalib%s.png'%(outDir,calibPostFix))
     
-    return resCorrectionGr
+    return resCorrectionGr,resCalibGr
     
 
 """

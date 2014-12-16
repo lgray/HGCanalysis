@@ -141,7 +141,7 @@ Loops over the trees and profiles the showers
 def runShowerProfileAnalysis(opt,en,steps,shower_tuple):
     
     maxLayers=54
-    #if opt.input.find('22')>=0 or opt.input.find('photon')>=0 or opt.input.find('11')>=0 : maxLayers=35
+    if opt.input.find('22')>=0 or opt.input.find('photon')>=0 or opt.input.find('11')>=0 : maxLayers=35
 
     #prepare histograms
     baseHistos={
@@ -261,7 +261,7 @@ def main():
     ROOT.gStyle.SetOptStat(0)
 
     #enRanges=[5, 10, 20, 40, 50, 100, 175, 250]
-    enRanges=[20]
+    enRanges=[20,40]
     steps=['sim','rec','clus']
 
     #prepare output
