@@ -46,6 +46,7 @@
 
 #include "TH1F.h"
 #include "TH2F.h"
+#include "TH3F.h"
 #include "TString.h"
 
 #include <string>
@@ -85,35 +86,50 @@ public:
     if(hasLayer(layer)) return;
     TString name("sd_"); name += sdcode_; name += "_layer"; name += layer;
     normHistos_[layer] = (*fs_)->make<TH1F>(name+"_nch",";Pseudo-rapidity;Number of channels",10,1.5,3.0);
-    mipHistos_[layer] = (*fs_)->make<TH2F>(name+"_mip",";# MIPs;Pseudo-rapidity",100,0,50,10,1.5,3.0);
+
+    mipHistos_[layer] = (*fs_)->make<TH3F>(name+"_mip",";# MIPs;Pseudo-rapidity;Time sample [bx]",200,0,50,10,1.5,3.0,10,0,10);
     mipHistos_[layer]->Sumw2();
 
-    dataCountHistos_[layer] = new TH1F(name+"_datacount",";Data volume [bit];Pseudo-rapidity",10,1.5,3.0);
+    totHistos_[layer] = (*fs_)->make<TH3F>(name+"_tot",";ToT [bx];Pseudo-rapidity;Time sample [bx]",9,1,10,10,1.5,3.0,10,0,10);
+    totHistos_[layer]->Sumw2();
+
+    busyHistos_[layer] = (*fs_)->make<TH3F>(name+"_busy",";Busy state;Pseudo-rapidity;Time sample [bx]",2,0,2,10,1.5,3.0,10,0,10);
+    busyHistos_[layer]->Sumw2();
+
+    dataCountHistos_[layer] = new TH1F(name+"_datacount",";Pseudo-rapidity;Data volume [bit]",10,1.5,3.0);
     dataCountHistos_[layer]->SetDirectory(0);
+
     dataVolHistos_[layer] = (*fs_)->make<TH2F>(name+"_datavol",";Data volume [bit];Pseudo-rapidity",60,0,12,10,1.5,3.0);
     dataVolHistos_[layer]->Sumw2();
 
+    dataVolTypeHistos_[layer] = (*fs_)->make<TH2F>(name+"_datavoltype",";Data volume [bit];Pseudo-rapidity",3,0,3,10,1.5,3.0);
+    dataVolTypeHistos_[layer]->GetXaxis()->SetBinLabel(1,"=1 bit");
+    dataVolTypeHistos_[layer]->GetXaxis()->SetBinLabel(2,"=8 bits");
+    dataVolTypeHistos_[layer]->GetXaxis()->SetBinLabel(3,"=12 bits");
+    dataVolTypeHistos_[layer]->Sumw2();
+
     trigCountHistos_[layer] = new TH1F(name+"_trigcount",";Trigger volume [bit];Pseudo-rapidity",10,1.5,3.0);
     trigCountHistos_[layer]->SetDirectory(0);
+
     trigVolHistos_[layer] = (*fs_)->make<TH2F>(name+"_trigvol",";Trigger volume [bit];Pseudo-rapidity",60,0,6,10,1.5,3.0);
     trigVolHistos_[layer]->Sumw2();
 
     std::map<int,TH1F *> layerCountHistos;   
     std::map<int,TH2F *> layerOccHistos;
 
-    Double_t occbins[100];
-    for(size_t ibin=0; ibin<10; ibin++)   occbins[ibin]=ibin*1e-4;
-    for(size_t ibin=10; ibin<19; ibin++)  occbins[ibin]=(ibin-9.)*1e-3;
-    for(size_t ibin=19; ibin<29; ibin++)  occbins[ibin]=(ibin-18)*1e-2;
-    for(size_t ibin=29; ibin<100; ibin++) occbins[ibin]=0.1+(1-0.1)/(100-29)*(ibin-28);
+    /* Double_t occbins[100]; */
+    /* for(size_t ibin=0; ibin<10; ibin++)   occbins[ibin]=ibin*1e-4; */
+    /* for(size_t ibin=10; ibin<19; ibin++)  occbins[ibin]=(ibin-9.)*1e-3; */
+    /* for(size_t ibin=19; ibin<29; ibin++)  occbins[ibin]=(ibin-18)*1e-2; */
+    /* for(size_t ibin=29; ibin<100; ibin++) occbins[ibin]=0.1+(1-0.1)/(100-29)*(ibin-28); */
     for(size_t ithr=0; ithr<thr_.size(); ithr++)
       {
 	TString thrName(name); thrName += "_thr"; thrName += thr_[ithr];
 	layerCountHistos[ thr_[ithr] ] = new TH1F(thrName+"_count",";Counts;Pseudo-rapidity",10,1.5,3.0);
 	layerCountHistos[ thr_[ithr] ]->SetDirectory(0);
 	
-	//layerOccHistos[ thr_[ithr] ] = (*fs_)->make<TH2F>(thrName+"_occ",";Occupancy;Pseudo-rapidity",100,0,1,10,1.5,3.0);
-	layerOccHistos[ thr_[ithr] ] = (*fs_)->make<TH2F>(thrName+"_occ",";Occupancy;Pseudo-rapidity",99,occbins,10,1.5,3.0);
+	layerOccHistos[ thr_[ithr] ] = (*fs_)->make<TH2F>(thrName+"_occ",";Occupancy;Pseudo-rapidity",100,0,1,10,1.5,3.0);
+	//layerOccHistos[ thr_[ithr] ] = (*fs_)->make<TH2F>(thrName+"_occ",";Occupancy;Pseudo-rapidity",99,occbins,10,1.5,3.0);
 	layerOccHistos[ thr_[ithr] ]->Sumw2();
       }
     
@@ -121,13 +137,20 @@ public:
     occHistos_[layer]=layerOccHistos;
   }
 
+
   /**
-     @short accumulate for a new hit
+     @short accumulate counts for a new hit
   */
   void count(int layer,float eta,int adc)
   {
-    mipHistos_[layer]->Fill(adc*0.25,eta);
-    dataCountHistos_[layer]->Fill(eta,computeDataVol(adc,eta));
+    eta=fabs(eta);
+
+    int dataVol=computeDataVol(adc,eta);
+    dataCountHistos_[layer]->Fill(eta,dataVol);
+    if(dataVol==1)  dataVolTypeHistos_[layer]->Fill(0.,eta);
+    if(dataVol==8)  dataVolTypeHistos_[layer]->Fill(1.,eta);
+    if(dataVol==12) dataVolTypeHistos_[layer]->Fill(2.,eta);
+
     trigCountHistos_[layer]->Fill(eta,computeTriggerVol(adc,eta));
     for(size_t ithr=0; ithr<thr_.size(); ithr++)
       {
@@ -199,7 +222,7 @@ public:
 	      {
 		float eta=countH->GetXaxis()->GetBinCenter(xbin);
 		float cts=countH->GetBinContent(xbin);
-		float norm=normH->GetBinContent(xbin);
+		float norm=normH->GetBinContent(xbin)*2; //we have two endcaps
 		float occ(norm>0 ? cts/norm : 0.);
 		occH->Fill(occ,eta);
 	      }
@@ -213,14 +236,17 @@ public:
 	TH1F *trigH=trigCountHistos_[it->first];
 	for(int xbin=1; xbin<=dataH->GetXaxis()->GetNbins(); xbin++)
 	  {
-	    float ncells=normH->GetBinContent(xbin);
+	    float ncells=normH->GetBinContent(xbin)*2; //we have two endcaps
 	    float eta=dataH->GetXaxis()->GetBinCenter(xbin);
+
 	    float data=dataH->GetBinContent(xbin);
 	    totalEvtSize += data;
 	    dataVolHistos_[it->first]->Fill(ncells>0 ? data/ncells : 1. ,eta);
+
 	    float trig=trigH->GetBinContent(xbin);
 	    trigVolHistos_[it->first]->Fill(ncells>0 ? trig/ncells : 1. ,eta);
 	  }
+	
 	dataH->Reset("ICE");
 	trigH->Reset("ICE");
       }
@@ -234,34 +260,55 @@ public:
   int finalize()
   {
     if(nEvents_==0) return 0;
-    for(std::map< int, TH2F *>::iterator it=mipHistos_.begin();
+
+    for(std::map< int, TH3F *>::iterator it=mipHistos_.begin();
 	it!=mipHistos_.end();
 	it++)
       {
-	//for the energy spectrum divide by the number of cells analyzed
+
+	//divide by the number of cells analyzed
 	TH1F *normH=normHistos_[it->first];
 	for(int ybin=1; ybin<=it->second->GetYaxis()->GetNbins(); ybin++)
 	  {
-	    float ncells=normH->GetBinContent(ybin);
+	    float ncells=normH->GetBinContent(ybin)*2; //we have two endcaps
 	    if(ncells==0) continue;
+
+	    //energy spectrum 
 	    for(int xbin=0; xbin<=it->second->GetXaxis()->GetNbins()+1; xbin++)
 	      {
-		float counts=it->second->GetBinContent(xbin,ybin);
-		float countsErr=it->second->GetBinError(xbin,ybin);
-		it->second->SetBinContent(xbin,ybin,counts/(nEvents_*ncells));
-		it->second->SetBinError(xbin,ybin,countsErr/(nEvents_*ncells));
+		for(int zbin=0; zbin<=it->second->GetZaxis()->GetNbins()+1; zbin++)
+		  {
+		    float counts=it->second->GetBinContent(xbin,ybin,zbin);
+		    float countsErr=it->second->GetBinError(xbin,ybin,zbin);
+		    it->second->SetBinContent(xbin,ybin,counts/(nEvents_*ncells));
+		    it->second->SetBinError(xbin,ybin,countsErr/(nEvents_*ncells));
+		  }
+	      }
+
+	    //data type sent
+	    for(int xbin=0; xbin<=dataVolTypeHistos_[it->first]->GetXaxis()->GetNbins(); xbin++)
+	      {
+		float counts=dataVolTypeHistos_[it->first]->GetBinContent(xbin,ybin);
+		float countsErr=dataVolTypeHistos_[it->first]->GetBinError(xbin,ybin);
+		dataVolTypeHistos_[it->first]->SetBinContent(xbin,ybin,counts/(nEvents_*ncells));
+		dataVolTypeHistos_[it->first]->SetBinError(xbin,ybin,countsErr/(nEvents_*ncells));
 	      }
 	  }
 
-	//normalized by the number of events (already averaged per cell)
-	dataVolHistos_[it->first]->Scale(1./nEvents_);
-	trigVolHistos_[it->first]->Scale(1./nEvents_);
+
+
+	//normalized by the number of events (already averaged per cells)
 	for(std::map<int,TH2F *>::iterator jt=occHistos_[it->first].begin();
 	    jt!=occHistos_[it->first].end();
 	    jt++)
-	  {
-	    jt->second->Scale(1./nEvents_);
-	  }
+	  jt->second->Scale(1./nEvents_);
+
+	dataVolHistos_[it->first]->Scale(1./nEvents_);
+	trigVolHistos_[it->first]->Scale(1./nEvents_);
+
+	mipHistos_[it->first]->Scale(1./nEvents_);
+	totHistos_[it->first]->Scale(1./nEvents_);
+	busyHistos_[it->first]->Scale(1./nEvents_);    
       }
     return nEvents_;
   }
@@ -272,10 +319,12 @@ public:
   ~SubdetectorOccupancyHisto() {}
 
   //all histos are public and can be manipulated...
-  std::map< int, TH1F *>                normHistos_, dataCountHistos_, trigCountHistos_;
-  std::map< int, TH2F *>                mipHistos_,  dataVolHistos_,   trigVolHistos_;
+  std::map< int, TH1F *>                normHistos_;
+  std::map< int, TH1F *>                dataCountHistos_, trigCountHistos_;
+  std::map< int, TH2F *>                dataVolHistos_,   trigVolHistos_, dataVolTypeHistos_;
   std::map< int, std::map<int,TH1F *> > countHistos_;
   std::map< int, std::map<int,TH2F *> > occHistos_;
+  std::map< int, TH3F *>                mipHistos_, totHistos_, busyHistos_;
  
  private:
   

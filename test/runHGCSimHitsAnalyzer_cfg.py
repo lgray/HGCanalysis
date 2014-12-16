@@ -67,7 +67,8 @@ whoami=getpass.getuser()
 outputTag=preFix.replace('/','_')
 process.TFileService = cms.Service("TFileService", fileName = cms.string('/tmp/%s/%s_SimHits_%d.root'%(whoami,outputTag,ffile)))
 process.load('UserCode.HGCanalysis.hgcSimHitsAnalyzer_cfi')
+process.load('UserCode.HGCanalysis.hgcTrackerInteractionsFilter_cfi')
 
 #run it
-process.p = cms.Path(process.analysis)
+process.p = cms.Path(process.analysis*process.trackerIntFilter)
 

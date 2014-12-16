@@ -53,9 +53,11 @@ void drawOccupancyResults(TString outDir)
   gSystem->Exec("cp $CMSSW_BASE/src/UserCode/HGCanalysis/test/analysis/occ_index.html "+ outDir+"/index.html");
 
   std::vector<TString> urlList,subTitles;
-  urlList.push_back("Single13_CMSSW_6_2_0_SLHC18_v2_tau_0_Occupancy_0.root");   subTitles.push_back("No shaping");
-  urlList.push_back("Single13_CMSSW_6_2_0_SLHC18_v2_tau_10_Occupancy_0.root");  subTitles.push_back("#tau=10 ns");
-  urlList.push_back("Single13_CMSSW_6_2_0_SLHC18_v2_tau_20_Occupancy_0.root");  subTitles.push_back("#tau=20 ns");
+  urlList.push_back("Single211_CMSSW_6_2_0_SLHC20_ReRECO_PU140_nops_Occupancy_0.root");subTitles.push_back("No pulse shape");
+  //urlList.push_back("Single211_CMSSW_6_2_0_SLHC20_ReRECO_PU140-v2_Occupancy_0.root"); subTitles.push_back("FE model (#Delta=25ns)");
+  //  urlList.push_back("Single13_CMSSW_6_2_0_SLHC18_v2_tau_0_Occupancy_0.root");   subTitles.push_back("No shaping");
+  //urlList.push_back("Single13_CMSSW_6_2_0_SLHC18_v2_tau_10_Occupancy_0.root");  subTitles.push_back("#tau=10 ns");
+  //urlList.push_back("Single13_CMSSW_6_2_0_SLHC18_v2_tau_20_Occupancy_0.root");  subTitles.push_back("#tau=20 ns");
 
   //occupancies
   std::vector<Int_t> thrScan;
@@ -63,14 +65,13 @@ void drawOccupancyResults(TString outDir)
   thrScan.push_back(4);
   thrScan.push_back(20);
   thrScan.push_back(40);
-  compareProfilesFor("occ",     "Occupancy / cell",             1e-3, 1,   true,  thrScan,   urlList, subTitles, outDir, false);
+  //compareProfilesFor("occ",     "Occupancy / cell",             1e-3, 1,   false,  thrScan,   urlList, subTitles, outDir, false);
   
   //data volumes
   thrScan.clear();
+  compareProfilesFor("datavoltype", "Expected readout cell data volume type / event [# bits]", 0, 3,  false,  thrScan,  urlList, subTitles, outDir, false);
   compareProfilesFor("datavol", "Expected readout cell data volume / event [bit]", 0, 12,  false,  thrScan,  urlList, subTitles, outDir, false);
   compareProfilesFor("trigvol", "Expected trigger cell data volume / event [bit]", 0, 4,   false,  thrScan,  urlList, subTitles, outDir, false);
-  compareProfilesFor("mip",     "Energy [MIP]",           0,    25, false, thrScan,  urlList, subTitles, outDir, false);
-
   simpleComparison("evtsize","Event size [log_{10} byte]",urlList,subTitles, outDir);
  }
 
@@ -123,10 +124,11 @@ void simpleComparison(TString distName, TString distTitle,	std::vector<TString> 
 	  h->SetTitle( distH->GetYaxis()->GetBinLabel(ybin) );
 	  h->SetLineWidth(2);
 	  h->SetLineColor(comparisonColors[ifile]);
-	  if(ifile==0){
-	    h->SetFillStyle(1001);
-	    h->SetFillColor(kGray);
-	  }
+	  if(ifile==0)
+	    {
+	      h->SetFillStyle(1001);
+	      h->SetFillColor(kGray);
+	    }
 	  else h->SetFillStyle(0);
 	  plots[ybin-1].push_back(h);
 	}
@@ -428,6 +430,8 @@ void drawDistributions(std::vector< std::vector<TH1 *> > &plots,
       float ymax(-999999999.);
       for(size_t j=0; j<plots[i].size(); j++)
 	{
+	  if(plots[i][j]->Integral()>0) plots[i][j]->Scale(1./plots[i][j]->Integral());
+
 	  plots[i][j]->Draw(j==0 ? "hist": "histsame");
 	  float iymax=plots[i][j]->GetBinContent(plots[i][j]->GetMaximumBin());
 	  ymax=TMath::Max(ymax,iymax);

@@ -32,7 +32,8 @@ python scripts/submitLocalHGCalProduction.py -q 1nd -n 100 -s generateEventsFrom
 
 For regression use flat gun
 
-python scripts/submitLocalHGCalProduction.py -q 1nd -n 250 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/FlatPtYSingle11_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/particlePtYGun_cfi.py -n 500 -p 11";
+python scripts/submitLocalHGCalProduction.py -q 2nw -n 2500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/FlatPtYSingle22_${CMSSW_VERSION}/RECO_a -c UserCode/HGCanalysis/python/particlePtYGun_cfi.py -n 200 -p 22 -f";
+python scripts/submitLocalHGCalProduction.py -q 1nw -n 2500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/FlatPtYSingle22_${CMSSW_VERSION}/RECO_b -c UserCode/HGCanalysis/python/particlePtYGun_cfi.py -n 200 -p 22 -f";
 
 Jet gun for neutral pions
 
@@ -71,14 +72,15 @@ Can use the minimum bias example, just substitute the argument passed in the -c 
 
 ### Redigitization with pileup mixing (will run one job per file, randomizing the min.bias files at start)
 
-taus=(0 10 20)
-pids=(13)
-for tau in ${taus[@]}; do
-    for pid in ${pids[@]}; do
-        inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}`);
-	nFiles=${#inputFiles[@]};
-	python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 1nd -s redigitizeAndMix.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}_v2/tau_${tau} -t Single${pid}_${CMSSW_VERSION}_v2 -m MinBias_${CMSSW_VERSION} -p ${tau}";
-done
+tags=(Single211_${CMSSW_VERSION})
+pu=(140 100 200)
+for tag in ${tags[@]}; do
+    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/${tag}/RECO | awk '{print $5}'`)
+    nFiles=${#inputFiles[@]};
+    echo "Submitting $nFiles for ${tag}"
+    for p in ${pu[@]}; do
+    	python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 1nw -s digitizeAndMix.sh -o "-o /store/cmst3/group/hgcal/CMSSW/${tag}/ReRECO_PU${p} -m MinBias_${CMSSW_VERSION} -t ${tag}/RECO -p ${p}";
+    done
 done
     
 
@@ -101,3 +103,5 @@ for tag in ${tags[@]}; do
     	cmsRun test/runHGCSimHitsAnalyzer_cfg.py ${tag}/RECO-v4 ${startFile} 50 & 
     done
 done
+
+

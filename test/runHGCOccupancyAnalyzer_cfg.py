@@ -50,6 +50,8 @@ process.source = cms.Source("PoolSource",
 if preFix.find('RelVal')>=0 :
     cmsswVersion=os.environ['CMSSW_VERSION']
     process.source.fileNames=fillFromStore('/store/relval/%s/%s/GEN-SIM-RECO/DES23_62_V1_UPG2023Muon-v1/00000/'%(cmsswVersion,preFix),ffile,step)
+elif preFix.find('.root')>=0 :
+    process.source.fileNames=cms.untracked.vstring('file://%s'%preFix)
 else :
     process.source.fileNames=fillFromStore('/store/cmst3/group/hgcal/CMSSW/%s'%preFix,ffile,step)
 process.source.duplicateCheckMode = cms.untracked.string('noDuplicateCheck')
@@ -59,8 +61,10 @@ process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
 import getpass
 whoami=getpass.getuser()
 outputTag=preFix.replace('/','_')
+outputTag=outputTag.replace('..','')
 process.TFileService = cms.Service("TFileService", fileName = cms.string('/tmp/%s/%s_Occupancy_%d.root'%(whoami,outputTag,ffile)))
 process.load('UserCode.HGCanalysis.hgcOccupancyAnalyzer_cfi')
+print process.TFileService.fileName
 
 #run it
 process.p = cms.Path(process.analysis)

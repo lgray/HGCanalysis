@@ -115,7 +115,7 @@ void HGCOccupancyAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSe
       else
 	{
 	  edm::Handle<HGCEEDigiCollection> eeDigis;
-	  iEvent.getByLabel(edm::InputTag("mix",digiCollections_[i]),eeDigis);
+	  iEvent.getByLabel(edm::InputTag("mix",digiCollections_[i],"ReRECO"),eeDigis);
 	  float eeEvtSize=analyzeEEDigis(i,eeDigis,hgcGeometries[i]);
 	  totalEvtSize+=eeEvtSize;
 	  evtSizeH_->Fill(TMath::Log10(eeEvtSize/8.),i+1);
@@ -135,13 +135,37 @@ float HGCOccupancyAnalyzer::analyzeHEDigis(size_t isd,edm::Handle<HGCHEDigiColle
   for(HGCHEDigiCollection::const_iterator hit_it = heDigis->begin(); hit_it != heDigis->end(); ++hit_it) 
     {
       if(hit_it->size()==0) continue;
-      int adc=hit_it->sample(0).raw();      
+      int itSampleIdx=(hit_it->size()-1);
       HGCHEDetId detId(hit_it->id());
       int layer=detId.layer();
       float eta( geom->getPosition(detId).eta());
-      occHistos_[isd].count(layer,eta,adc);
-    }
-  
+      
+      for(int it=0; it<=itSampleIdx; it++)
+	{
+	  int gain_i=hit_it->sample(it).gain();
+	  int adc_i=hit_it->sample(it).adc();
+	  
+	  //for the IT sample extract occupancies
+	  if(it==itSampleIdx) occHistos_[isd].count(layer,eta,adc_i);
+	  
+	  //monitor energy profiles, integration times and busy states
+	  occHistos_[isd].mipHistos_[layer]->Fill(adc_i*0.25,fabs(eta),it);
+	  occHistos_[isd].busyHistos_[layer]->Fill((gain_i==1 && adc_i==0),fabs(eta),it);
+	  if (gain_i==1 && adc_i!=0)
+	    {
+	      size_t totalIntegTime(1);
+	      for(int jt=it+1; jt<=itSampleIdx; jt++)
+		{
+		  int gain_j=hit_it->sample(jt).gain();
+		  int adc_j=hit_it->sample(jt).adc();
+		  if(adc_j !=0 ) break;
+		  if(gain_j ==0 ) break;
+		  totalIntegTime++;
+		}
+	      occHistos_[isd].totHistos_[layer]->Fill(totalIntegTime,fabs(eta),it);
+	    }
+	}
+    }     
   return occHistos_[isd].endEvent();
 }
 
@@ -150,18 +174,44 @@ float HGCOccupancyAnalyzer::analyzeEEDigis(size_t isd,edm::Handle<HGCEEDigiColle
 {
   //check inputs
   if(!eeDigis.isValid()) return 0.;
-  
+
   //analyze hits
   for(HGCEEDigiCollection::const_iterator hit_it = eeDigis->begin(); hit_it != eeDigis->end(); ++hit_it) 
     {
       if(hit_it->size()==0) continue;
-      int adc=hit_it->sample(0).raw();      
-      HGCEEDetId id(hit_it->id());
-      int layer=id.layer();
-      float eta( geom->getPosition(id).eta() );
-      occHistos_[isd].count(layer,eta,adc);
-    }
+      int itSampleIdx=(hit_it->size()-1);
+      HGCEEDetId detId(hit_it->id());
+      int layer=detId.layer();
+      float eta( geom->getPosition(detId).eta());
 
+      for(int it=0; it<=itSampleIdx; it++)
+	{
+	  int gain_i=hit_it->sample(it).gain();
+	  int adc_i=hit_it->sample(it).adc();
+	  
+	  //for the IT sample extract occupancies
+	  if(it==itSampleIdx) occHistos_[isd].count(layer,eta,adc_i);
+	  
+	  //monitor energy profiles, integration times and busy states
+	  occHistos_[isd].mipHistos_[layer]->Fill(adc_i*0.25,fabs(eta),it);
+	  occHistos_[isd].busyHistos_[layer]->Fill((gain_i==1 && adc_i==0),fabs(eta),it);
+	  if (gain_i==1 && adc_i!=0)
+	    {
+	      size_t totalIntegTime(1);
+	      for(int jt=it+1; jt<=itSampleIdx; jt++)
+		{
+		  int gain_j=hit_it->sample(jt).gain();
+		  int adc_j=hit_it->sample(jt).adc();
+		  if(adc_j !=0 ) break;
+		  if(gain_j ==0 ) break;
+		  totalIntegTime++;
+		}
+	      occHistos_[isd].totHistos_[layer]->Fill(totalIntegTime,fabs(eta),it);
+	    }
+
+	}
+    }
+  
   return occHistos_[isd].endEvent();
 }
 
