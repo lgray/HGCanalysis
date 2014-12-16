@@ -17,8 +17,8 @@ HEF_AIR=""
 TAG=""
 PHYSLIST="QGSP_FTFP_BERT_EML"
 TKFILTER=""
-
-while getopts "hp:e:n:c:o:w:j:g:t:l:xzf" opt; do
+SIMONLY="False"
+while getopts "hp:e:n:c:o:w:j:g:t:l:xzfs" opt; do
     case "$opt" in
     h)
         echo ""
@@ -38,6 +38,7 @@ while getopts "hp:e:n:c:o:w:j:g:t:l:xzf" opt; do
 	echo "     -z      exclude HEF (turn into air)"
         echo "     -t      tag to name output file"
 	echo "     -f      filter events interacting before HGC"
+	echo "     -s      sim only"
 	echo "     -h      help"
         echo ""
 	exit 0
@@ -66,6 +67,8 @@ while getopts "hp:e:n:c:o:w:j:g:t:l:xzf" opt; do
 	;;
     t)  TAG=$OPTARG
         ;;
+    s)  SIMONLY="True"
+	;;
     f)  TKFILTER="True"
 	;;
     esac
@@ -90,13 +93,23 @@ PYFILE=${BASEJOBNAME}_cfg.py
 LOGFILE=${BASEJOBNAME}.log
 
 #run cmsDriver
-cmsDriver.py ${CFI} -n ${NEVENTS} \
-    --python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
-    -s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW,RAW2DIGI,L1Reco,RECO --datatier GEN-SIM-DIGI-RECO --eventcontent FEVTDEBUGHLT \
-    --conditions auto:upgradePLS3 --beamspot Gauss --magField 38T_PostLS1 \
-    --customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
-    --geometry ${GEOMETRY} \
-    --no_exec 
+if [ -z ${SIMONLY} ]; then
+    cmsDriver.py ${CFI} -n ${NEVENTS} \
+	--python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
+	-s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW,RAW2DIGI,L1Reco,RECO --datatier GEN-SIM-DIGI-RECO --eventcontent FEVTDEBUGHLT \
+	--conditions auto:upgradePLS3 --beamspot HLLHC --magField 38T_PostLS1 \
+	--customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
+	--geometry ${GEOMETRY} \
+	--no_exec 
+else
+    cmsDriver.py ${CFI} -n ${NEVENTS} \
+	--python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
+	-s GEN,SIM --datatier GEN-SIM --eventcontent FEVTDEBUGHLT \
+	--conditions auto:upgradePLS3 --beamspot HLLHC --magField 38T_PostLS1 \
+	--customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
+	--geometry ${GEOMETRY} \
+	--no_exec 
+fi
 
 #customize with values to be generated
 echo "process.g4SimHits.StackingAction.SaveFirstLevelSecondary = True" >> ${WORKDIR}/${PYFILE}
