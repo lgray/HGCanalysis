@@ -57,6 +57,7 @@ elif preFix.find('lpc:')>=0:
     process.source.fileNames=fillFromStore('srm://cmseos.fnal.gov:8443/srm/v2/server?SFN=/eos/uscms/store/user/lpchgcal/HGCAL_Samples/%s'%preFix,ffile,step)
 else :
     process.source.fileNames=fillFromStore('/store/cmst3/group/hgcal/CMSSW/%s'%preFix,ffile,step)
+print process.source.fileNames
 process.source.duplicateCheckMode = cms.untracked.string('noDuplicateCheck')
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
 

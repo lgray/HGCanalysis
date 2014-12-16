@@ -12,7 +12,10 @@ Draws the final plots
 """
 def showProfiles(histos,norm,genEn,output):
     
-    stepTitle={'sim':'SimHit','rec':'RecHit','clus':'Cluster','pf':'PF candidate'}
+    stepTitle={'sim':'SimHit',
+               'rec':'RecHit',
+               'clus':'Cluster',
+               'pf':'PF candidate'}
     
     #show the histograms
     canvas     = ROOT.TCanvas('c','c',500,500)
@@ -118,17 +121,29 @@ def showProfiles(histos,norm,genEn,output):
             c.cd()
             c.SaveAs('%s/%s_%s_en%d.png'%(output,var,c.GetName(),genEn))
 
+"""
+"""
+def getLayerLambda(layerIdx) :
+    if layerIdx==0:                   return 0.01
+    if layerIdx>=1 and layerIdx<=10:  return 0.036
+    if layerIdx>=11 and layerIdx<=20: return 0.043
+    if layerIdx>=21 and layerIdx<=29: return 0.056
+    if layerIdx==30:                  return 0.338
+    if layerIdx>=31 and layerIdx<=41: return 0.273
+    if layerIdx>=42 and layerIdx<=53: return 0.475
+    return 0
+  
+
 
 """
 Loops over the trees and profiles the showers
 """
-def runShowerProfileAnalysis(opt) :
+def runShowerProfileAnalysis(opt,en,steps,shower_tuple):
     
     maxLayers=54
     if opt.input.find('22')>=0 or opt.input.find('photon')>=0 or opt.input.find('11')>=0 : maxLayers=35
 
     #prepare histograms
-    steps=['sim','rec','clus']
     baseHistos={
         'length': ROOT.TH2F('length',';Pseudo-rapidity;Length [#lambda];Events',5,1.5,3.0,10,0,15),
         'width':ROOT.TH2F('width',';HGC layer;Area [cm^{2}];Events',maxLayers,0,maxLayers,25,0,200),
@@ -150,13 +165,15 @@ def runShowerProfileAnalysis(opt) :
 
     #fill histos
     nEvts=0
-    fIn=ROOT.TFile.Open(opt.input)
+    url=opt.input
+    if url.find('/store/')>=0 : url='root://eoscms//eos/cms/%s'%url
+    fIn=ROOT.TFile.Open(url)
     HGC=fIn.Get('analysis/HGC')
     for i in xrange(0,HGC.GetEntriesFast()):
         HGC.GetEntry(i)
 
         #kinematics filter
-        if HGC.genEn>opt.en+1 or HGC.genEn<opt.en-1 : continue 
+        if HGC.genEn>en+1 or HGC.genEn<en-1 : continue 
 
         #interaction in HGC
         if HGC.hasInteractionBeforeHGC : continue
@@ -170,19 +187,27 @@ def runShowerProfileAnalysis(opt) :
         #count selected event
         nEvts=nEvts+1
 
+        totalEn={}
+        totalEn95={}
+        length95={}
         for step in histos['length'] :
             showerLength=getattr(HGC,'totalLength_%s'%(step))
             histos['length'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerLength)
             showerVol=getattr(HGC,'totalVolume_%s'%(step))
             histos['volume'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerVol)
+            totalEn[step]=0
+            totalEn95[step]=0
+            length95[step]=0
 
         for ilay in xrange(0,HGC.nlay):
-            for step in histos['width']:
+            for step in steps:
 
                 #require some energy deposit in the layer and 1 hit
                 if getattr(HGC,'edep_%s'%(step))[ilay]<0.5: continue
                 if getattr(HGC,'nhits_%s'%(step))[ilay]==0: continue
 
+                totalEn[step]+=getattr(HGC,'edep_%s'%(step))[ilay]
+                
                 #width
                 layerWidth=getattr(HGC,'edepArea_%s'%(step))[ilay]
                 histos['width'][step].Fill(ilay,layerWidth)
@@ -195,8 +220,22 @@ def runShowerProfileAnalysis(opt) :
                 for var in ['edep','nhits','sihih','sipip','sipih']:
                     histos[var][step].Fill(ilay,getattr(HGC,'%s_%s'%(var,step))[ilay])
 
-    showProfiles(histos=histos,norm=1./nEvts,genEn=opt.en,output=opt.output)
+        for ilay in xrange(0,HGC.nlay):
+            for step in steps:
+                #require some energy deposit in the layer and 1 hit
+                if getattr(HGC,'edep_%s'%(step))[ilay]<0.5: continue
+                if getattr(HGC,'nhits_%s'%(step))[ilay]==0: continue
+                totalEn95[step]+=getattr(HGC,'edep_%s'%(step))[ilay]
+                if totalEn95[step]>0.95*totalEn[step]: break
+                length95[step]+=getLayerLambda(ilay)
+        
+        #add to tuple
+        values=[HGC.genEn,HGC.genEta]
+        for step in steps : values.append( length95[step] )
+        shower_tuple.Fill(array("f",values))
 
+    showProfiles(histos=histos,norm=1./nEvts,genEn=en,output=opt.output)
+    fIn.Close()
 
 """
 steer 
@@ -207,7 +246,6 @@ def main():
     parser = optparse.OptionParser(usage)
     parser.add_option('-i',      '--in' ,      dest='input',        help='Input file',              default=None)
     parser.add_option('-o',      '--out' ,     dest='output',       help='Output directory',        default='./')
-    parser.add_option('-e' ,     '--en' ,      dest='en',           help='energy to profile [GeV]', default=None, type=float)
     (opt, args) = parser.parse_args()
                                        
     #check inputs
@@ -222,7 +260,23 @@ def main():
     ROOT.gStyle.SetOptTitle(0)
     ROOT.gStyle.SetOptStat(0)
 
-    runShowerProfileAnalysis(opt)
+    #enRanges=[5, 10, 20, 40, 50, 100, 175, 250]
+    enRanges=[20,40]
+    steps=['sim','rec','clus']
+
+    #prepare output
+    fOut=ROOT.TFile.Open('%s/ShowerProfiles.root'%opt.output,'RECREATE')
+    fOut.cd()
+    shower_tuple=ROOT.TNtuple("shower","shower","en:eta:length95_sim:length95_rec:length95_clus")
+
+    for ien in xrange(0,len(enRanges)):
+        print 'Starting %f'%enRanges[ien]
+        runShowerProfileAnalysis(opt,enRanges[ien],steps,shower_tuple)
     
+    #dump to a file
+    fOut.cd()
+    shower_tuple.Write()
+    fOut.Close()
+
 if __name__ == "__main__":
     sys.exit(main())

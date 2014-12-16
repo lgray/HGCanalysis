@@ -94,6 +94,10 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	  {
 	    nhits_[key][ilay]=0;          nhits5mip_[key][ilay]=0;      nhits10mip_[key][ilay]=0;
 	    edeps_[key][ilay]=0;          edeps3x3_[key][ilay]=0;       edeps5x5_[key][ilay]=0;
+	    if(ctrledeps_.find(key)!=ctrledeps_.end()) { 
+	      ctrlnhits_[key][ilay]=0;
+	      ctrledeps_[key][ilay]=0;
+	    }
 	    emeanPhi_[key][ilay]=0;       emeanEta_[key][ilay]=0;       emeanX_[key][ilay]=0;       emeanY_[key][ilay]=0;
 	    edepdR_[key][ilay]=0;         edepArea_[key][ilay]=0;        sihih_[key][ilay]=0;        sipip_[key][ilay]=0;        sipih_[key][ilay]=0;
 	  }
@@ -125,8 +129,8 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   std::map<TString, Float_t> hitMax_, hitMaxX_, hitMaxY_, hitMaxEta_, hitMaxPhi_;
   std::map<TString, Int_t> hitMaxLayer_, showerStart_;
   std::map<TString, Float_t> totalE_, totalX0WgtE_, totalLambdaWgtE_, totalLength_, totalVolume_;
-  std::map<TString, Float_t *> edeps_, weightedEdeps_, edeps3x3_, edeps5x5_;
-  std::map<TString, Int_t *> nhits_, nhits5mip_, nhits10mip_;
+  std::map<TString, Float_t *> edeps_, weightedEdeps_, edeps3x3_, edeps5x5_, ctrledeps_;
+  std::map<TString, Int_t *> nhits_, nhits5mip_, nhits10mip_, ctrlnhits_;
   std::map<TString, Float_t *> emeanX_, emeanY_, emeanPhi_,    emeanEta_;
   std::map<TString, Float_t *> sihih_,        sipip_,        sipih_,        edepdR_,        edepArea_;
 

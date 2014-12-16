@@ -10,14 +10,14 @@ from UserCode.HGCanalysis.PlotUtils import *
 """
 Converts all to a workspace and computes optimized weights
 """
-def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False):
+def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False,addRaw=False):
 
     #optimization with linear regression
     optimVec = numpy.zeros( len(integRanges) )
     optimMatrix = numpy.zeros( (len(integRanges), len(integRanges) ) )
  
     #prepare the workspace
-    outUrl=url.replace('.root','')
+    outUrl=os.path.basename(url).replace('.root','')
     os.system('mkdir -p %s'%outUrl)
     ws=ROOT.RooWorkspace("w")
     dsVars=ROOT.RooArgSet( ws.factory('eta[1.5,1.45,3.1]'), 
@@ -26,14 +26,20 @@ def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False
                            ws.factory('length[0,0,9999999.]'), 
                            ws.factory('volume[0,0,9999999.]') )
     for ireg in xrange(0,len(integRanges)): dsVars.add( ws.factory('edep%d[0,0,99999999]'%ireg) )
+    if addRaw : 
+        for ilay in xrange(1,55):
+            dsVars.add( ws.factory('rawedep%d[0,0,99999999]'%ilay) )
     getattr(ws,'import')( ROOT.RooDataSet('data','data',dsVars) )
 
     #read all to a RooDataSet
+    if url.find('/store/')>=0: url='root://eoscms//eos/cms/%s'%url
     fin=ROOT.TFile.Open(url)
     HGC=fin.Get('analysis/HGC')
     simStep=treeVarName.split('_')[1]
+    print 'Updating status every 1k events read / %dk events available'%(HGC.GetEntriesFast()/1000)
     for entry in xrange(0,HGC.GetEntriesFast()+1):
         HGC.GetEntry(entry)
+        if entry%1000==0 : drawProgressBar(float(entry)/float(HGC.GetEntriesFast()))
 
         #veto interactions in the tracker
         if vetoTrackInt and HGC.hasInteractionBeforeHGC : continue
@@ -57,7 +63,9 @@ def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False
 
         #showerMeanEta=getattr(HGC,'showerMeanEta_%s'%simStep)
         showerMeanEta=genEta
-
+        #geomCorrection=ROOT.TMath.TanH(genEta)
+        geomCorrection=1./ROOT.TMath.TanH(showerMeanEta)
+        
         #check the amount of energy deposited in the back HEB
         if vetoHEBLeaks:
             sumBackHEB=0
@@ -67,13 +75,17 @@ def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False
 
         #get the relevant energy deposits and add new row
         for ireg in xrange(0,len(integRanges)):
-            totalEnInIntegRegion=0
+            totalEnInIntegRegion=0           
             for ilayer in xrange(integRanges[ireg][0],integRanges[ireg][1]+1):
-                totalEnInIntegRegion=totalEnInIntegRegion+(getattr(HGC,treeVarName))[ilayer-1]
-            #geomCorrection=ROOT.TMath.TanH(genEta)
-            geomCorrection=ROOT.TMath.TanH(showerMeanEta)
+                irawEdep=(getattr(HGC,treeVarName))[ilayer-1]
+                totalEnInIntegRegion=totalEnInIntegRegion+irawEdep
+                if addRaw:
+                    ws.var('rawedep%d'%ilayer).setVal(irawEdep*geomCorrection)
+                    newEntry.add(ws.var('rawedep%d'%ilayer))
+
             ws.var('edep%d'%ireg).setVal(totalEnInIntegRegion*geomCorrection)
             newEntry.add(ws.var('edep%d'%(ireg)))
+
         ws.data('data').add( newEntry )
 
         #for optimization
@@ -260,15 +272,20 @@ def showCalibrationCurves(calibGr,calibRanges,outDir,calibPostFix) :
     canvas.Update()
     canvas.SaveAs('%s/rescalib%s.png'%(outDir,calibPostFix))
     
-    return resCorrectionGr
+    return resCorrectionGr,resCalibGr
     
 
 """
 shows a set of resolution curves
 """
-def showResolutionCurves(resGr,outDir,calibPostFix) :
+def showResolutionCurves(resGr,outDir,calibPostFix,model=0) :
 
-    resolModel=ROOT.TF1('resolmodel',"sqrt([0]*[0]/x+[1]*[1])",0,1000)
+    resolModel=None
+    if model==0  : resolModel=ROOT.TF1('resolmodel',"sqrt([0]*[0]/x+[1]*[1])",0,1000)
+    else : 
+        resolModel=ROOT.TF1('resolmodel',"sqrt([0]*[0]/x+[1]*[1]+[2]*[2]/(x*x))",0,1000)
+        resolModel.SetParameter(2,0)
+        resolModel.SetParLimits(2,0.05,0.1)
     resolModel.SetParameter(0,0.2);
     resolModel.SetParLimits(0,0,2);
     resolModel.SetParameter(1,0);
@@ -310,8 +327,13 @@ def showResolutionCurves(resGr,outDir,calibPostFix) :
         sigmaStochErr = ffunc.GetParError(0)
         sigmaConst    = ffunc.GetParameter(1)
         sigmaConstErr = ffunc.GetParError(1)
-        pt.append( MyPaveText('#it{%s} :  %3.4f#scale[0.8]{/#sqrt{E}} #oplus %3.4f'%(resGr[wType].GetTitle(),sigmaStoch,sigmaConst),
-                              0.2,0.93-igr*0.05,0.4,0.90-igr*0.05) )
+        if model==0 :
+            pt.append( MyPaveText('#it{%s} :  %3.4f#scale[0.8]{/#sqrt{E}} #oplus %3.4f'%(resGr[wType].GetTitle(),sigmaStoch,sigmaConst),
+                                  0.2,0.93-igr*0.05,0.4,0.90-igr*0.05) )
+        else :
+            sigmaNoise = ffunc.GetParameter(2)
+            pt.append( MyPaveText('#it{%s} :  %3.4f#scale[0.8]{/#sqrt{E}} #oplus %3.4f#scale[0.8]{/E} #oplus %3.4f'%(resGr[wType].GetTitle(),sigmaStoch,sigmaNoise,sigmaConst),
+                                  0.2,0.93-igr*0.05,0.4,0.90-igr*0.05) )
         pt[igr-1].SetTextColor(lcol)
         pt[igr-1].SetTextSize(0.03)
 
@@ -321,3 +343,4 @@ def showResolutionCurves(resGr,outDir,calibPostFix) :
     canvas.Modified()
     canvas.Update()
     canvas.SaveAs('%s/resol%s.png'%(outDir,calibPostFix))
+    canvas.SaveAs('%s/resol%s.C'%(outDir,calibPostFix))

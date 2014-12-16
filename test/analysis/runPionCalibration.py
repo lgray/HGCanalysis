@@ -221,7 +221,8 @@ def computeCompensationWeights(enRanges,etaRanges,ws,outDir):
         divx+=1
 
     #optimize in energy density ranges
-    uRanges=[[0,0.05],[0.05,0.1],[0.1,0.15],[0.15,0.2],[0.2,0.3],[0.3,0.4]]
+    #uRanges=[[0,0.1],[0.1,0.2],[0.2,0.3],[0.3,0.5]]
+    uRanges=[[0,0.2],[0.2,0.4],[0.4,0.6],[0.6,0.8]]
 
     weightOptimGr=[]
     aGr=ROOT.TGraphErrors()
@@ -422,15 +423,15 @@ def adaptWorkspaceForPionCalibration(opt,outDir):
     subDetRanges       = ['EE', 'EE',  'EE',   'EE',   'HEF',  'HEF',  'HEB']
 
     weights            = {}
-    weights["lambda"]    = [0.01, 0.036, 0.043,  0.056,  0.338,  0.273,  0.476]
+    #weights["lambda"]    = [0.01, 0.036, 0.043,  0.056,  0.338,  0.273,  0.476]
     weights["lambda_em"] = [0.01, 0.036, 0.043,  0.056,  0.338,  0.273,  0.476]
     weightTitles={}
-    weightTitles["lambda"]  = "#lambda-based weights"
+    #weightTitles["lambda"]  = "#lambda-based weights"
     weightTitles["lambda_em"]  = "#lambda-based + e.m. scale weights"
 
     #prepare workspace (if needed) and output
     if wsUrl is None :
-        wsUrl=prepareWorkspace(url=url,integRanges=integRanges,vetoTrackInt=vetoTrackInt,vetoHEBLeaks=vetoHEBLeaks,treeVarName=treeVarName)
+        wsUrl=prepareWorkspace(url=url,integRanges=integRanges,vetoTrackInt=vetoTrackInt,vetoHEBLeaks=vetoHEBLeaks,treeVarName=treeVarName,addRaw=False)
     
     #get the workspace from the file
     wsOutF=ROOT.TFile.Open(wsUrl)
@@ -555,7 +556,7 @@ def runCalibrationStudy(opt):
     wsUrl=opt.wsUrl
     outDir="./"
     if wsUrl is None:
-        outDir=opt.input.replace('.root','')
+        outDir=os.path.basename(opt.input).replace('.root','')
         os.system('mkdir -p '+outDir)
     else:
         outDir=os.path.dirname(wsUrl)
@@ -565,15 +566,17 @@ def runCalibrationStudy(opt):
     wsOutF.Close()
 
     #init phase space regions of interest
-    etaRanges = [[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75],[2.75,2.9]]
-    enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[249,251]]
-
+    etaRanges = [[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5]]#,[2.5,2.75]]
+    #enRanges  = [[4,6],[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[124,126],[174,176],[249,251],[399,401]]
+    enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[124,126],[174,176],[249,251],[399,401]]
+    #enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[149,151],[249,251]]
+    #enRanges = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[249,251]]
     #small stats for test
     #etaRanges = [[1.75,2.5]]
     #enRanges  = [[9,11],[29,31],[49,51]]
 
     weightTitles={}
-    weightTitles["lambda"]  = "#lambda-based weights"
+    #weightTitles["lambda"]  = "#lambda-based weights"
     weightTitles["lambda_em"]  = "rescaled #lambda-based weights"
 
 
@@ -591,8 +594,8 @@ def runCalibrationStudy(opt):
     #determine how to combine EE and HE(F+B)
     ehCombSlope, ehCombSlope_err = 1.0, 0.0
     if opt.noEE:
-        ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambda_emEnFunc('0*@0+@1',{lambda_emEn_EE,lambda_emEn_HEFHEB})") )
-        ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambdaEnFunc('0*@0+@1+@2',{lambdaEn_EE,lambdaEn_HEF,lambdaEn_HEB})") )
+        for wgt in weightTitles:
+            ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::%sEnFunc('0*@0+@1',{%sEn_EE,%sEn_HEFHEB})"%(wgt,wgt,wgt) ) )
     else:
         try:
             ehFin=ROOT.TFile.Open(opt.ehCombUrl)
@@ -601,8 +604,8 @@ def runCalibrationStudy(opt):
         except:
             print 'Will compute EE vs HE(F+B) combination slope using %f coefficient for HEB'%(1./hefhebCombSlope)
             ehCombSlope, ehCombSlope_err = computeSubdetectorWeights(enRanges=enRanges,etaRanges=etaRanges,ws=ws,xaxis='EE',yaxis='HEF+HEB/%3.4f'%hefhebCombSlope,outDir=outDir)
-        ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambda_emEnFunc('@0+@1/%f',{lambda_emEn_EE,lambda_emEn_HEFHEB})"%(hefhebCombSlope)) )
-        ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::lambdaEnFunc('@0+@1+@2',{lambdaEn_EE,lambdaEn_HEF,lambdaEn_HEB})") )
+        for wgt in weightTitles:
+            ws.data('data_uncalib').addColumn( ws.factory("RooFormulaVar::%sEnFunc('@0+@1/%f',{%sEn_EE,%sEn_HEFHEB})"%(wgt,hefhebCombSlope,wgt,wgt)) )
 
     #create the final dataset for calibration
     print 'Will use the following combination of sub-detectors %d x EE + %3.4f x (HEF + %3.4f x HEB)'%(1-int(opt.noEE),1./hefhebCombSlope,1./ehCombSlope)
@@ -623,11 +626,40 @@ def runCalibrationStudy(opt):
         calibF=ROOT.TFile.Open(opt.calibUrl)
         print 'Reading out calibrations from %s'%opt.calibUrl
         for wType in weightTitles:
-            calibMap[wType]=calibF.Get('%s_calib'%wType).Clone()
-            calibMapRes[wType]=calibF.Get('%s_calib_res'%wType).Clone()
+            calibMap[wType]=calibF.Get('%s_calib'%wType).Clone() 
+            calibMapRes[wType]=[]
+            for ietaRange in xrange(0,len(etaRanges)):
+                calibMapRes[wType].append( calibF.Get('calib_%d_%s_res'%(ietaRange,wType)).Clone() )
         calibF.Close()
     except:
         print 'No calibration will be applied'
+
+    #read sw compensation weights and calibrations from file
+    swCompParams={}
+    swCompCalibMap={}
+    swCompCalibMapRes={}
+    try:
+        swF=ROOT.TFile.Open(opt.compWeights)
+        print 'Reading out compensation weights from %s'%(opt.compWeights)
+        swCompParams['slope']=swF.Get('swweights_slope').GetFunction('afunc')
+        swCompParams['offset']=swF.Get('swweights_offset').GetFunction('bfunc')
+        swF.Close()
+        calibPostFix+='_swcomp'
+        try:            
+            calibF=ROOT.TFile.Open(opt.compCalib)
+            print 'Reading out sw compensation calibrations from %s'%opt.compCalib
+            for wType in weightTitles:
+                swCompCalibMap[wType]=calibF.Get('%s_calib'%wType).Clone('swcompcalib')
+                swCompCalibMapRes[wType]=[]
+                for ietaRange in xrange(0,len(etaRanges)):
+                    swCompCalibMapRes[wType].append( calibF.Get('calib_%d_%s_res'%(ietaRange,wType)).Clone() )
+                #swCompCalibMapRes[wType]=calibF.Get('%s_calib_res'%wType).Clone('swcompcalibres')
+            calibF.Close()
+            calibPostFix+='_calib'
+        except:
+            print 'No calibration will be applied to sw compensation'
+    except:
+        print 'No compensation weights have been found'
 
     #fill the dataset
     for ientry in xrange(0,ws.data('data_uncalib').numEntries()):
@@ -638,7 +670,16 @@ def runCalibrationStudy(opt):
         for baseVar in ['en','eta','phi','length','volume']: 
             ws.var(baseVar).setVal( entryVars.find(baseVar).getVal() )
             newEntry.add( ws.var(baseVar) )
-                
+            
+        etaRangeIdx=-1
+        etaVal=ROOT.TMath.Abs(ws.var('eta').getVal())
+        for etaRange in etaRanges:
+            etaRangeIdx+=1
+            if etaVal>etaRange[0] and etaVal<etaRange[1]: 
+                break
+
+        shVol=ws.var('volume').getVal()
+    
         for wType in weightTitles :
 
             ienVal=entryVars.find('%sEnFunc'%wType).getVal()
@@ -652,11 +693,27 @@ def runCalibrationStudy(opt):
             #compute residual, if available -> this should change to shower mean eta...
             calib_residual = 0.0
             if wType in calibMapRes:
-                calib_residual=calibMapRes[wType].Eval(ROOT.TMath.Abs(ws.var('eta').getVal()))
+                calib_residual=calibMapRes[wType][etaRangeIdx].Eval(ROOT.TMath.Abs(ws.var('en').getVal()))/100.
                 
             #calibrated energy estimator
             ienVal=((ienVal-calib_offset)/calib_slope)*(1-calib_residual)
-                    
+
+            #software compensation weight
+            if wType.find('_em')>0 and len(swCompParams):
+                swCompWeight=1
+                if shVol>0:
+                    shDensity=ROOT.TMath.Min(ienVal/shVol,0.3)
+                    #shDensity=ienVal/shVol
+                    swCompWeight=swCompParams['slope'].Eval(ienVal)*shDensity+swCompParams['offset'].Eval(ienVal)
+                ienVal=ienVal*swCompWeight
+                swcomp_calib_offset, swcomp_calib_slope, swcomp_calib_residual = 0.0, 1.0, 0.0
+                if wType in swCompCalibMap:
+                    swcomp_calib_offset   = swCompCalibMap[wType].GetParameter(1)
+                    swcomp_calib_slope    = swCompCalibMap[wType].GetParameter(0)
+                    swcomp_calib_residual = swCompCalibMapRes[wType][etaRangeIdx].Eval(ROOT.TMath.Abs(ws.var('en').getVal()))/100.
+                    #swcomp_calib_residual = swCompCalibMapRes[wType].Eval(ROOT.TMath.Abs(ws.var('eta').getVal()))
+                ienVal=((ienVal-swcomp_calib_offset)/swcomp_calib_slope)*(1-swcomp_calib_residual)
+                
             #add corrected value
             ws.var('%sEn'%wType).setVal(ienVal)
             newEntry.add(ws.var('%sEn'%wType))
@@ -753,14 +810,15 @@ def runCalibrationStudy(opt):
 
     #derive calibration
     calibModel=ROOT.TF1('calibmodel',"[0]*x+[1]",0,800)
+    #calibModel=ROOT.TF1('calibmodel',"x>100 ? [0]*x+[1] : [2]*x*x+[3]*x+[4]",0,1000)
     calibModel.SetLineWidth(1)
     for wType in weightTitles :
         calibGr[wType].Fit(calibModel,'MER+')
         calibGr[wType].GetFunction(calibModel.GetName()).SetLineColor(calibGr[wType].GetListOfGraphs().At(0).GetLineColor())
 
     #show results
-    resCorrectionGr=showCalibrationCurves(calibGr=calibGr,calibRanges=etaRanges,outDir=outDir,calibPostFix=calibPostFix)
-    showResolutionCurves(resGr=resGr,outDir=outDir,calibPostFix=calibPostFix)
+    resCorrectionGr,resCalibGr=showCalibrationCurves(calibGr=calibGr,calibRanges=etaRanges,outDir=outDir,calibPostFix=calibPostFix)
+    showResolutionCurves(resGr=resGr,outDir=outDir,calibPostFix=calibPostFix,model=0)
 
     #save all to file
     calibModelRes=ROOT.TF1('calibmodelres',"[0]*x*x+[1]*x+[2]",1.45,3.1)
@@ -768,13 +826,17 @@ def runCalibrationStudy(opt):
     for wType in weightTitles :
         calibGr[wType].Write()
         calibGr[wType].GetFunction(calibModel.GetName()).Write('%s_calib'%wType)
+        for gr in resCalibGr[wType].GetListOfGraphs():
+            gr.Fit(calibModelRes,'WMR+')
+            gr.Write()            
         resCorrectionGr[wType].Write()
         resCorrectionGr[wType].Fit(calibModelRes,'WMR+')
         resCorrectionGr[wType].GetFunction(calibModelRes.GetName()).Write('%s_calib_res'%wType)
     calibF.Close()
 
     #compute compensation weights
-    computeCompensationWeights(enRanges,etaRanges,ws,outDir)
+    if len(swCompParams)==0:
+        computeCompensationWeights(enRanges,etaRanges,ws,outDir)
 
 """
 steer 
@@ -783,16 +845,18 @@ def main():
     
     usage = 'usage: %prog [options]'
     parser = optparse.OptionParser(usage)
-    parser.add_option('-i',      '--in' ,      dest='input',        help='Input file',                                     default=None)
-    parser.add_option('-w',      '--ws' ,      dest='wsUrl',        help='Workspace file',                                 default=None)
-    parser.add_option('--emCalib' ,            dest='emCalibUrl',   help='em calibration files (e.g. EE:calib_ee.root,HEF:calib_hef.root', default=None)
-    parser.add_option('--calib' ,              dest='calibUrl',     help='pion calibration file', default=None)
-    parser.add_option('--vetoTrackInt',        dest='vetoTrackInt', help='flag if tracker interactions should be removed', default=False, action="store_true")
-    parser.add_option('--vetoHEBLeaks',        dest='vetoHEBLeaks', help='flag if HEB leaks are allowed',                  default=False, action='store_true')
-    parser.add_option('--hefhebComb',          dest='hefhebCombUrl', help='Location of the parameterization for HEB/HEF combination', default=None)
-    parser.add_option('--noEE',                dest='noEE',          help='Assign weight 0 to EE', default=False, action='store_true')
-    parser.add_option('--ehComb',              dest='ehCombUrl',     help='Location of the parameterization for EE+HE(F+B) combination', default=None)
-    parser.add_option('-v',      '--var' ,     dest='treeVarName',  help='Variable to use as energy estimator',            default='edep_sim')
+    parser.add_option('-i',      '--in' ,      dest='input',         help='Input file',                                                     default=None)
+    parser.add_option('-w',      '--ws' ,      dest='wsUrl',         help='Workspace file',                                                 default=None)
+    parser.add_option('--emCalib' ,            dest='emCalibUrl',    help='em calibration files (e.g. EE:calib_ee.root,HEF:calib_hef.root', default=None)
+    parser.add_option('--calib' ,              dest='calibUrl',      help='pion calibration file',                                          default=None)
+    parser.add_option('--compWeights' ,        dest='compWeights',   help='file with software compensation weights',                        default=None)
+    parser.add_option('--compCalib' ,          dest='compCalib',     help='calibration after compensation weights applied',                 default=None)
+    parser.add_option('--vetoTrackInt',        dest='vetoTrackInt',  help='flag if tracker interactions should be removed',                 default=False, action="store_true")
+    parser.add_option('--vetoHEBLeaks',        dest='vetoHEBLeaks',  help='flag if HEB leaks are allowed',                                  default=False, action='store_true')
+    parser.add_option('--hefhebComb',          dest='hefhebCombUrl', help='Location of the parameterization for HEB/HEF combination',       default=None)
+    parser.add_option('--noEE',                dest='noEE',          help='Assign weight 0 to EE',                                          default=False, action='store_true')
+    parser.add_option('--ehComb',              dest='ehCombUrl',     help='Location of the parameterization for EE+HE(F+B) combination',    default=None)
+    parser.add_option('-v',      '--var' ,     dest='treeVarName',   help='Variable to use as energy estimator',                            default='edep_sim')
     (opt, args) = parser.parse_args()
 
      #check inputs                                                                                                                                                                                                  
