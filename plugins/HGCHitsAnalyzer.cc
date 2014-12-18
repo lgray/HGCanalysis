@@ -109,7 +109,7 @@ void HGCHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &
   analyzeGenParticles(genParticles,genJets);
     
   //read rec hits and geometry
-  int layerCtrOffset(0);
+  int layerCtrOffset(1);
   simEvt_.nhits=0;
   for(size_t i=0; i<geometrySource_.size(); i++)
     {

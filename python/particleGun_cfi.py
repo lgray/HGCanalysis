@@ -9,7 +9,7 @@ generator = cms.EDProducer("Pythia6EGun",
                                                       MaxE       = cms.double(0),       #ibidem
                                                       MinPhi     = cms.double(-3.1415),
                                                       MaxPhi     = cms.double(3.1415),
-                                                      AddAntiParticle = cms.bool(False)
+                                                      AddAntiParticle = cms.bool(True)
                                                       ),
                            PythiaParameters = cms.PSet( pythiaUESettingsBlock,
                                                         parameterSets = cms.vstring('pythiaUESettings')

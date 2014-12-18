@@ -1,3 +1,8 @@
+# Auto generated configuration file
+# using: 
+# Revision: 1.20 
+# Source: /local/reps/CMSSW/CMSSW/Configuration/Applications/python/ConfigBuilder.py,v 
+# with command line options: step2 --conditions auto:upgradePLS3 -n 10 --eventcontent FEVTDEBUGHLT -s DIGI:pdigi_valid,L1,DIGI2RAW --datatier GEN-SIM-DIGI-RAW --customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon --geometry Extended2023HGCalMuon,Extended2023HGCalMuonReco --magField 38T_PostLS1 --filein file:step1.root --fileout file:step2.root
 import FWCore.ParameterSet.Config as cms
 
 process = cms.Process('DIGI2RAW')
@@ -7,7 +12,7 @@ process.load('Configuration.StandardSequences.Services_cff')
 process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')
 process.load('FWCore.MessageService.MessageLogger_cfi')
 process.load('Configuration.EventContent.EventContent_cff')
-process.load('SimGeneral.MixingModule.mix_POISSON_average_cfi')
+process.load('SimGeneral.MixingModule.mix_POISSON_average_cfi') #mixNoPU_cfi')
 process.load('Configuration.Geometry.GeometryExtended2023HGCalMuonReco_cff')
 process.load('Configuration.StandardSequences.MagneticField_38T_PostLS1_cff')
 process.load('Configuration.StandardSequences.Digi_cff')
@@ -17,7 +22,7 @@ process.load('Configuration.StandardSequences.EndOfProcess_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(5)
+    input = cms.untracked.int32(-1)
 )
 
 #configure from command line
@@ -33,16 +38,18 @@ avgPU         = float(sys.argv[6])
 outputDir='./'
 if len(sys.argv)>7 : outputDir=sys.argv[7]
 
+
 # Input source
 from UserCode.HGCanalysis.storeTools_cff import fillFromStore
 process.source = cms.Source("PoolSource",
-                            secondaryFileNames = cms.untracked.vstring(),
-                            fileNames=cms.untracked.vstring()
-                            )
+    secondaryFileNames = cms.untracked.vstring(),
+    fileNames = cms.untracked.vstring()
+)
 process.source.fileNames=fillFromStore('/store/cmst3/group/hgcal/CMSSW/%s'%preFix,ffile,step)
 print process.source.fileNames,'/store/cmst3/group/hgcal/CMSSW/%s'%preFix
+process.options = cms.untracked.PSet(
 
-process.options = cms.untracked.PSet(    )
+)
 
 # Production Info
 process.configurationMetadata = cms.untracked.PSet(
@@ -52,6 +59,7 @@ process.configurationMetadata = cms.untracked.PSet(
 )
 
 # Output definition
+
 process.FEVTDEBUGHLToutput = cms.OutputModule("PoolOutputModule",
     splitLevel = cms.untracked.int32(0),
     eventAutoFlushCompressedSize = cms.untracked.int32(5242880),
@@ -63,8 +71,9 @@ process.FEVTDEBUGHLToutput = cms.OutputModule("PoolOutputModule",
     )
 )
 
+# Additional output definition
 
-#mixing
+# Other statements
 process.mix.input.nbPileupEvents.averageNumber = cms.double(avgPU)
 process.mix.bunchspace = cms.int32(25)
 process.mix.minBunch = cms.int32(-12)
@@ -74,7 +83,6 @@ import random
 random.shuffle(mixFileNames)
 process.mix.input.fileNames = cms.untracked.vstring(mixFileNames)
 process.mix.digitizers = cms.PSet(process.theDigitizersValid)
-
 from Configuration.AlCa.GlobalTag import GlobalTag
 process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:upgradePLS3', '')
 
