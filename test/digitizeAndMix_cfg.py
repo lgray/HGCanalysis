@@ -27,26 +27,23 @@ process.maxEvents = cms.untracked.PSet(
 
 #configure from command line
 import os,sys
-if(len(sys.argv)<7):
-    print '\ncmsRun digitizeAndMix_cfg.py SampleName First_File Step_File MinBiasName AvgPU [OutputDir]\n'
+if(len(sys.argv)<5):
+    print '\ncmsRun digitizeAndMix_cfg.py SourceFile MinBiasName AvgPU [OutputDir]\n'
     sys.exit() 
-preFix        = sys.argv[2]
-ffile         = int(sys.argv[3])
-step          = int(sys.argv[4])
-minBiasPreFix = sys.argv[5]
-avgPU         = float(sys.argv[6])
+sourceF        = sys.argv[2]
+minBiasPreFix = sys.argv[3]
+avgPU         = float(sys.argv[4])
 outputDir='./'
-if len(sys.argv)>7 : outputDir=sys.argv[7]
+if len(sys.argv)>5 : outputDir=sys.argv[5]
 
 
 # Input source
 from UserCode.HGCanalysis.storeTools_cff import fillFromStore
 process.source = cms.Source("PoolSource",
     secondaryFileNames = cms.untracked.vstring(),
-    fileNames = cms.untracked.vstring()
+    fileNames = cms.untracked.vstring(sourceF)
 )
-process.source.fileNames=fillFromStore('/store/cmst3/group/hgcal/CMSSW/%s'%preFix,ffile,step)
-print process.source.fileNames,'/store/cmst3/group/hgcal/CMSSW/%s'%preFix
+
 process.options = cms.untracked.PSet(
 
 )
@@ -64,7 +61,7 @@ process.FEVTDEBUGHLToutput = cms.OutputModule("PoolOutputModule",
     splitLevel = cms.untracked.int32(0),
     eventAutoFlushCompressedSize = cms.untracked.int32(5242880),
     outputCommands = process.FEVTDEBUGHLTEventContent.outputCommands,
-    fileName = cms.untracked.string('file:%s/Events_%d_PU%d.root'%(outputDir,ffile,avgPU)),
+    fileName = cms.untracked.string('file:%s/Events_PU%d.root'%(outputDir,avgPU)),
     dataset = cms.untracked.PSet(
         filterName = cms.untracked.string(''),
         dataTier = cms.untracked.string('GEN-SIM-DIGI-RAW')
@@ -111,7 +108,7 @@ process = cust_2023HGCalMuon(process)
 
 print 'Will digitize with the following parameters'
 print process.source.fileNames
-print 'Sample %s starting at %s and processing %d files'%(preFix,process.source.fileNames[0],step)
+print 'Sample %s '%(process.source.fileNames[0])
 print 'MinBias from %s will be used to generate <PU>=%f starting with %s'%(minBiasPreFix,avgPU,mixFileNames[0])
 print 'Output will be store in %s'%process.FEVTDEBUGHLToutput.fileName
 

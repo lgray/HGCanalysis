@@ -39,5 +39,5 @@ for n in xrange(0,opt.njobs):
         os.system('%s/runJob_%d.sh'%(jobsDir,n+1))
     else:
         print 'Job #%d will run remotely'%(n+1)
-        os.system("bsub -q %s -J HGCSIM%d \'%s/runJob_%d.sh\'"%(opt.queue,n+1,jobsDir,n+1))
+        os.system("bsub -q %s -R \"swp>1000 && pool>30000\" -J HGCSIM%d \'%s/runJob_%d.sh\'"%(opt.queue,n+1,jobsDir,n+1))
     

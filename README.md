@@ -39,37 +39,31 @@ python scripts/submitLocalHGCalProduction.py -q 1nw -n 2500 -s generateEventsFro
 
 ## SIM
 
-energies=(10 20 40 50 75 100 125 175 250 400)
-pids=(211 11 22)
+energies=(10 20 40 50 75 100 125 175 250 400 500)
+pids=(22 211 11)
+pu=(140 0 200)
+for p in ${pu[@]}; do
 for pid in ${pids[@]}; do
     for en in ${energies[@]}; do
-      python scripts/submitLocalHGCalProduction.py -q 1nd -n 500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/SIM -p ${pid} -n 25 -e ${en} -s";
+      python scripts/submitLocalHGCalProduction.py -q 1nd -n 500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/ -p ${pid} -n 25 -e ${en} -s -a ${p}";
      done
+done
 done
 
 pids=(111 15)
+for p in ${pu[@]}; do
 for pid in ${pids[@]}; do
     for en in ${energies[@]}; do 
-    	python scripts/submitLocalHGCalProduction.py -n 500 -q 2nd -s generateEventsFromCfi.sh -o "-c UserCode/HGCanalysis/python/jetGun_cfi.py -o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/SIM -p ${pid} -n 25 -e ${en} -s"; 
+    	python scripts/submitLocalHGCalProduction.py -n 500 -q 2nd -s generateEventsFromCfi.sh -o "-c UserCode/HGCanalysis/python/jetGun_cfi.py -o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/ -p ${pid} -n 25 -e ${en} -s -a ${p}"; 
     done
 done
-
-python scripts/submitLocalHGCalProduction.py -q 2nw -n 500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/VBFtoH125toTauTau_${CMSSW_VERSION}/SIM -c UserCode/HGCanalysis/python/VBFH125toTauTau_cfi.py -n 25 -p 25 -s";
-
-python scripts/submitLocalHGCalProduction.py -q 1nw -n 2000 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/QCDFlatPt15to3000_${CMSSW_VERSION}/SIM -c UserCode/HGCanalysis/python/QCDForPF_14TeV_cfi.py -n 25 -p 25 -s";
-
-## DIGI
-
-tags=("VBFtoH125toTauTau_${CMSSW_VERSION}") #"NeutrinoGun_${CMSSW_VERSION}")  # "VBFtoH125toTauTau_${CMSSW_VERSION}")
-pu=(0 140 200)
-for tag in ${tags[@]}; do
-    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/${tag}/SIM | awk '{print $5}'`)
-    nFiles=${#inputFiles[@]};
-    echo "Submitting $nFiles for ${tag}"
-    for p in ${pu[@]}; do
-    	python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 2nd -s digitizeAndMix.sh -o "-o /store/cmst3/group/hgcal/CMSSW/${tag}/DIGI-PU${p} -m MinBias_CMSSW_6_2_0_SLHC20 -t ${tag}/SIM -p ${p}";
-    done
 done
+
+for p in ${pu[@]}; do
+    python scripts/submitLocalHGCalProduction.py -q 2nw -n 1000 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/VBFtoH125toTauTau_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/VBFH125toTauTau_cfi.py -n 25 -p 25 -s -a ${p}";
+    python scripts/submitLocalHGCalProduction.py -q 1nw -n 1000 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/QCDFlatPt15to3000_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/QCDForPF_14TeV_cfi.py -n 25 -p 1 -s -a ${p}";
+done
+
 
 
 #test alternative physics lists for pions
