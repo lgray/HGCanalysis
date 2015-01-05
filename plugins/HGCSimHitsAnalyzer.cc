@@ -55,7 +55,8 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   t_->Branch("genHitX",  &genHitX_,  "genHitX/F");  
   t_->Branch("genHitY",  &genHitY_,  "genHitY/F");  
   t_->Branch("genHitZ",  &genHitZ_,  "genHitZ/F");  
-  t_->Branch("hasInteractionBeforeHGC",   &hasInteractionBeforeHGC_,   "hasInteractionBeforeHGC/O");
+  t_->Branch("hasInteractionBeforeHGC",   &hasInteractionBeforeHGC_, "hasInteractionBeforeHGC/O");
+  t_->Branch("hasChargedInteraction",     &hasChargedInteraction_,   "hasChargedInteraction/O");
   t_->Branch("nlay",        &nlay_,       "nlay/I");
   t_->Branch("pfMatchId",   &pfMatchId_,  "pfMatchId/I");
 
@@ -255,11 +256,11 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	}
 
       //sim tracks and vertices
-      math::XYZVectorD hitPos=getInteractionPosition(p,SimTk,SimVtx,genBarcodes->at(igen));
+      math::XYZVectorD hitPos=getInteractionPosition(p,SimTk,SimVtx,genBarcodes->at(igen),hasChargedInteraction_);
       genHitX_=hitPos.x();
       genHitY_=hitPos.y();
       genHitZ_=hitPos.z();
-      hasInteractionBeforeHGC_=(hitPos.z()<317);
+      hasInteractionBeforeHGC_=(fabs(hitPos.z())<317);
       
       //hits
       std::unordered_map<uint32_t,uint32_t> recHitsIdMap; //needed to decode hits in clusters
@@ -706,42 +707,41 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 
 //
 math::XYZVectorD HGCSimHitsAnalyzer::getInteractionPosition(const reco::GenParticle & genp,
-							     edm::Handle<edm::SimTrackContainer> &SimTk,
-							     edm::Handle<edm::SimVertexContainer> &SimVtx,
-							     int barcode)
+							    edm::Handle<edm::SimTrackContainer> &SimTk,
+							    edm::Handle<edm::SimVertexContainer> &SimVtx,
+							    int barcode,
+							    bool &chargedInteraction)
 {
-  for (const SimTrack &simtrack : *SimTk) 
+  //loop over vertices
+  for (const SimVertex &simVtx : *SimVtx) 
     {
-      if (simtrack.genpartIndex()!=barcode) continue;
-      int simid = simtrack.trackId();
-      for (const SimVertex &simvertex : *SimVtx) 
-	{
-	  //for neutrals only one vertex
-	  if(genp.charge()==0)
-	    {
-	      if (simvertex.parentIndex()!=simid) continue;
-	      return math::XYZVectorD(simvertex.position());
-	    }
-	  else
-	    {
-	      uint32_t tkMult(0);
-	      for (const SimTrack &dausimtrack : *SimTk)
-		{
-		  int dausimid=dausimtrack.trackId();
-		  if(dausimid==simid) continue;
-		  unsigned int vtxIdx=dausimtrack.vertIndex(); 
-		  if(vtxIdx!=simvertex.vertexId()) continue;
-		  int tkType=abs(dausimtrack.type());
-		  
-		  //neglect ionization products
-		  if(tkType==11) continue;
+      //require the parent to be the given barcode
+      bool noParent( simVtx.noParent() );
+      if(noParent) continue;
+      int pIdx( simVtx.parentIndex() );
+      if( pIdx!=barcode) continue;
 
-		  //check for nucleons or nuclei, neutral pions or gammas
-		  if(tkType==2112 || tkType==2212 || tkType>1000000000 || tkType==111 || tkType==22) tkMult++;
-		}
-	      if(tkMult>2) return  math::XYZVectorD(simvertex.position());
-	    }
+      int vtxIdx(simVtx.vertexId());
+      int rawTkMult(0),eTkMult(0),gTkMult(0),nTkMult(0),nucleiTkMult(0),pTkMult(0);
+      for (const SimTrack &vtxTk : *SimTk)
+	{
+	  int tkVtxIdx( vtxTk.vertIndex() ); 
+	  if(tkVtxIdx!=vtxIdx) continue;
+	  
+	  int tkType=vtxTk.type();
+	  rawTkMult++;
+	  eTkMult      += (abs(tkType)==11);
+	  gTkMult      += (abs(tkType)==22);
+	  nTkMult      += (abs(tkType)==2112 || abs(tkType)==2212);
+	  nucleiTkMult += (abs(tkType)>1000000000);
+	  pTkMult      += (abs(tkType)==211 || abs(tkType)==111);
 	}
+      
+      if(rawTkMult<2) continue;
+
+      if(rawTkMult==3 && nTkMult==1 && nucleiTkMult==1 && pTkMult==1) chargedInteraction=true;
+      return math::XYZVectorD(simVtx.position());
+
     }
 
   return math::XYZVectorD(0,0,0);

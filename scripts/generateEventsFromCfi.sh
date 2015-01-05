@@ -17,7 +17,7 @@ HEF_AIR=""
 TAG=""
 PHYSLIST="QGSP_FTFP_BERT_EML"
 TKFILTER=""
-SIMONLY="False"
+SIMONLY=""
 PU=0
 while getopts "hp:e:n:c:o:w:j:g:t:l:xzfsa:" opt; do
     case "$opt" in

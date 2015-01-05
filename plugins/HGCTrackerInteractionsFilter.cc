@@ -43,7 +43,7 @@ bool HGCTrackerInteractionsFilter::filter(edm::Event &iEvent, const edm::EventSe
 
       //sim tracks and vertices
       math::XYZVectorD hitPos=getInteractionPosition(p,SimTk,SimVtx,genBarcodes->at(igen));
-      nHitsBeforeHGC=(hitPos.z()<317);
+      nHitsBeforeHGC=(fabs(hitPos.z())<317);
     }
   
   bool accept(nHitsBeforeHGC<maxGenParts);
@@ -58,38 +58,33 @@ math::XYZVectorD HGCTrackerInteractionsFilter::getInteractionPosition(const reco
 							     edm::Handle<edm::SimVertexContainer> &SimVtx,
 							     int barcode)
 {
-  for (const SimTrack &simtrack : *SimTk) 
+  //loop over vertices
+  for (const SimVertex &simVtx : *SimVtx) 
     {
-      if (simtrack.genpartIndex()!=barcode) continue;
-      int simid = simtrack.trackId();
-      for (const SimVertex &simvertex : *SimVtx) 
-	{
-	  //for neutrals only one vertex
-	  if(genp.charge()==0)
-	    {
-	      if (simvertex.parentIndex()!=simid) continue;
-	      return math::XYZVectorD(simvertex.position());
-	    }
-	  else
-	    {
-	      uint32_t tkMult(0);
-	      for (const SimTrack &dausimtrack : *SimTk)
-		{
-		  int dausimid=dausimtrack.trackId();
-		  if(dausimid==simid) continue;
-		  unsigned int vtxIdx=dausimtrack.vertIndex(); 
-		  if(vtxIdx!=simvertex.vertexId()) continue;
-		  int tkType=abs(dausimtrack.type());
-		  
-		  //neglect ionization products
-		  if(tkType==11) continue;
+      //require the parent to be the given barcode
+      bool noParent( simVtx.noParent() );
+      if(noParent) continue;
+      int pIdx( simVtx.parentIndex() );
+      if( pIdx!=barcode) continue;
 
-		  //check for nucleons or nuclei, neutral pions or gammas
-		  if(tkType==2112 || tkType==2212 || tkType>1000000000 || tkType==111 || tkType==22) tkMult++;
-		}
-	      if(tkMult>2) return  math::XYZVectorD(simvertex.position());
-	    }
+      int vtxIdx(simVtx.vertexId());
+      int rawTkMult(0),eTkMult(0),gTkMult(0),nTkMult(0),nucleiTkMult(0),pTkMult(0);
+      for (const SimTrack &vtxTk : *SimTk)
+	{
+	  int tkVtxIdx( vtxTk.vertIndex() ); 
+	  if(tkVtxIdx!=vtxIdx) continue;
+	  
+	  int tkType=vtxTk.type();
+	  rawTkMult++;
+	  eTkMult      += (abs(tkType)==11);
+	  gTkMult      += (abs(tkType)==22);
+	  nTkMult      += (abs(tkType)==2112 || abs(tkType)==2212);
+	  nucleiTkMult += (abs(tkType)>1000000000);
+	  pTkMult      += (abs(tkType)==211 || abs(tkType)==111);
 	}
+      
+      if(rawTkMult<2) continue;
+      return math::XYZVectorD(simVtx.position());
     }
 
   return math::XYZVectorD(0,0,0);
