@@ -37,9 +37,10 @@ for f in allFiles :
         print totEvts
         #mergeFiles.append(f)
     except:
-        os.system('cmsRm %s'%f)
-        print 'Removed %s as no valid number of events was found'%f
-    
+        pos = f.find('/store')
+        result=commands.getstatusoutput('cmsRm %s'%(f[pos:]))
+        print 'Removed %s as no valid number of events was found'%(f[pos:])
+
 #    if len(mergeFiles)==4: 
 #        igroup=igroup+1
 #        runMergeFiles(mergeFiles,igroup,opt)
