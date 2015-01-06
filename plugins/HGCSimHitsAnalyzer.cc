@@ -57,6 +57,7 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   t_->Branch("genHitZ",  &genHitZ_,  "genHitZ/F");  
   t_->Branch("hasInteractionBeforeHGC",   &hasInteractionBeforeHGC_, "hasInteractionBeforeHGC/O");
   t_->Branch("hasChargedInteraction",     &hasChargedInteraction_,   "hasChargedInteraction/O");
+  t_->Branch("layerShowerStart",          &layerShowerStart_,        "layerShowerStart/I");
   t_->Branch("nlay",        &nlay_,       "nlay/I");
   t_->Branch("pfMatchId",   &pfMatchId_,  "pfMatchId/I");
 
@@ -223,12 +224,28 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
   std::vector< edm::ESHandle<HGCalGeometry> > geom(geometrySource_.size());
   nlay_=0;
   std::vector<int> layerCtrOffset;
+  std::vector<float> layerZ;
   for(size_t i=0; i<geometrySource_.size(); i++)  {
     iSetup.get<IdealGeometryRecord>().get(geometrySource_[i],geom[i]);
     const HGCalTopology &topo=geom[i]->topology();
     const HGCalDDDConstants &dddConst=topo.dddConstants(); 
     layerCtrOffset.push_back(nlay_);
-    nlay_ += dddConst.layers(true); 
+    nlay_ += dddConst.layers(true);
+
+    for(size_t ilay=0; ilay<dddConst.layers(true); ilay++)
+      {
+	uint32_t mySubDet(ForwardSubdetector::HGCEE);
+	if(i==1) mySubDet=ForwardSubdetector::HGCHEF;
+	else if(i==2) mySubDet=ForwardSubdetector::HGCHEB;
+	uint32_t recoDetId = ( (i==0) ?
+			       (uint32_t)HGCEEDetId(ForwardSubdetector(mySubDet),0,ilay+1,1,0,1):
+			       (uint32_t)HGCHEDetId(ForwardSubdetector(mySubDet),0,ilay+1,1,0,1)
+			       );
+	
+	//require to be on the same side of the generated particle
+	const GlobalPoint pos( std::move( geom[i]->getPosition(recoDetId) ) );	  
+	layerZ.push_back(fabs(pos.z()));
+      }
   }
 
   //ready to roll and loop over generator level particles
@@ -262,6 +279,17 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       genHitZ_=hitPos.z();
       hasInteractionBeforeHGC_=(fabs(hitPos.z())<317);
       
+      //match nearest HGC layer in Z
+      float dzMin(99999999.);
+      for(size_t ilay=0; ilay<layerZ.size(); ilay++)
+	{
+	  float dz=fabs(fabs(layerZ[ilay])-fabs(genHitZ_));
+	  if(dz>dzMin) continue;
+	  dzMin=dz;
+	  layerShowerStart_=ilay;
+	}
+
+
       //hits
       std::unordered_map<uint32_t,uint32_t> recHitsIdMap; //needed to decode hits in clusters
       std::map<TString, std::map<uint32_t,float> > allEdeps, allCtrlEdeps;
