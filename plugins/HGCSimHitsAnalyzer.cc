@@ -1,4 +1,5 @@
 #include "UserCode/HGCanalysis/plugins/HGCSimHitsAnalyzer.h"
+#include "UserCode/HGCanalysis/interface/HGCAnalysisTools.h"
 
 #include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHitFwd.h"
@@ -197,9 +198,9 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
   if(genParticles->size()>maxGenParts) std::cout << "[Warning] found more than " << maxGenParts << " gen particles, will save only first " << maxGenParts << std::endl;
 
   //Geant4 collections
-  edm::Handle<edm::SimTrackContainer> SimTk;
+  edm::Handle<std::vector<SimTrack> > SimTk;
   iEvent.getByLabel(g4TracksSource_,SimTk);
-  edm::Handle<edm::SimVertexContainer> SimVtx;
+  edm::Handle<std::vector<SimVertex> > SimVtx;
   iEvent.getByLabel(g4VerticesSource_,SimVtx); 
   edm::Handle<std::vector<int> > genBarcodes;
   iEvent.getByLabel("genParticles",genBarcodes);  
@@ -273,12 +274,14 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	}
 
       //sim tracks and vertices
-      math::XYZVectorD hitPos=getInteractionPosition(p,SimTk,SimVtx,genBarcodes->at(igen),hasChargedInteraction_);
+      G4InteractionPositionInfo intInfo=getInteractionPosition(SimTk.product(),SimVtx.product(),genBarcodes->at(igen));
+      math::XYZVectorD hitPos=intInfo.pos;
       genHitX_=hitPos.x();
       genHitY_=hitPos.y();
       genHitZ_=hitPos.z();
       hasInteractionBeforeHGC_=(fabs(hitPos.z())<317);
-      
+      hasChargedInteraction_=intInfo.info;
+
       //match nearest HGC layer in Z
       float dzMin(99999999.);
       for(size_t ilay=0; ilay<layerZ.size(); ilay++)
@@ -730,49 +733,6 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       //that's all folks...
       t_->Fill();
     }
-}
-
-
-//
-math::XYZVectorD HGCSimHitsAnalyzer::getInteractionPosition(const reco::GenParticle & genp,
-							    edm::Handle<edm::SimTrackContainer> &SimTk,
-							    edm::Handle<edm::SimVertexContainer> &SimVtx,
-							    int barcode,
-							    bool &chargedInteraction)
-{
-  //loop over vertices
-  for (const SimVertex &simVtx : *SimVtx) 
-    {
-      //require the parent to be the given barcode
-      bool noParent( simVtx.noParent() );
-      if(noParent) continue;
-      int pIdx( simVtx.parentIndex() );
-      if( pIdx!=barcode) continue;
-
-      int vtxIdx(simVtx.vertexId());
-      int rawTkMult(0),eTkMult(0),gTkMult(0),nTkMult(0),nucleiTkMult(0),pTkMult(0);
-      for (const SimTrack &vtxTk : *SimTk)
-	{
-	  int tkVtxIdx( vtxTk.vertIndex() ); 
-	  if(tkVtxIdx!=vtxIdx) continue;
-	  
-	  int tkType=vtxTk.type();
-	  rawTkMult++;
-	  eTkMult      += (abs(tkType)==11);
-	  gTkMult      += (abs(tkType)==22);
-	  nTkMult      += (abs(tkType)==2112 || abs(tkType)==2212);
-	  nucleiTkMult += (abs(tkType)>1000000000);
-	  pTkMult      += (abs(tkType)==211 || abs(tkType)==111);
-	}
-      
-      if(rawTkMult<2) continue;
-
-      if(rawTkMult==3 && nTkMult==1 && nucleiTkMult==1 && pTkMult==1) chargedInteraction=true;
-      return math::XYZVectorD(simVtx.position());
-
-    }
-
-  return math::XYZVectorD(0,0,0);
 }
 
 

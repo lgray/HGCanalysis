@@ -16,10 +16,6 @@
 
 #include "SimDataFormats/CaloHit/interface/PCaloHit.h"
 #include "SimDataFormats/CaloHit/interface/PCaloHitContainer.h"
-#include "SimDataFormats/Track/interface/SimTrack.h"
-#include "SimDataFormats/Track/interface/SimTrackContainer.h"
-#include "SimDataFormats/Vertex/interface/SimVertex.h"
-#include "SimDataFormats/Vertex/interface/SimVertexContainer.h"
 
 #include "DataFormats/Candidate/interface/Candidate.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
@@ -54,9 +50,6 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   virtual void analyze( const edm::Event&, const edm::EventSetup& );
 
  private:
-
-  //
-  math::XYZVectorD getInteractionPosition(const reco::GenParticle & genp, edm::Handle<edm::SimTrackContainer> &SimTk, edm::Handle<edm::SimVertexContainer> &SimVtx, int barcode, Bool_t &hasChargedInteraction);
 
   //
   inline void resetCounters()

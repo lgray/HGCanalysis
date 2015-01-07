@@ -1,4 +1,5 @@
 #include "UserCode/HGCanalysis/plugins/HGCTrackerInteractionsFilter.h"
+#include "UserCode/HGCanalysis/interface/HGCAnalysisTools.h"
 
 using namespace std;
 
@@ -39,55 +40,16 @@ bool HGCTrackerInteractionsFilter::filter(edm::Event &iEvent, const edm::EventSe
   for(size_t igen=0; igen<maxGenParts; igen++)
     {
       //mc truth
-      const reco::GenParticle & p = (*genParticles)[igen];
+      //const reco::GenParticle & p = (*genParticles)[igen];
 
-      //sim tracks and vertices
-      math::XYZVectorD hitPos=getInteractionPosition(p,SimTk,SimVtx,genBarcodes->at(igen));
+      //sim tracks and vertices      
+      math::XYZVectorD hitPos=getInteractionPosition(SimTk.product(),SimVtx.product(),genBarcodes->at(igen)).pos;
       nHitsBeforeHGC=(fabs(hitPos.z())<317);
     }
   
   bool accept(nHitsBeforeHGC<maxGenParts);
   cout << "For " << maxGenParts << " analyzed found " << nHitsBeforeHGC << " interacting in tracker => decision=" << accept << endl;
   return accept;
-}
-
-
-//
-math::XYZVectorD HGCTrackerInteractionsFilter::getInteractionPosition(const reco::GenParticle & genp,
-							     edm::Handle<edm::SimTrackContainer> &SimTk,
-							     edm::Handle<edm::SimVertexContainer> &SimVtx,
-							     int barcode)
-{
-  //loop over vertices
-  for (const SimVertex &simVtx : *SimVtx) 
-    {
-      //require the parent to be the given barcode
-      bool noParent( simVtx.noParent() );
-      if(noParent) continue;
-      int pIdx( simVtx.parentIndex() );
-      if( pIdx!=barcode) continue;
-
-      int vtxIdx(simVtx.vertexId());
-      int rawTkMult(0),eTkMult(0),gTkMult(0),nTkMult(0),nucleiTkMult(0),pTkMult(0);
-      for (const SimTrack &vtxTk : *SimTk)
-	{
-	  int tkVtxIdx( vtxTk.vertIndex() ); 
-	  if(tkVtxIdx!=vtxIdx) continue;
-	  
-	  int tkType=vtxTk.type();
-	  rawTkMult++;
-	  eTkMult      += (abs(tkType)==11);
-	  gTkMult      += (abs(tkType)==22);
-	  nTkMult      += (abs(tkType)==2112 || abs(tkType)==2212);
-	  nucleiTkMult += (abs(tkType)>1000000000);
-	  pTkMult      += (abs(tkType)==211 || abs(tkType)==111);
-	}
-      
-      if(rawTkMult<2) continue;
-      return math::XYZVectorD(simVtx.position());
-    }
-
-  return math::XYZVectorD(0,0,0);
 }
 
 

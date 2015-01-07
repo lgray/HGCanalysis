@@ -6,11 +6,11 @@ process.load('Configuration.StandardSequences.Services_cff')
 process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')    
 process.load('FWCore.MessageService.MessageLogger_cfi')
 #v5 geometry
-#process.load('Configuration.Geometry.GeometryExtended2023HGCalMuonReco_cff')
-#process.load('Configuration.Geometry.GeometryExtended2023HGCalMuon_cff')
+process.load('Configuration.Geometry.GeometryExtended2023HGCalMuonReco_cff')
+process.load('Configuration.Geometry.GeometryExtended2023HGCalMuon_cff')
 #v4 geometry
-process.load('Configuration.Geometry.GeometryExtended2023HGCalV4MuonReco_cff')
-process.load('Configuration.Geometry.GeometryExtended2023HGCalV4Muon_cff')
+#process.load('Configuration.Geometry.GeometryExtended2023HGCalV4MuonReco_cff')
+#process.load('Configuration.Geometry.GeometryExtended2023HGCalV4Muon_cff')
 process.load('Configuration.StandardSequences.MagneticField_38T_PostLS1_cff')
 
 ## MessageLogger

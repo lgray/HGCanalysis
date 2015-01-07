@@ -1,4 +1,5 @@
 #include "UserCode/HGCanalysis/interface/HuffmanAlgo.h"
+#include "UserCode/HGCanalysis/interface/HGCAnalysisTools.h"
 
 #ifdef __CINT__
 
@@ -17,6 +18,8 @@
 #pragma link C++ function getTriggerBits;
 #pragma link C++ function getReadoutBits;
 #pragma link C++ function testCompressionAlgos;
+#pragma link C++ struct G4InteractionPositionInfo;
+#pragma link C++ function getInteractionPosition;
 
 #endif
 

@@ -78,7 +78,7 @@ void HGCHitsAnalyzer::analyzeGenParticles(edm::Handle<edm::View<reco::Candidate>
       for(size_t k=0; k<genJets->size(); ++k)
 	{
 	  const reco::GenJet & j =(*genJets)[k];
-	  if(j.pt()<20 || fabs(j.eta())>4.7) continue;
+	  if(j.pt()<10 || fabs(j.eta())>4.7) continue;
 	  simEvt_.genj_en[simEvt_.njgen]=j.energy();
 	  simEvt_.genj_eta[simEvt_.njgen]=j.eta();
 	  simEvt_.genj_phi[simEvt_.njgen]=j.phi();
@@ -90,7 +90,6 @@ void HGCHitsAnalyzer::analyzeGenParticles(edm::Handle<edm::View<reco::Candidate>
 	  if(simEvt_.njgen>=MAXGENPEREVENT) break;
 	}
     }
-  cout << simEvt_.ngen << " " << simEvt_.njgen << endl;
 }
   
 //
@@ -131,6 +130,27 @@ void HGCHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &
 	  //decode position
 	  const GlobalPoint refPos( std::move( geom->getPosition(recoDetId) ) );
 	  int layer( ((recoDetId >> 19) & 0x1f) + layerCtrOffset-1 );
+
+	  
+	  //use gen jets and neutrinos to define regions of interest
+	  bool keep(false);
+	  for(int ijgen=0; ijgen<simEvt_.njgen; ijgen++)
+	    {
+	      float dR=deltaR(simEvt_.genj_eta[ijgen], simEvt_.genj_phi[ijgen],refPos.eta(),refPos.phi());
+	      if(dR>0.6) continue;
+	      keep=true;
+	      break;
+	    }
+	  for(int ipgen=0; ipgen<simEvt_.ngen; ipgen++)
+	    {
+	      int id(abs(simEvt_.gen_id[ipgen]));
+	      if(id!=12 && id!=14 && id!=16) continue;
+	      float dR=deltaR(simEvt_.gen_eta[ipgen],simEvt_.gen_phi[ipgen],refPos.eta(),refPos.phi());
+	      if(dR>0.6) continue;
+	      keep=true;
+	      break;
+	    }
+	  if(!keep) continue;
 
 	  simEvt_.hit_layer[simEvt_.nhits]=layer;
 	  simEvt_.hit_x[simEvt_.nhits] = refPos.x();

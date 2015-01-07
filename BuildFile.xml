@@ -1,6 +1,10 @@
 <use name="DetectorDescription/Base"/>
 <use name="SimDataFormats/GeneratorProducts"/>
 <use name="CommonTools/UtilAlgos"/>
+<use name="SimDataFormats/Track"/>
+<use name="SimDataFormats/Vertex"/>
+<use name="DataFormats/Common"/>
+<use name="DataFormats/HepMCCandidate"/>
 <use name="root"/>
 <use name="clhep"/>
 <export>
