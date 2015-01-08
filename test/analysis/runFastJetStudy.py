@@ -83,8 +83,6 @@ for event in events:
     #loop over gen jets
     for genjet in gjhandle.product():
         genP4=ROOT.TLorentzVector (genjet.px(), genjet.py(), genjet.pz(), genjet.energy())
-
-        histos['gjcount'].Fill(ROOT.TMath.Abs(genjet.eta()))
         
         #matched gen particle
         minDR=0.4
@@ -99,6 +97,11 @@ for event in events:
                 hasTkInt=genCandidateInteractsInTracker[igenp]
                 minDR=dR
 
+        cats=['']
+        if not hasTkInt and matchedgenp and options.traceTkInt: cats.append('_notkint')
+
+        for c in cats: histos['gjcount'+c].Fill(ROOT.TMath.Abs(genjet.eta()))
+
         #matched reconstructed jet
         minDR=0.4
         matchedjet=None
@@ -112,8 +115,6 @@ for event in events:
 
 
         #fill histos
-        cats=['']
-        if not hasTkInt and matchedgenp and options.traceTkInt: cats.append('_notkint')
         for c in cats:
             histos['jcount'+c].Fill(ROOT.TMath.Abs(genjet.eta()))
             histos['eresol'+c].Fill((matchedjet.energy()-genjet.energy()) / genjet.energy())
