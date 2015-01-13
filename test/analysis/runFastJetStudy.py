@@ -34,7 +34,7 @@ gbclabel  = ('genParticles')
 gchandle  = Handle('std::vector<reco::GenParticle>')
 gclabel   = ('genParticles')
 
-#print 'File Run Lumi Event'
+print 'File Run Lumi Event'
 
 # Create histograms, etc.
 ROOT.gROOT.SetBatch()        # don't pop up canvases
@@ -129,10 +129,11 @@ for event in events:
             histos['mufrac'+c].Fill(matchedjet.muonEnergyFraction())
 
 
-        #eresp=matchedjet.energy() / genjet.energy()
-        #if eresp>1.4 :
-        #    evaux=event.eventAuxiliary()
-        #    print options.inputFiles[event.fileIndex()],evaux.run(),evaux.luminosityBlock(),evaux.event()
+        eresp=matchedjet.energy() / genjet.energy()
+        if matchedgenp and  options.traceTkInt and not hasTkInt :
+            if (matchedgenp.pdgId()==22 and eresp>1.4) or (ROOT.TMath.Abs(matchedgenp.pdgId())==211 and eresp>1.6) :
+                evaux=event.eventAuxiliary()
+                print options.inputFiles[event.fileIndex()],evaux.run(),evaux.luminosityBlock(),evaux.event()
 
 
 #dump to file

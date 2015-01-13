@@ -20,13 +20,12 @@
 #include "SimG4CMS/Calo/interface/HGCNumberingScheme.h"
 #include "Geometry/FCalGeometry/interface/HGCalGeometry.h"
 
+#include "FWCore/ParameterSet/interface/FileInPath.h"
 
-
+#include "UserCode/HGCanalysis/interface/HGCROI.h"
 #include "UserCode/HGCanalysis/interface/HGCSimulationEvent.h"
 
-
-
-
+#include "TH2F.h"
 #include "TH1F.h"
 #include "TTree.h"
 
@@ -48,20 +47,32 @@ class HGCHitsAnalyzer : public edm::EDAnalyzer
 
  private:
 
-  /**
-     @short loops over genparticles and saves a summary of stable (status=1) particles incoming to the detector
-   */
-  void analyzeGenParticles(edm::Handle<edm::View<reco::Candidate> > &genParticles,edm::Handle<reco::GenJetCollection> &genJets);
+  virtual void endJob() ;
 
-  /**
-     @short accumulate sim hits
-   */
-  //void analyzeHits(size_t isd,edm::Handle<edm::PCaloHitContainer> &caloHits,const HGCalGeometry *geom);
-  
+  int evtCtr_;
+
   //tree and summary ntuple
   TTree *t_;
   HGCSimEvent_t simEvt_;
+
+  //
+  HGCROI roi_;
+  TH2F *regsH_;
+  Int_t nLayerBins_, nEtaBins_;
+
+  TH2F *csidrH_,*csitdrH_;
+  Int_t   ndRbins_,       nCsiBins_;
+  Float_t drMin_, drMax_, csiMin_,csiMax_;
+
+  TH2F *medianPU_csiH_,  *widthPU_csiH_;
+  TH2F *medianPU_csitH_, *widthPU_csitH_;
+
+  //
+  bool taggingMode_;
   
+  //
+  edm::FileInPath roipuParamFile_;
+
   //gen level
   std::string genSource_, genJetsSource_;
   

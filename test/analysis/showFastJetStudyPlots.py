@@ -30,7 +30,38 @@ for h in ['ptresol','eresol','ptresp','eresp']:
     MyPaveText('#bf{CMS} #it{simulation}')
     c.SaveAs('fastjet_%s.png'%h)
 
+c.Clear()
 gr={}
+gjcount=fin.Get('gjcount')
+jcount=fin.Get('jcount')
+gjcount_notkint=fin.Get('gjcount_notkint')
+jcount_notkint=fin.Get('jcount_notkint')
+if gjcount and jcount:
+    gr['inc']=ROOT.TGraphAsymmErrors()
+    gr['inc'].BayesDivide(jcount,gjcount)
+    gr['inc'].SetMarkerStyle(20)
+    gr['inc'].SetFillStyle(0)
+    gr['inc'].SetTitle('inclusive')
+    gr['inc'].Draw('ap')
+    gr['inc'].GetYaxis().SetTitle("Efficiency")
+    gr['inc'].GetXaxis().SetTitle("Pseudo-rapidity")
+    gr['inc'].GetYaxis().SetRangeUser(0.7,1.05)
+    gr['notkint']=ROOT.TGraphAsymmErrors()
+    gr['notkint'].BayesDivide(jcount_notkint,gjcount_notkint)
+    gr['notkint'].SetMarkerStyle(20)
+    gr['notkint'].SetMarkerColor(ROOT.kRed)
+    gr['notkint'].SetLineColor(ROOT.kRed)
+    gr['notkint'].SetFillStyle(0)
+    gr['notkint'].SetTitle('interacting in HGC')
+    gr['notkint'].Draw('p')
+    leg=c.BuildLegend(0.3,0.3,0.5,0.5)    
+    leg.SetFillStyle(0)
+    leg.SetBorderSize(0)
+    leg.SetTextFont(42)
+    leg.SetTextSize(0.03)
+    MyPaveText('#bf{CMS} #it{simulation}')
+    c.SaveAs('fastjet_eff.png')
+
 for cat in ['','_notkint']:
     c.Clear()
     fracplots=[]
@@ -59,22 +90,9 @@ for cat in ['','_notkint']:
     leg.SetNColumns(2)
     c.SaveAs('fastjet_constfrac%s.png'%cat)
 
-    c.Clear()
-    c.SetLogy(False)
-    gjcount=fin.Get('gjcount'+cat)
-    jcount=fin.Get('jcount'+cat)
-    if not gjcount or not jcount: continue
-    gr[cat]=ROOT.TGraphAsymmErrors()
-    gr[cat].BayesDivide(jcount,gjcount)
-    gr[cat].SetMarkerStyle(20)
-    gr[cat].Draw('ap')
-    gr[cat].GetYaxis().SetTitle("Efficiency")
-    gr[cat].GetXaxis().SetTitle("Pseudo-rapidity")
-    gr[cat].GetYaxis().SetRangeUser(0.7,1.05)
-    MyPaveText('#bf{CMS} #it{simulation}')
-    c.SaveAs('fastjet_eff%s.png'%cat)
 
     c.Clear()
+    c.SetLogy(False)
     c.SetRightMargin(0.12)
     h2d=fin.Get('erespvsgfrac'+cat)
     if not h2d : continue

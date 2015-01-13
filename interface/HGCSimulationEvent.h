@@ -26,7 +26,7 @@ struct  HGCSimEvent_t
   Short_t hit_layer[MAXHGCHITSPEREVENT];
   Float_t hit_x[MAXHGCHITSPEREVENT],hit_y[MAXHGCHITSPEREVENT],hit_z[MAXHGCHITSPEREVENT];
   Float_t hit_eta[MAXHGCHITSPEREVENT],hit_phi[MAXHGCHITSPEREVENT];
-  Float_t hit_edep[MAXHGCHITSPEREVENT];
+  Float_t hit_edep[MAXHGCHITSPEREVENT],hit_wgt[MAXHGCHITSPEREVENT],hit_wgt_t[MAXHGCHITSPEREVENT];
   
   HGCSimEvent_t()
   {
@@ -38,6 +38,6 @@ struct  HGCSimEvent_t
 
 
 void initHGCSimulationEventTree(TTree *t,HGCSimEvent_t &simEvt);
-
+void attachHGCSimulationEventTree(TTree *t,HGCSimEvent_t &simEvt);
 
 #endif

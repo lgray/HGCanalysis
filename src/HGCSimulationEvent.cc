@@ -25,9 +25,46 @@ void initHGCSimulationEventTree(TTree *t,HGCSimEvent_t &simEvt)
   t->Branch("nhits",     &simEvt.nhits,      "nhits/I");
   t->Branch("hit_layer",  simEvt.hit_layer,  "hit_layer[nhits]/S");
   t->Branch("hit_edep",   simEvt.hit_edep,   "hit_edep[nhits]/F");
+  t->Branch("hit_wgt",    simEvt.hit_wgt,    "hit_wgt[nhits]/F");
+  t->Branch("hit_wgt_t",  simEvt.hit_wgt_t,  "hit_wgt_t[nhits]/F");
   t->Branch("hit_x",      simEvt.hit_x,      "hit_x[nhits]/F");
   t->Branch("hit_y",      simEvt.hit_y,      "hit_y[nhits]/F");
   t->Branch("hit_z",      simEvt.hit_z,      "hit_z[nhits]/F");
   t->Branch("hit_eta",    simEvt.hit_eta,    "hit_eta[nhits]/F");
   t->Branch("hit_phi",    simEvt.hit_phi,    "hit_phi[nhits]/F");
+}
+
+//
+void attachHGCSimulationEventTree(TTree *t,HGCSimEvent_t &simEvt)
+{
+  t->SetBranchAddress("run",       &simEvt.run);
+  t->SetBranchAddress("lumi",      &simEvt.lumi);
+  t->SetBranchAddress("event",     &simEvt.event);
+
+  t->SetBranchAddress("ngen",      &simEvt.ngen);
+  t->SetBranchAddress("gen_id",     simEvt.gen_id);
+  t->SetBranchAddress("gen_pt",     simEvt.gen_pt);
+  t->SetBranchAddress("gen_eta",    simEvt.gen_eta);
+  t->SetBranchAddress("gen_phi",    simEvt.gen_phi);
+  t->SetBranchAddress("gen_en",     simEvt.gen_en);
+
+  t->SetBranchAddress("njgen",       &simEvt.njgen);
+  t->SetBranchAddress("genj_pt",      simEvt.genj_pt);
+  t->SetBranchAddress("genj_eta",     simEvt.genj_eta);
+  t->SetBranchAddress("genj_phi",     simEvt.genj_phi);
+  t->SetBranchAddress("genj_en",      simEvt.genj_en);
+  t->SetBranchAddress("genj_emfrac",  simEvt.genj_emfrac);
+  t->SetBranchAddress("genj_hadfrac", simEvt.genj_hadfrac);
+  t->SetBranchAddress("genj_invfrac", simEvt.genj_invfrac);
+
+  t->SetBranchAddress("nhits",     &simEvt.nhits);
+  t->SetBranchAddress("hit_layer",  simEvt.hit_layer);
+  t->SetBranchAddress("hit_edep",   simEvt.hit_edep);
+  t->SetBranchAddress("hit_wgt",    simEvt.hit_wgt);
+  t->SetBranchAddress("hit_wgt_t",  simEvt.hit_wgt_t);
+  t->SetBranchAddress("hit_x",      simEvt.hit_x);
+  t->SetBranchAddress("hit_y",      simEvt.hit_y);
+  t->SetBranchAddress("hit_z",      simEvt.hit_z);
+  t->SetBranchAddress("hit_eta",    simEvt.hit_eta);
+  t->SetBranchAddress("hit_phi",    simEvt.hit_phi);
 }
