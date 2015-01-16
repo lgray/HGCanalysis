@@ -1,6 +1,8 @@
 #ifndef _roiinfo_h_
 #define _roiinfo_h_
 
+#include <iostream>
+
 #include "DataFormats/Math/interface/deltaR.h"
 
 #include "TMath.h"
@@ -19,6 +21,7 @@ class ROIInfo
 
   float dr[4];
   float en[4][3][2],     et2[4][3][2], eta[4][3][2], phi[4][3][2],  shh[4][3][2],   shp[4][3][2], spp[4][3][2], width[4][3][2], totalVolume[4][3][2];
+  int nhits[4][3][2];
   float en_lay[4][54][2],x[4][54][2],  y[4][54][2],  rho[4][54][2], rho2[4][54][2], area[4][54][2];
   float z[54];
 
@@ -40,6 +43,7 @@ class ROIInfo
 	      for(size_t k=0; k<2; k++)	
 		{
 		  en[i][j][k] =other.en[i][j][k]; 
+		  nhits[i][j][k] =other.nhits[i][j][k]; 
 		  et2[i][j][k]=other.et2[i][j][k];
 		  eta[i][j][k]=other.eta[i][j][k];
 		  phi[i][j][k]=other.phi[i][j][k];
@@ -121,14 +125,15 @@ class ROIInfo
 	  {
 	    float en_k=em_en*(k==0 ? 1.0 : hit_weight);
 	    float et_k(en_k/TMath::CosH(hit_eta));
-	    en[i][subDet][k]      += en_k;
+	    en[i][subDet][k]          += en_k;
+	    if(en_k>5) nhits[i][subDet][k]++;
 	    en_lay[i][hit_layer-1][k] += en_k;
-	    eta[i][subDet][k]     += en_k*hit_eta;
-	    phi[i][subDet][k]     += en_k*hit_phi;
-	    et2[i][subDet][k]     += pow(et_k,2);
-	    shh[i][subDet][k]     += pow(en_k*hit_deta,2);
-	    shp[i][subDet][k]     += -pow(en_k,2)*hit_deta*hit_dphi;
-	    spp[i][subDet][k]     += pow(en_k*hit_dphi,2);
+	    eta[i][subDet][k]         += en_k*hit_eta;
+	    phi[i][subDet][k]         += en_k*hit_phi;
+	    et2[i][subDet][k]         += pow(et_k,2);
+	    shh[i][subDet][k]         += pow(en_k*hit_deta,2);
+	    shp[i][subDet][k]         += -pow(en_k,2)*hit_deta*hit_dphi;
+	    spp[i][subDet][k]         += pow(en_k*hit_dphi,2);
 	    x[i][hit_layer-1][k]      += en_k*hit_x;
 	    y[i][hit_layer-1][k]      += en_k*hit_y;
 	    z[hit_layer-1]             = hit_z;
@@ -151,6 +156,7 @@ class ROIInfo
 	    for(size_t k=0; k<2; k++)	
 	      {
 		en[i][j][k]=0; 
+		nhits[i][j][k]=0; 
 		et2[i][j][k]=0;
 		eta[i][j][k]=0;
 		phi[i][j][k]=0;
@@ -198,6 +204,10 @@ class ROIInfo
 	   
 		if(et2[i][j][k]>0)
 		  {
+		    shh[i][j][k]/=et2[i][j][k];
+		    shp[i][j][k]/=et2[i][j][k];
+		    spp[i][j][k]/=et2[i][j][k];
+
 		    double mvals[4] = {
 		      shh[i][j][k], shp[i][j][k],
 		      shp[i][j][k], spp[i][j][k]
@@ -206,7 +216,7 @@ class ROIInfo
 		    TMatrixDSym m(2,mvals);
 		    TMatrixDSymEigen me(m);
 		    TVectorD eigenval = me.GetEigenValues();
-		    width[i][j][k] = sqrt((pow(eigenval[0],2)+pow(eigenval[1],2))/et2[i][j][k]);
+		    width[i][j][k] = sqrt(pow(eigenval[0],2)+pow(eigenval[1],2));
 		  }
 	      }
 	  }
@@ -220,7 +230,13 @@ class ROIInfo
 	      y[i][j][k]    /= en_lay[i][j][k];
 	      rho[i][j][k]  /= en_lay[i][j][k];
 	      rho2[i][j][k] /= en_lay[i][j][k];
-	      area[i][j][k] = TMath::Pi()*(rho2[i][j][k]-pow(rho[i][j][k],2));
+	      float sigma=rho2[i][j][k]-pow(rho[i][j][k],2);
+	      //if only one hit this may happen
+	      if(sigma<0) {
+		sigma=0.0;
+		//std::cout << "Negative sigma found, set to 0" << std::endl;
+	      }
+	      area[i][j][k] = TMath::Pi()*sigma;
 
 	      int subDet(0);
 	      if(j>30) subDet=1;

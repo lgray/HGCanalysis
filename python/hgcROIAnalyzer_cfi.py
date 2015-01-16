@@ -7,6 +7,6 @@ analysis = cms.EDAnalyzer("HGCROIAnalyzer",
                           hitCollections   = cms.untracked.vstring('HGCEERecHits',    'HGCHEFRecHits',            'HGCHEBRecHits'),
                           mipEn            = cms.untracked.vdouble(55.1,               85,                        1498.4),
                           taggingMode      = cms.untracked.bool(False), #True),
-                          saveHitsTree     = cms.untracked.bool(False),
+                          saveHitTree      = cms.untracked.bool(False),
                           roipuParamFile   = cms.untracked.FileInPath('UserCode/HGCanalysis/data/ROIPUparams.root')
                           )

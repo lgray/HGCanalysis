@@ -111,9 +111,11 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 	  
 	  //hard process
 	  bool isOutgoingNeutrino( p.status()==1 && (abs(p.pdgId())==12||abs(p.pdgId())==14||abs(p.pdgId())==16) );
-	  bool isStatus3qg( p.status()==3 && (abs(p.pdgId())<6 || abs(p.pdgId())==21) );
+	  //bool isStatus2qg( p.status()==2 && (abs(p.pdgId())<6 || abs(p.pdgId())==21) );
+	  bool isStatus3q( p.status()==3 && abs(p.pdgId())<6);
 	  bool isStatus2l( p.status()==2 && (abs(p.pdgId())==11 || abs(p.pdgId())==13 || abs(p.pdgId())==14));
-	  if(!isOutgoingNeutrino && !isStatus3qg && !isStatus2l) continue;
+	  //if(!isOutgoingNeutrino && !isStatus2qg && !isStatus2l) continue;
+	  if(!isOutgoingNeutrino && !isStatus3q && !isStatus2l) continue;
 	  
 	  simEvt_.gen_id[simEvt_.ngen]=p.pdgId();
 	  simEvt_.gen_pt[simEvt_.ngen]=p.pt();
@@ -144,18 +146,19 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 	  const reco::GenJet & j =(*genJets)[k];
 	  if(j.pt()<15 || fabs(j.eta())>4.7) continue;
 	  
-	  //require not to be matched to lepton
-	  float minDR(0.3);
-	  int matchedId(0);
+	  //require not to be matched to lepton (charged or neutrino)
+	  int matchedId(0),matchedIdx(-1);
 	  for(int igen=0; igen<simEvt_.ngen; igen++)
 	    {
 	      float dR=deltaR(simEvt_.gen_eta[igen],simEvt_.gen_phi[igen],j.eta(),j.phi());
-	      if(dR>minDR) continue;
-	      minDR=dR;
+	      if(dR>0.4) continue;
+	      if(matchedIdx>=0)
+		if(fabs(simEvt_.gen_en[igen]-j.energy())>fabs(simEvt_.gen_en[matchedIdx]-j.energy())) continue;
 	      matchedId=simEvt_.gen_id[igen];
+	      matchedIdx=igen;
 	    }
-	  if(abs(matchedId)==11 || abs(matchedId)==13 || abs(matchedId)==15) continue;
-	  
+	  if(abs(matchedId)>=11 && abs(matchedId)<=16) continue;
+
 	  //store information
 	  matchedGenJets.push_back( std::pair<const reco::GenJet *,int>(&j,matchedId) );
 	  if(simEvt_.njgen<MAXGENPEREVENT)
@@ -314,6 +317,8 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
       //
       for(size_t i=0; i<roi_.roiInfo_.size(); i++)
 	{
+	  roi_.roiInfo_[i].finalize();
+
 	  const reco::GenJet *j=matchedGenJets[ tagJetIdx[i] ].first;
 	  roiEvt_.gen_id=matchedGenJets[tagJetIdx[i] ].second;
 	  roiEvt_.gen_pt=j->pt();
@@ -334,12 +339,14 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 		  roiEvt_.phi[j][k]         = roi_.roiInfo_[i].phi[j][k][0];
 		  roiEvt_.width[j][k]       = roi_.roiInfo_[i].width[j][k][0];
 		  roiEvt_.totalVolume[j][k] = roi_.roiInfo_[i].totalVolume[j][k][0];
+		  roiEvt_.nhits[j][k]       = roi_.roiInfo_[i].nhits[j][k][0];
 
 		  roiEvt_.wgt_en[j][k]          = roi_.roiInfo_[i].en[j][k][1];
 		  roiEvt_.wgt_eta[j][k]         = roi_.roiInfo_[i].eta[j][k][1];
 		  roiEvt_.wgt_phi[j][k]         = roi_.roiInfo_[i].phi[j][k][1];
 		  roiEvt_.wgt_width[j][k]       = roi_.roiInfo_[i].width[j][k][1];
 		  roiEvt_.wgt_totalVolume[j][k] = roi_.roiInfo_[i].totalVolume[j][k][1];
+		  roiEvt_.wgt_nhits[j][k]       = roi_.roiInfo_[i].nhits[j][k][1];
 		}
 
 	      //per layer

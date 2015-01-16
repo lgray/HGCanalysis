@@ -16,6 +16,7 @@ void initHGCROITree(TTree *t,HGCROISummary_t &simEvt)
   t->Branch("gen_invfrac",    &simEvt.gen_invfrac,     "gen_invfrac/F"); 
 
   t->Branch("en", simEvt.en, "en[4][3]/F");
+  t->Branch("nhits", simEvt.nhits, "nhits[4][3]/I");
   t->Branch("eta", simEvt.eta, "eta[4][3]/F");
   t->Branch("phi", simEvt.phi, "phi[4][3]/F");
   t->Branch("width", simEvt.width, "width[4][3]/F");
@@ -24,6 +25,7 @@ void initHGCROITree(TTree *t,HGCROISummary_t &simEvt)
   t->Branch("y", simEvt.y, "y[4][54]/F");
 
   t->Branch("wgt_en", simEvt.wgt_en, "wgt_en[4][3]/F");
+  t->Branch("wgt_nhits", simEvt.wgt_nhits, "wgt_nhits[4][3]/I");
   t->Branch("wgt_eta", simEvt.wgt_eta, "wgt_eta[4][3]/F");
   t->Branch("wgt_phi", simEvt.wgt_phi, "wgt_phi[4][3]/F");
   t->Branch("wgt_width", simEvt.wgt_width, "wgt_width[4][3]/F");
@@ -52,6 +54,7 @@ void attachHGCSimulationEventTree(TTree *t,HGCROISummary_t &simEvt)
   t->SetBranchAddress("gen_invfrac", &simEvt.gen_invfrac);
 
   t->SetBranchAddress("en", simEvt.en);
+  t->SetBranchAddress("nhits", simEvt.nhits);
   t->SetBranchAddress("eta", simEvt.eta);
   t->SetBranchAddress("phi", simEvt.phi);
   t->SetBranchAddress("width", simEvt.width);
@@ -60,6 +63,7 @@ void attachHGCSimulationEventTree(TTree *t,HGCROISummary_t &simEvt)
   t->SetBranchAddress("y", simEvt.y);
 
   t->SetBranchAddress("wgt_en", simEvt.wgt_en);
+  t->SetBranchAddress("wgt_nhits", simEvt.wgt_nhits);
   t->SetBranchAddress("wgt_eta", simEvt.wgt_eta);
   t->SetBranchAddress("wgt_phi", simEvt.wgt_phi);
   t->SetBranchAddress("wgt_width", simEvt.wgt_width);
