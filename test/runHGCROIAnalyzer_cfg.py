@@ -1,6 +1,6 @@
 import FWCore.ParameterSet.Config as cms
 
-process = cms.Process("HGCSimHitsAnalysis")
+process = cms.Process("HGCROIAnalysis")
 
 process.load('Configuration.StandardSequences.Services_cff')
 process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')    
@@ -21,7 +21,7 @@ process.options   = cms.untracked.PSet( wantSummary = cms.untracked.bool(False),
                                         ) 
 
 # configure from command line
-# cmsRun test/runHGCHitsAnalyzer_cfg.py tag
+# cmsRun test/runHGCROIsAnalyzer_cfg.py tag
 # where tag can be any sub-directory under /store/cmst3/group/hgcal/CMSSW
 #           or any upgrade relval sample (may need tweaking for new releases...)
 ffile=0
@@ -60,7 +60,7 @@ import getpass
 whoami=getpass.getuser()
 outputTag=preFix.replace('/','_')
 process.TFileService = cms.Service("TFileService", fileName = cms.string('/tmp/%s/%s_Hits_%d.root'%(whoami,outputTag,ffile)))
-process.load('UserCode.HGCanalysis.hgcHitsAnalyzer_cfi')
+process.load('UserCode.HGCanalysis.hgcROIAnalyzer_cfi')
 
 #run it
 process.p = cms.Path(process.analysis)

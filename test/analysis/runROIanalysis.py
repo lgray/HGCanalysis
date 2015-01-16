@@ -41,8 +41,8 @@ def runGenLevelAnalysis(opt):
     fOut = ROOT.TFile("%s/ROIanalysis.root"%opt.output, "RECREATE")
     fOut.cd()
     subDets=['EE','FH','BH']
-    roiTypes=['dr01','dr02','dr03','dr04','2x2','3x3','5x5']
-    keysForHit=['raw','em','em_wgt','em_wgt_t']
+    roiTypes=['dr01','dr02','dr03','dr04'] #,'2x2','3x3','5x5']
+    keysForHit=['em','em_wgt'] #,'em_wgt_t']
     varNames={'genEn':numpy.zeros(1,dtype=float),
               'genEta':numpy.zeros(1,dtype=float),
               'genPhi':numpy.zeros(1,dtype=float),
@@ -54,9 +54,21 @@ def runGenLevelAnalysis(opt):
                 varNames['%s_%s_%s_en'%(det,roiKey,integKey)]=numpy.zeros(1,dtype=float)
                 varNames['%s_%s_%s_eta'%(det,roiKey,integKey)]=numpy.zeros(1,dtype=float)
                 varNames['%s_%s_%s_phi'%(det,roiKey,integKey)]=numpy.zeros(1,dtype=float)
+
+    varNames['roi_posx']=numpy.zeros(54,dtype=float)
+    varNames['roi_posy']=numpy.zeros(54,dtype=float)
+    varNames['roi_posz']=numpy.zeros(54,dtype=float)
+    for roiKey in roiTypes:
+        for integKey in keysForHit:
+            varNames['%s_%s_posx'%(roiKey,integKey)]=numpy.zeros(54,dtype=float)
+            varNames['%s_%s_posy'%(roiKey,integKey)]=numpy.zeros(54,dtype=float)
+
     ntuple=ROOT.TTree('ROITuple','ROITuple')
     for var in varNames:
-        ntuple.Branch(var, varNames[var], '%s/D'%var)
+        if var.find('_posx')>=0 or var.find('_posy')>=0 or var.find('_posz')>=0:
+            ntuple.Branch(var,varNames[var],'%s[54]/D'%var)
+        else:
+            ntuple.Branch(var, varNames[var], '%s/D'%var)
     ntuple.SetAutoSave(100000)
 
     #book histograms
@@ -115,7 +127,7 @@ def runGenLevelAnalysis(opt):
                 continue
 
             nselJets=len(jetP4)
-            jetP4.append([nj,ROOT.TLorentzVector()])
+            jetP4.append([nj,ROOT.TLorentzVector(),closestMatchId])
             jetP4[nselJets][1].SetPtEtaPhiE( HGC.genj_pt[nj], HGC.genj_eta[nj], HGC.genj_phi[nj], HGC.genj_en[nj] )
         if len(jetP4)<2 : continue
         histos['cutflow'].Fill(1)
@@ -141,7 +153,7 @@ def runGenLevelAnalysis(opt):
         
         #requirement for jets in HGC
         njetsInHGC=0
-        for jetIdx in [jetP4[tagJet1Idx][0],jetP4[tagJet2Idx][0]]:
+        for jetIdx,genMatchId in [jetP4[tagJet1Idx][0],jetP4[tagJet2Idx][0]],[jetP4[tagJet1Idx][2],jetP4[tagJet2Idx][2]]:
 
             absEta=ROOT.TMath.Abs(HGC.genj_eta[jetIdx])
 
@@ -153,10 +165,10 @@ def runGenLevelAnalysis(opt):
                 histos['invFrac'].Fill(HGC.genj_en[jetIdx],HGC.genj_invfrac[jetIdx])
 
                 hitsPerLayer={}
-                xyCentres={}
+                #xyCentres={}
                 for nlay in xrange(1,55): 
                     hitsPerLayer[nlay]=[]
-                    xyCentres[nlay]=[0,0]
+                    #xyCentres[nlay]=[0,0]
                 for ihit in xrange(0,HGC.nhits):
                     deta=HGC.genj_eta[jetIdx]-HGC.hit_eta[ihit]
                     dphi=ROOT.TVector2.Phi_mpi_pi(HGC.genj_phi[jetIdx]-HGC.hit_phi[ihit])
@@ -164,11 +176,16 @@ def runGenLevelAnalysis(opt):
                     if dr>0.6 : continue
                     hitsPerLayer[ HGC.hit_layer[ihit] ]. append( [dr,ihit] )
                     refRho=ROOT.TMath.Abs(HGC.hit_z[ihit]/ROOT.TMath.SinH(HGC.genj_eta[jetIdx]))
-                    xyCentres[ HGC.hit_layer[ihit] ] = [refRho*ROOT.TMath.Cos( HGC.genj_phi[jetIdx] ), refRho*ROOT.TMath.Sin(HGC.genj_phi[jetIdx] ) ]
+                    #xyCentres[ HGC.hit_layer[ihit] ] = [refRho*ROOT.TMath.Cos( HGC.genj_phi[jetIdx] ), refRho*ROOT.TMath.Sin(HGC.genj_phi[jetIdx] ) ]
+                    varNames['roi_posx'][ HGC.hit_layer[ihit]-1 ] = refRho*ROOT.TMath.Cos( HGC.genj_phi[jetIdx] )
+                    varNames['roi_posy'][ HGC.hit_layer[ihit]-1 ] = refRho*ROOT.TMath.Sin( HGC.genj_phi[jetIdx] )
+                    varNAmes['roi_posz'][ HGC.hit_layer[ihit]-1 ] = HGC.hit_z[ihit]
+
 
                 #fill variables of interest
                 for var in varNames:
                     if var=='genEn'        : varNames[var][0]=HGC.genj_en[jetIdx]
+                    elif var=='genId'      : varNames[var][0]=genMatchId
                     elif var=='genEta'     : varNames[var][0]=HGC.genj_eta[jetIdx]
                     elif var=='genPhi'     : varNames[var][0]=HGC.genj_phi[jetIdx]
                     elif var=='genPt'      : varNames[var][0]=HGC.genj_pt[jetIdx]
@@ -189,8 +206,11 @@ def runGenLevelAnalysis(opt):
                     for hit in hitsPerLayer[lay]:
                         hitCtr+=1
 
-                        dx=ROOT.TMath.Abs( xyCentres[lay][0]-HGC.hit_x[hit[1]] )
-                        dy=ROOT.TMath.Abs( xyCentres[lay][1]-HGC.hit_y[hit[1]] )
+                        x=HGC.hit_x[hit[1]]
+                        y=HGC.hit_y[hit[1]]
+                        dx=ROOT.TMath.Abs( varNames['roi_posx'][lay-1]-x)
+                        dy=ROOT.TMath.Abs( varNames['roi_posx'][lay-1]-x)
+                        rho=ROOT.TMath.Sqrt(dx*dx+dy*dy)
 
                         #check distance to centre
                         keysForHit=[]
@@ -198,9 +218,9 @@ def runGenLevelAnalysis(opt):
                         if hit[0]<0.2        : keysForHit.append('dr02')
                         if hit[0]<0.3        : keysForHit.append('dr03')
                         if hit[0]<0.4        : keysForHit.append('dr04')
-                        if dx<1.0 and dy<1.0 : keysForHit.append('2x2')
-                        if dx<1.5 and dy<1.5 : keysForHit.append('3x3')
-                        if dx<4.5 and dy<4.5 : keysForHit.append('5x5')
+                        #if dx<1.0 and dy<1.0 : keysForHit.append('2x2')
+                        #if dx<1.5 and dy<1.5 : keysForHit.append('3x3')
+                        #if dx<4.5 and dy<4.5 : keysForHit.append('5x5')
 
                         #variables of interest for the hit
                         eta           = HGC.hit_eta[ hit[1] ]
@@ -208,21 +228,26 @@ def runGenLevelAnalysis(opt):
                         edep          = HGC.hit_edep[ hit[1] ]
                         edep_em       = scaleToEM(edep, lay, eta)
                         edep_em_wgt   = edep_em*HGC.hit_wgt[ hit[1] ]
-                        edep_em_wgt_t = edep_em*HGC.hit_wgt_t[ hit[1] ]
+                        #edep_em_wgt_t = edep_em*HGC.hit_wgt_t[ hit[1] ]
 
                         for integKey in keysForHit:
-                            varNames['%s_%s_raw_en'%(det,integKey)][0]       += edep
-                            varNames['%s_%s_raw_eta'%(det,integKey)][0]      += edep*eta
-                            varNames['%s_%s_raw_phi'%(det,integKey)][0]      += edep*phi
                             varNames['%s_%s_em_en'%(det,integKey)][0]        += edep_em
                             varNames['%s_%s_em_eta'%(det,integKey)][0]       += edep_em*eta
                             varNames['%s_%s_em_phi'%(det,integKey)][0]       += edep_em*phi
+                            varNames['%s_em_posx'%(integKey)][0]             += edep_em*x
+                            varNames['%s_em_posy'%(integKey)][0]             += edep_em*y
+                            varNames['%s_em_rho'%(integKey)][0]              += edep_em*rho
+                            varNames['%s_em_rho2'%(integKey)][0]             += edep_em*rho*rho
                             varNames['%s_%s_em_wgt_en'%(det,integKey)][0]    += edep_em_wgt
                             varNames['%s_%s_em_wgt_eta'%(det,integKey)][0]   += edep_em_wgt*eta
                             varNames['%s_%s_em_wgt_phi'%(det,integKey)][0]   += edep_em_wgt*phi
-                            varNames['%s_%s_em_wgt_t_en'%(det,integKey)][0]  += edep_em_wgt_t
-                            varNames['%s_%s_em_wgt_t_eta'%(det,integKey)][0] += edep_em_wgt_t*eta
-                            varNames['%s_%s_em_wgt_t_phi'%(det,integKey)][0] += edep_em_wgt_t*phi
+                            varNames['%s_em_wgt_posx'%(integKey)][0]         += edep_em_wgt*x
+                            varNames['%s_em_wgt_posy'%(integKey)][0]         += edep_em_wgt*y
+                            varNames['%s_em_wgt_rho'%(integKey)][0]              += edep_em_wgt*rho
+                            varNames['%s_em_wgt_rho2'%(integKey)][0]             += edep_em_wgt*rho*rho
+                            #varNames['%s_%s_em_wgt_t_en'%(det,integKey)][0]  += edep_em_wgt_t
+                            #varNames['%s_%s_em_wgt_t_eta'%(det,integKey)][0] += edep_em_wgt_t*eta
+                            #varNames['%s_%s_em_wgt_t_phi'%(det,integKey)][0] += edep_em_wgt_t*phi
 
                 ntuple.Fill()
 

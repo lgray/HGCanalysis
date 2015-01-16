@@ -1,5 +1,5 @@
-#ifndef _HGCHitsAnalyzer_h_
-#define _HGCHitsAnalyzer_h_
+#ifndef _HGCROIAnalyzer_h_
+#define _HGCROIAnalyzer_h_
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/EDAnalyzer.h"
@@ -22,8 +22,9 @@
 
 #include "FWCore/ParameterSet/interface/FileInPath.h"
 
-#include "UserCode/HGCanalysis/interface/HGCROI.h"
+#include "UserCode/HGCanalysis/interface/ROIManager.h"
 #include "UserCode/HGCanalysis/interface/HGCSimulationEvent.h"
+#include "UserCode/HGCanalysis/interface/HGCROISummary.h"
 
 #include "TH2F.h"
 #include "TH1F.h"
@@ -32,17 +33,17 @@
 #include <string>
 
 /**
-   @class HGCHitsAnalyzer
+   @class HGCROIAnalyzer
    @author P. Silva (CERN)
 */
 
-class HGCHitsAnalyzer : public edm::EDAnalyzer 
+class HGCROIAnalyzer : public edm::EDAnalyzer 
 {
   
  public:
   
-  explicit HGCHitsAnalyzer( const edm::ParameterSet& );
-  ~HGCHitsAnalyzer();
+  explicit HGCROIAnalyzer( const edm::ParameterSet& );
+  ~HGCROIAnalyzer();
   virtual void analyze( const edm::Event&, const edm::EventSetup& );
 
  private:
@@ -51,12 +52,16 @@ class HGCHitsAnalyzer : public edm::EDAnalyzer
 
   int evtCtr_;
 
-  //tree and summary ntuple
-  TTree *t_;
+  //tree for hit summary
+  TTree *hitT_;
   HGCSimEvent_t simEvt_;
+  bool saveHitTree_;
 
-  //
-  HGCROI roi_;
+  //ROI stuff
+  ROIManager roi_;
+  HGCROISummary_t roiEvt_;
+
+  TTree *roiT_;
   TH2F *regsH_;
   Int_t nLayerBins_, nEtaBins_;
 
