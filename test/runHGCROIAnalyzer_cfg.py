@@ -50,6 +50,9 @@ process.source = cms.Source("PoolSource",
                             )
 if preFix.find('/store')>=0 :
     process.source.fileNames=fillFromStore(preFix,ffile,step)
+elif preFix.find('lpc:')>=0:
+    preFix=preFix.split(':')[1]
+    process.source.fileNames=fillFromStore('srm://cmseos.fnal.gov:8443/srm/v2/server?SFN=/eos/uscms/store/user/lpchgcal/HGCAL_Samples/%s'%preFix,ffile,step)
 else :
     process.source.fileNames=fillFromStore('/store/cmst3/group/hgcal/CMSSW/%s'%preFix,ffile,step)
 process.source.duplicateCheckMode = cms.untracked.string('noDuplicateCheck')

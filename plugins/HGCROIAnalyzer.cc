@@ -1,7 +1,13 @@
 #include "UserCode/HGCanalysis/plugins/HGCROIAnalyzer.h"
+#include "UserCode/HGCanalysis/interface/HGCAnalysisTools.h"
+
+#include "DataFormats/TrackReco/interface/TrackFwd.h"
+#include "DataFormats/JetReco/interface/TrackJet.h"
+#include "DataFormats/JetReco/interface/TrackJetCollection.h"
 
 #include "Geometry/Records/interface/IdealGeometryRecord.h"
 #include "SimG4CMS/Calo/interface/CaloHitID.h"
+#include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
 
 #include "DetectorDescription/OfflineDBLoader/interface/GeometryInfoDump.h"
 #include "DetectorDescription/Core/interface/DDFilter.h"
@@ -21,6 +27,7 @@
 #include "Math/DistFunc.h"
 
 #include <iostream>
+#include <map>
 
 using namespace std;
 
@@ -28,15 +35,16 @@ using namespace std;
 HGCROIAnalyzer::HGCROIAnalyzer( const edm::ParameterSet &iConfig )
 {
   //configure analyzer
-  genSource_            = iConfig.getUntrackedParameter<std::string>("genSource");
-  genJetsSource_        = iConfig.getUntrackedParameter<std::string>("genJetsSource");
-  geometrySource_       = iConfig.getUntrackedParameter< std::vector<std::string> >("geometrySource");
-  hitCollections_       = iConfig.getUntrackedParameter< std::vector<std::string> >("hitCollections");
-  mipEn_                = iConfig.getUntrackedParameter< std::vector<double> >("mipEn");
-  taggingMode_          = iConfig.getUntrackedParameter<bool>("taggingMode");
-  saveHitTree_          = iConfig.getUntrackedParameter<bool>("saveHitTree");
-  roipuParamFile_       = iConfig.getUntrackedParameter<edm::FileInPath>("roipuParamFile");
-  
+  genSource_              = iConfig.getUntrackedParameter<std::string>("genSource");
+  genJetsSource_          = iConfig.getUntrackedParameter<std::string>("genJetsSource");
+  geometrySource_         = iConfig.getUntrackedParameter< std::vector<std::string> >("geometrySource");
+  hitCollections_         = iConfig.getUntrackedParameter< std::vector<std::string> >("hitCollections");
+  mipEn_                  = iConfig.getUntrackedParameter< std::vector<double> >("mipEn");
+  taggingMode_            = iConfig.getUntrackedParameter<bool>("taggingMode");
+  saveHitTree_            = iConfig.getUntrackedParameter<bool>("saveHitTree");
+  roipuParamFile_         = iConfig.getUntrackedParameter<edm::FileInPath>("roipuParamFile");
+  trackJetCollection_     = iConfig.getUntrackedParameter< std::string >("trackJetCollection");
+  //vtxCollection_          = iConfig.getUntrackedParameter< std::string >("vtxCollection");
 
   edm::Service<TFileService> fs;
 
@@ -132,12 +140,59 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
   if(!taggingMode_) { roi_.reset(); }
   else              { for(Int_t xbin=1; xbin<=regsH_->GetYaxis()->GetNbins(); xbin++) roi_.rotateInPhi(xbin-1); }
 
+
+
+  //prepare rechits for SC pre-selection
+  int layerCtrOffset(1);
+  std::map< uint32_t, std::pair<int, float> > recHitSummary;
+  for(size_t i=0; i<geometrySource_.size(); i++)
+    {
+      edm::Handle<HGCRecHitCollection> recHits;
+      iEvent.getByLabel(edm::InputTag("HGCalRecHit",hitCollections_[i]),recHits);
+      for(HGCRecHitCollection::const_iterator hit_it=recHits->begin(); hit_it!=recHits->end(); hit_it++)
+	{
+	  //convert energy to keV
+	  float hitEn(hit_it->energy()*1e6/mipEn_[i]);
+	  if(hitEn<0.5) continue;
+
+	  //get layer
+	  uint32_t recoDetId(hit_it->id());
+	  int layer( ((recoDetId >> 19) & 0x1f) + layerCtrOffset-1 );
+
+	  //save summary
+	  recHitSummary[recoDetId]=std::pair<int,float>(layer,hitEn);
+	}
+
+      //increment offset
+      edm::ESHandle<HGCalGeometry> geomH;
+      iSetup.get<IdealGeometryRecord>().get(geometrySource_[i],geomH);
+      const HGCalGeometry *geom=geomH.product();
+      const HGCalTopology &topo=geom->topology();
+      const HGCalDDDConstants &dddConst=topo.dddConstants();
+      layerCtrOffset +=dddConst.layers(true);
+    }
+  
+  //use track jets associated to PV to define RoI
+  edm::Handle<std::vector<reco::TrackJet> > trackJets;
+  iEvent.getByLabel(trackJetCollection_,trackJets);
+  std::vector<const reco::TrackJet *> selTrackJets;
+  for(size_t i=0; i<trackJets->size(); i++)
+    {
+      const reco::TrackJet *jet=&(trackJets->at(i));
+      if(fabs(jet->eta())<1.5 || fabs(jet->eta())>3.0) continue;
+      if(jet->pt()<3) continue;
+      if(!jet->fromHardVertex()) continue;
+      selTrackJets.push_back(jet);
+    }
+  //cout << selTrackJets.size() << " track jets"<< endl;
+
   //analyze gen jets
   simEvt_.njgen=0;
   edm::Handle<reco::GenJetCollection> genJets;
   iEvent.getByLabel(edm::InputTag(genJetsSource_), genJets);
   std::vector< std::pair<const reco::GenJet *,int> > matchedGenJets;
   std::vector< int > tagJetIdx;
+  std::vector< bool > nMatchedTkJets;
   if(genJets.isValid() && !taggingMode_)
     {
       //pre-select jets
@@ -145,7 +200,7 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 	{
 	  const reco::GenJet & j =(*genJets)[k];
 	  if(j.pt()<15 || fabs(j.eta())>4.7) continue;
-	  
+
 	  //require not to be matched to lepton (charged or neutrino)
 	  int matchedId(0),matchedIdx(-1);
 	  for(int igen=0; igen<simEvt_.ngen; igen++)
@@ -194,22 +249,39 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 	  //save if good
 	  if(dijetMass>250 && deta>2.5)
 	    {
-	      if(fabs(matchedGenJets[idx1].first->eta())>1.5 && fabs(matchedGenJets[idx1].first->eta())<3.0)
+	      for(size_t ij=0; ij<2; ij++)
 		{
-		  roi_.add(matchedGenJets[idx1].first->eta(),matchedGenJets[idx1].first->phi());
-		  tagJetIdx.push_back(idx1);
-		}
-	      if(fabs(matchedGenJets[idx2].first->eta())>1.5 && fabs(matchedGenJets[idx2].first->eta())<3.0)
-		{
-		  roi_.add(matchedGenJets[idx2].first->eta(),matchedGenJets[idx2].first->phi());
-		  tagJetIdx.push_back(idx2);
+		  int idx(ij==0 ? idx1 : idx2);
+
+		  //
+		  float etaTkJet(0),phiTkJet(0), enTkJet(0);
+		  for(size_t itkj=0; itkj<selTrackJets.size(); itkj++)
+		    {
+		      const reco::TrackJet *jet=selTrackJets[itkj];
+		      float dR=deltaR(*jet,*(matchedGenJets[idx].first));
+		      if(dR>0.4) continue;
+		      if(jet->energy() < enTkJet) continue;
+		      enTkJet = jet->energy();
+		      phiTkJet = jet->phi();
+		      etaTkJet = jet->eta();
+		    }
+
+
+		  if(fabs(matchedGenJets[idx].first->eta())>1.5 && fabs(matchedGenJets[idx].first->eta())<3.0)
+		    {
+		      float roiEta(matchedGenJets[idx].first->eta()), roiPhi(matchedGenJets[idx].first->phi());
+		      if(enTkJet>0) {roiEta=etaTkJet; roiPhi=phiTkJet; }
+		      roi_.add(roiEta,roiPhi);
+		      tagJetIdx.push_back(idx);
+		      nMatchedTkJets.push_back( (enTkJet>0) );
+		    }
 		}
 	    }
 	}
     }
   
   //read rec hits and geometry
-  int layerCtrOffset(1);
+  layerCtrOffset=1;
   simEvt_.nhits=0;
   for(size_t i=0; i<geometrySource_.size(); i++)
     {
@@ -220,19 +292,20 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
       iSetup.get<IdealGeometryRecord>().get(geometrySource_[i],geomH);
       const HGCalGeometry *geom=geomH.product();
       
-      for(HGCRecHitCollection::const_iterator hit_it=recHits->begin(); hit_it!=recHits->end(); hit_it++)
+      int hitCtr(0);
+      for(HGCRecHitCollection::const_iterator hit_it=recHits->begin(); hit_it!=recHits->end(); hit_it++, hitCtr++)
 	{
-	  uint32_t recoDetId(hit_it->id());
-
 	  //convert energy to keV
 	  float hitEn(hit_it->energy()*1e6/mipEn_[i]);
 	  if(hitEn<0.5) continue;
-	  
+
+	  uint32_t recoDetId(hit_it->id());
+
 	  //decode position
 	  const GlobalPoint refPos( std::move( geom->getPosition(recoDetId) ) );
 	  int layer( ((recoDetId >> 19) & 0x1f) + layerCtrOffset-1 );
-	  
-	  //check if hits are in ROI
+
+       	  //check if hits are in ROI
 	  int roiIdx=roi_.findROI(refPos.eta(),refPos.phi());	      
 	  if(roiIdx<0) continue;
 
@@ -319,6 +392,12 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 	{
 	  roi_.roiInfo_[i].finalize();
 
+	  roiEvt_.ncandsc=selTrackJets.size();
+
+	  roiEvt_.roi_eta=roi_.roiInfo_[i].center_eta;
+	  roiEvt_.roi_phi=roi_.roiInfo_[i].center_phi;
+	  roiEvt_.roi_nsc=nMatchedTkJets[i];
+
 	  const reco::GenJet *j=matchedGenJets[ tagJetIdx[i] ].first;
 	  roiEvt_.gen_id=matchedGenJets[tagJetIdx[i] ].second;
 	  roiEvt_.gen_pt=j->pt();
@@ -329,7 +408,7 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 	  roiEvt_.gen_hadfrac=j->hadEnergy()/j->energy();
 	  roiEvt_.gen_invfrac=j->invisibleEnergy()/j->energy();
 
-	  for(size_t j=0; j<4; j++)
+	  for(size_t j=0; j<6; j++)
 	    {
 	      //per sub detector
 	      for(size_t k=0; k<3; k++)
@@ -363,6 +442,7 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 
 	  roiT_->Fill();
 	}
+
     }
 }
 

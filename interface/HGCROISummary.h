@@ -8,18 +8,24 @@ struct  HGCROISummary_t
   //event identifier
   Int_t run,lumi,event;
 
+  Int_t ncandsc;
+  
+  //roi information
+  Int_t roi_nsc;
+  Float_t roi_eta, roi_phi;
+
   //generator level ROI
   Int_t gen_id;
   Float_t gen_pt, gen_eta, gen_phi, gen_en, gen_emfrac, gen_hadfrac, gen_invfrac;
   
-  float en[4][3], eta[4][3], phi[4][3], width[4][3], totalVolume[4][3];
-  int nhits[4][3];
-  float x[4][54], y[4][54];
+  float en[6][3], eta[6][3], phi[6][3], width[6][3], totalVolume[6][3];
+  int nhits[6][3];
+  float x[6][54], y[6][54];
   float z[54];
 
-  float wgt_en[4][3], wgt_eta[4][3], wgt_phi[4][3], wgt_width[4][3], wgt_totalVolume[4][3];
-  int wgt_nhits[4][3];
-  float wgt_x[4][54], wgt_y[4][54];
+  float wgt_en[6][3], wgt_eta[6][3], wgt_phi[6][3], wgt_width[6][3], wgt_totalVolume[6][3];
+  int wgt_nhits[6][3];
+  float wgt_x[6][54], wgt_y[6][54];
 };
 
 

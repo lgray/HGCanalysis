@@ -19,24 +19,25 @@ class ROIInfo
 
   float center_eta, center_phi;
 
-  float dr[4];
-  float en[4][3][2],     et2[4][3][2], eta[4][3][2], phi[4][3][2],  shh[4][3][2],   shp[4][3][2], spp[4][3][2], width[4][3][2], totalVolume[4][3][2];
-  int nhits[4][3][2];
-  float en_lay[4][54][2],x[4][54][2],  y[4][54][2],  rho[4][54][2], rho2[4][54][2], area[4][54][2];
+  float dr[6];
+  float en[6][3][2],     et2[6][3][2], eta[6][3][2], phi[6][3][2],  shh[6][3][2],   shp[6][3][2], spp[6][3][2], width[6][3][2], totalVolume[6][3][2];
+  int nhits[6][3][2];
+  float en_lay[6][54][2],x[6][54][2],  y[6][54][2],  rho[6][54][2], rho2[6][54][2], area[6][54][2];
   float z[54];
 
 
   /**
      @short CTOR
    */
-  ROIInfo(float eta, float phi) { reset(); center_eta=eta; center_phi=phi; dr[0]=0.1; dr[1]=0.2; dr[2]=0.3; dr[3]=0.4; }
+  ROIInfo(float eta, float phi) { reset(); center_eta=eta; center_phi=phi; dr[0]=0.05; dr[1]=0.1; dr[2]=0.2; dr[3]=0.3; dr[4]=0.4; dr[5]=0.5; }
   ROIInfo(const ROIInfo &other)
     {
       center_eta=other.center_eta;
       center_phi=other.center_phi;
-      dr[0]=other.dr[0]; dr[1]=other.dr[1]; dr[2]=other.dr[2]; dr[3]=other.dr[3];
-      for(size_t i=0; i<4; i++)
+      for(size_t i=0; i<6; i++)
 	{
+	  dr[i]=other.dr[i];
+
 	  //sub-detector quantities
 	  for(size_t j=0; j<3; j++)
 	    {
@@ -94,7 +95,7 @@ class ROIInfo
     float hit_dR=deltaR(hit_eta,hit_phi,center_eta,center_phi);
     float hit_deta=hit_eta-center_eta;
     float hit_dphi=deltaPhi(hit_phi,center_phi);
-    
+ 
     //distance to center cartesian
     float refRho=TMath::Abs(hit_z/TMath::SinH(center_eta));
     float hit_dx=hit_x-refRho*TMath::Cos(center_phi);
@@ -115,7 +116,7 @@ class ROIInfo
     //convert from MIP to e.m. scale
     float em_en = (hit_en*m+k)*mu*getLambda(hit_layer);
     
-    for(size_t i=0; i<4; i++)
+    for(size_t i=0; i<6; i++)
       {
 	//neglect if out of cone
 	if(hit_dR>dr[i]) continue;
@@ -131,9 +132,9 @@ class ROIInfo
 	    eta[i][subDet][k]         += en_k*hit_eta;
 	    phi[i][subDet][k]         += en_k*hit_phi;
 	    et2[i][subDet][k]         += pow(et_k,2);
-	    shh[i][subDet][k]         += pow(en_k*hit_deta,2);
-	    shp[i][subDet][k]         += -pow(en_k,2)*hit_deta*hit_dphi;
-	    spp[i][subDet][k]         += pow(en_k*hit_dphi,2);
+	    shh[i][subDet][k]         += pow(et_k*hit_deta,2);
+	    shp[i][subDet][k]         += -pow(et_k,2)*hit_deta*hit_dphi;
+	    spp[i][subDet][k]         += pow(et_k*hit_dphi,2);
 	    x[i][hit_layer-1][k]      += en_k*hit_x;
 	    y[i][hit_layer-1][k]      += en_k*hit_y;
 	    z[hit_layer-1]             = hit_z;
@@ -148,7 +149,7 @@ class ROIInfo
    */
   void reset()
   {
-    for(size_t i=0; i<4; i++)
+    for(size_t i=0; i<6; i++)
       {
 	//sub-detector quantities
 	for(size_t j=0; j<3; j++)
@@ -191,7 +192,7 @@ class ROIInfo
    */
   void finalize()
   {
-    for(size_t i=0; i<4; i++)
+    for(size_t i=0; i<6; i++)
       {
 	//sub-detector level
 	for(size_t j=0; j<3; j++)
@@ -208,7 +209,7 @@ class ROIInfo
 		    shp[i][j][k]/=et2[i][j][k];
 		    spp[i][j][k]/=et2[i][j][k];
 
-		    double mvals[4] = {
+		    double mvals[6] = {
 		      shh[i][j][k], shp[i][j][k],
 		      shp[i][j][k], spp[i][j][k]
 		    };
@@ -217,6 +218,12 @@ class ROIInfo
 		    TMatrixDSymEigen me(m);
 		    TVectorD eigenval = me.GetEigenValues();
 		    width[i][j][k] = sqrt(pow(eigenval[0],2)+pow(eigenval[1],2));
+		    if(width[i][j][k]>dr[i])
+		      {
+			m.Print();
+			std::cout << et2[i][j][k] << std::endl;
+			std::cout << eigenval[0] << " " << eigenval[1] << " " << width[i][j][k] << std::endl;
+		      }
 		  }
 	      }
 	  }

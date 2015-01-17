@@ -29,6 +29,7 @@
 #include "TH2F.h"
 #include "TH1F.h"
 #include "TTree.h"
+#include "TNtuple.h"
 
 #include <string>
 
@@ -85,6 +86,9 @@ class HGCROIAnalyzer : public edm::EDAnalyzer
   std::vector<std::string> geometrySource_;
   std::vector<std::string> hitCollections_;
   std::vector<double> mipEn_;
+
+  //tracks
+  std::string trackJetCollection_;
 };
  
 

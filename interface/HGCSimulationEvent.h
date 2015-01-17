@@ -1,3 +1,4 @@
+
 #ifndef _hgcsimulationevent_h_
 #define _hgcsimulationevent_h_
 

@@ -6,6 +6,12 @@ void initHGCROITree(TTree *t,HGCROISummary_t &simEvt)
   t->Branch("lumi",      &simEvt.lumi,       "lumi/I");
   t->Branch("event",     &simEvt.event,      "event/I");
 
+  t->Branch("ncandsc",       &simEvt.ncandsc,        "ncandsc/I");
+
+  t->Branch("roi_nsc",       &simEvt.roi_nsc,        "roi_nsc/I");
+  t->Branch("roi_eta",       &simEvt.roi_eta,        "roi_eta/F");
+  t->Branch("roi_phi",       &simEvt.roi_phi,        "roi_phi/F");
+
   t->Branch("gen_id",    &simEvt.gen_id,     "gen_id/I");
   t->Branch("gen_pt",    &simEvt.gen_pt,     "gen_pt/F");
   t->Branch("gen_eta",   &simEvt.gen_eta,    "gen_eta/F");
@@ -15,23 +21,23 @@ void initHGCROITree(TTree *t,HGCROISummary_t &simEvt)
   t->Branch("gen_hadfrac",    &simEvt.gen_hadfrac,     "gen_hadfrac/F"); 
   t->Branch("gen_invfrac",    &simEvt.gen_invfrac,     "gen_invfrac/F"); 
 
-  t->Branch("en", simEvt.en, "en[4][3]/F");
-  t->Branch("nhits", simEvt.nhits, "nhits[4][3]/I");
-  t->Branch("eta", simEvt.eta, "eta[4][3]/F");
-  t->Branch("phi", simEvt.phi, "phi[4][3]/F");
-  t->Branch("width", simEvt.width, "width[4][3]/F");
-  t->Branch("totalVolume", simEvt.totalVolume, "totalVolume[4][3]/F");
-  t->Branch("x", simEvt.x, "x[4][54]/F");
-  t->Branch("y", simEvt.y, "y[4][54]/F");
+  t->Branch("en", simEvt.en, "en[6][3]/F");
+  t->Branch("nhits", simEvt.nhits, "nhits[6][3]/I");
+  t->Branch("eta", simEvt.eta, "eta[6][3]/F");
+  t->Branch("phi", simEvt.phi, "phi[6][3]/F");
+  t->Branch("width", simEvt.width, "width[6][3]/F");
+  t->Branch("totalVolume", simEvt.totalVolume, "totalVolume[6][3]/F");
+  t->Branch("x", simEvt.x, "x[6][54]/F");
+  t->Branch("y", simEvt.y, "y[6][54]/F");
 
-  t->Branch("wgt_en", simEvt.wgt_en, "wgt_en[4][3]/F");
-  t->Branch("wgt_nhits", simEvt.wgt_nhits, "wgt_nhits[4][3]/I");
-  t->Branch("wgt_eta", simEvt.wgt_eta, "wgt_eta[4][3]/F");
-  t->Branch("wgt_phi", simEvt.wgt_phi, "wgt_phi[4][3]/F");
-  t->Branch("wgt_width", simEvt.wgt_width, "wgt_width[4][3]/F");
-  t->Branch("wgt_totalVolume", simEvt.wgt_totalVolume, "wgt_totalVolume[4][3]/F");
-  t->Branch("wgt_x", simEvt.wgt_x, "wgt_x[4][54]/F");
-  t->Branch("wgt_y", simEvt.wgt_y, "wgt_y[4][54]/F");
+  t->Branch("wgt_en", simEvt.wgt_en, "wgt_en[6][3]/F");
+  t->Branch("wgt_nhits", simEvt.wgt_nhits, "wgt_nhits[6][3]/I");
+  t->Branch("wgt_eta", simEvt.wgt_eta, "wgt_eta[6][3]/F");
+  t->Branch("wgt_phi", simEvt.wgt_phi, "wgt_phi[6][3]/F");
+  t->Branch("wgt_width", simEvt.wgt_width, "wgt_width[6][3]/F");
+  t->Branch("wgt_totalVolume", simEvt.wgt_totalVolume, "wgt_totalVolume[6][3]/F");
+  t->Branch("wgt_x", simEvt.wgt_x, "wgt_x[6][54]/F");
+  t->Branch("wgt_y", simEvt.wgt_y, "wgt_y[6][54]/F");
 
   t->Branch("z", simEvt.z, "z[54]/F");
 
@@ -43,6 +49,10 @@ void attachHGCSimulationEventTree(TTree *t,HGCROISummary_t &simEvt)
   t->SetBranchAddress("run",       &simEvt.run);
   t->SetBranchAddress("lumi",      &simEvt.lumi);
   t->SetBranchAddress("event",     &simEvt.event);
+
+  t->SetBranchAddress("roi_nsc",       &simEvt.roi_nsc);
+  t->SetBranchAddress("roi_eta",       &simEvt.roi_eta);
+  t->SetBranchAddress("roi_phi",       &simEvt.roi_phi);
 
   t->SetBranchAddress("gen_id",    &simEvt.gen_id);
   t->SetBranchAddress("gen_pt",    &simEvt.gen_pt);
