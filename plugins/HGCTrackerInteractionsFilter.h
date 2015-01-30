@@ -34,9 +34,6 @@ class HGCTrackerInteractionsFilter : public edm::EDFilter
 
  private:
 
-  //
-  math::XYZVectorD getInteractionPosition(const reco::GenParticle & genp, edm::Handle<edm::SimTrackContainer> &SimTk, edm::Handle<edm::SimVertexContainer> &SimVtx, int barcode);
-
   //Geant4
   std::string g4TracksSource_, g4VerticesSource_;
 };

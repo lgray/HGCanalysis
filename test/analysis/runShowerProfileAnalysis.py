@@ -6,21 +6,25 @@ from array import array
 import os,sys
 import optparse
 import commands
+import threading
 
 """
 Draws the final plots
 """
 def showProfiles(histos,norm,genEn,output):
     
+    #prepare output
+    fOut=ROOT.TFile.Open('%s/ShowerProfiles_%d.root'%(output,genEn),'RECREATE')
+
     stepTitle={'sim':'SimHit',
                'rec':'RecHit',
                'clus':'Cluster',
                'pf':'PF candidate'}
     
     #show the histograms
-    canvas     = ROOT.TCanvas('c','c',500,500)
-    profCanvas = ROOT.TCanvas('profc','profc',500,500)
-    canvas2D   = ROOT.TCanvas('c2d','c2d',1000,1000)
+    canvas     = ROOT.TCanvas('c_%d'%genEn,'c',500,500)
+    profCanvas = ROOT.TCanvas('profc_%d'%genEn,'profc',500,500)
+    canvas2D   = ROOT.TCanvas('c2d_%d'%genEn,'c2d',1000,1000)
     for var in histos:
 
         #show 2D
@@ -121,16 +125,26 @@ def showProfiles(histos,norm,genEn,output):
             c.cd()
             c.SaveAs('%s/%s_%s_en%d.png'%(output,var,c.GetName(),genEn))
 
+        fOut.cd()
+        for vp in varProfs:
+            vp.Write()
+
+    fOut.Close()
+
 """
 """
-def getLayerLambda(layerIdx) :
-    if layerIdx==0:                   return 0.01
-    if layerIdx>=1 and layerIdx<=10:  return 0.036
-    if layerIdx>=11 and layerIdx<=20: return 0.043
-    if layerIdx>=21 and layerIdx<=29: return 0.056
-    if layerIdx==30:                  return 0.338
-    if layerIdx>=31 and layerIdx<=41: return 0.273
-    if layerIdx>=42 and layerIdx<=53: return 0.475
+def getLayerLambda(layerIdx,eta=0) :
+    eta=ROOT.TMath.Abs(eta)
+    geomFactor=1.0
+    if eta>1.45 and eta<3.1: geoFactor=1./ROOT.TMath.TanH(eta)
+
+    if layerIdx==0:                   return 0.010*geomFactor
+    if layerIdx>=1 and layerIdx<=10:  return 0.036*geomFactor
+    if layerIdx>=11 and layerIdx<=20: return 0.043*geomFactor
+    if layerIdx>=21 and layerIdx<=29: return 0.056*geomFactor
+    if layerIdx==30:                  return 0.338*geomFactor
+    if layerIdx>=31 and layerIdx<=41: return 0.273*geomFactor
+    if layerIdx>=42 and layerIdx<=53: return 0.475*geomFactor
     return 0
   
 
@@ -138,22 +152,28 @@ def getLayerLambda(layerIdx) :
 """
 Loops over the trees and profiles the showers
 """
-def runShowerProfileAnalysis(opt,en,steps,shower_tuple):
+def runShowerProfileAnalysis(opt,en,steps):
     
     maxLayers=54
-    if opt.input.find('22')>=0 or opt.input.find('photon')>=0 or opt.input.find('11')>=0 : maxLayers=35
+    #if opt.input.find('22')>=0 or opt.input.find('photon')>=0 or opt.input.find('11')>=0 : maxLayers=35
 
     #prepare histograms
     baseHistos={
-        'length': ROOT.TH2F('length',';Pseudo-rapidity;Length [#lambda];Events',5,1.5,3.0,10,0,15),
-        'width':ROOT.TH2F('width',';HGC layer;Area [cm^{2}];Events',maxLayers,0,maxLayers,25,0,200),
-        'rho':ROOT.TH2F('rho',';HGC layer;<#rho> [cm];Events',maxLayers,0,maxLayers,20,0,50),
-        'volume':ROOT.TH2F('volume',';Pseudo-rapidity;Volume [cm^{2}#lambda];Events',   5,1.5,3.0,50,0,10000),
-        'edep':     ROOT.TH2F('edep',   ';HGC layer;Energy [MIP];Events ',              maxLayers,0,maxLayers,1000,0,5e3),
-        'nhits':    ROOT.TH2F('nhits',  ';HGC layer;Number of hits;Events',             maxLayers,0,maxLayers,1000,0,1000),
-        'sihih':    ROOT.TH2F('sihih',  ';HGC layer;#sigma(#eta,#eta);hits / event',    maxLayers,0,maxLayers,50,0,0.2),
-        'sipip':    ROOT.TH2F('sipip',  ';HGC layer;#sigma(#phi,#phi);hits / event',    maxLayers,0,maxLayers,50,0,0.2),
-        'sipih':    ROOT.TH2F('sipih',  ';HGC layer;#sigma(#eta,#phi);hits / event',    maxLayers,0,maxLayers,50,0,0.2)
+        #'length': ROOT.TH2F('length',';Pseudo-rapidity;Length [#lambda];Events',5,1.5,3.0,10,0,15)
+        #'width':ROOT.TH2F('width',';HGC layer;Area [cm^{2}];Events',maxLayers,0,maxLayers,25,0,200),
+        #'rho':ROOT.TH2F('rho',';HGC layer;<#rho> [cm];Events',maxLayers,0,maxLayers,20,0,50),
+        #'volume':ROOT.TH2F('volume',';Pseudo-rapidity;Volume [cm^{2}#lambda];Events',   5,1.5,3.0,50,0,10000),
+        'showerlength'             : ROOT.TH2F('showerlength',   ';Pseudo-rapidity;Shower length [#lambda];Events ',          5,1.5,3.0,45,0,6),
+        'showerlength_chargeex'    : ROOT.TH2F('showerlength_chargeex',   ';Pseudo-rapidity;Shower length [#lambda];Events ', 5,1.5,3.0,45,0,6),
+        'edep'                     : ROOT.TH2F('edep',   ';HGC layer;Energy [MIP];Events ',                                   maxLayers,0,maxLayers,1000,0,5e3),
+        'edep_chargeex'            : ROOT.TH2F('edep_chargeex',   ';HGC layer;Energy [MIP];Events ',                          maxLayers,0,maxLayers,1000,0,5e3),
+        'edep_beforestart'         : ROOT.TH2F('edep_beforestart',   ';Starting layer;Energy [MIP];Events ',                  maxLayers,0,maxLayers,1000,0,5e3),
+        'edep_afterstart'          : ROOT.TH2F('edep_afterstart',   ';#lambda after start;Energy [MIP];Events ',              45,0,6,1000,0,5e3),
+        'edep_chargeex_afterstart' : ROOT.TH2F('edep_chargeex_afterstart',   ';#lambda after start;Energy [MIP];Events ',     45,0,6,1000,0,5e3),
+        #'nhits':    ROOT.TH2F('nhits',  ';HGC layer;Number of hits;Events',             maxLayers,0,maxLayers,1000,0,1000),
+        #'sihih':    ROOT.TH2F('sihih',  ';HGC layer;#sigma(#eta,#eta);hits / event',    maxLayers,0,maxLayers,50,0,0.2),
+        #'sipip':    ROOT.TH2F('sipip',  ';HGC layer;#sigma(#phi,#phi);hits / event',    maxLayers,0,maxLayers,50,0,0.2),
+        #'sipih':    ROOT.TH2F('sipih',  ';HGC layer;#sigma(#eta,#phi);hits / event',    maxLayers,0,maxLayers,50,0,0.2)
         }
     histos={}
     for var in baseHistos:
@@ -190,14 +210,16 @@ def runShowerProfileAnalysis(opt,en,steps,shower_tuple):
         totalEn={}
         totalEn95={}
         length95={}
-        for step in histos['length'] :
-            showerLength=getattr(HGC,'totalLength_%s'%(step))
-            histos['length'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerLength)
-            showerVol=getattr(HGC,'totalVolume_%s'%(step))
-            histos['volume'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerVol)
+        showerLength={}
+        for step in steps:
+        #    showerLength=getattr(HGC,'totalLength_%s'%(step))
+        #    histos['length'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerLength)
+        #    showerVol=getattr(HGC,'totalVolume_%s'%(step))
+        #    histos['volume'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerVol)
             totalEn[step]=0
-            totalEn95[step]=0
-            length95[step]=0
+        #    totalEn95[step]=0
+        #    length95[step]=0
+            showerLength[step]=0
 
         for ilay in xrange(0,HGC.nlay):
             for step in steps:
@@ -206,33 +228,47 @@ def runShowerProfileAnalysis(opt,en,steps,shower_tuple):
                 if getattr(HGC,'edep_%s'%(step))[ilay]<0.5: continue
                 if getattr(HGC,'nhits_%s'%(step))[ilay]==0: continue
 
-                totalEn[step]+=getattr(HGC,'edep_%s'%(step))[ilay]
-                
+                ien=getattr(HGC,'edep_%s'%(step))[ilay]
+                totalEn[step]+=ien
+
                 #width
-                layerWidth=getattr(HGC,'edepArea_%s'%(step))[ilay]
-                histos['width'][step].Fill(ilay,layerWidth)
+                #layerWidth=getattr(HGC,'edepArea_%s'%(step))[ilay]
+                #histos['width'][step].Fill(ilay,layerWidth)
                 
                 #average distance
-                rho=getattr(HGC,'edepdR_%s'%(step))[ilay]
-                histos['rho'][step].Fill(ilay,rho)
+                #rho=getattr(HGC,'edepdR_%s'%(step))[ilay]
+                #histos['rho'][step].Fill(ilay,rho)
 
                 #other simple variables
-                for var in ['edep','nhits','sihih','sipip','sipih']:
-                    histos[var][step].Fill(ilay,getattr(HGC,'%s_%s'%(var,step))[ilay])
+                for var in ['edep']: #,'nhits','sihih','sipip','sipih']:
+                    varVal=getattr(HGC,'%s_%s'%(var,step))[ilay]
+                    if ilay<HGC.layerShowerStart-2: 
+                        histos[var+'_beforestart'][step].Fill(ilay,varVal)
+                    else:
+                        ilambda=getLayerLambda(ilay,HGC.genEta)
+                        showerLength[step]+=ilambda
+                        histos[var+'_afterstart'][step].Fill(showerLength[step],varVal)
+                        if HGC.hasChargedInteraction:
+                            histos[var+'_chargeex_afterstart'][step].Fill(showerLength[step],varVal)
+                    histos[var][step].Fill(ilay,varVal)
+                    if HGC.hasChargedInteraction:
+                        histos[var+'_chargeex'][step].Fill(ilay,varVal)
 
-        for ilay in xrange(0,HGC.nlay):
-            for step in steps:
-                #require some energy deposit in the layer and 1 hit
-                if getattr(HGC,'edep_%s'%(step))[ilay]<0.5: continue
-                if getattr(HGC,'nhits_%s'%(step))[ilay]==0: continue
-                totalEn95[step]+=getattr(HGC,'edep_%s'%(step))[ilay]
-                if totalEn95[step]>0.95*totalEn[step]: break
-                length95[step]+=getLayerLambda(ilay)
+        for step in steps:
+            histos['showerlength'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerLength[step])
+            if HGC.hasChargedInteraction:
+                histos['showerlength_chargeex'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerLength[step])
+                
+
+        #for ilay in xrange(0,HGC.nlay):
+        #    for step in steps:
+        #        #require some energy deposit in the layer and 1 hit
+        #         if getattr(HGC,'edep_%s'%(step))[ilay]<0.5: continue
+        #         if getattr(HGC,'nhits_%s'%(step))[ilay]==0: continue
+        #         totalEn95[step]+=getattr(HGC,'edep_%s'%(step))[ilay]
+        #         if totalEn95[step]>0.95*totalEn[step]: break
+        #         length95[step]+=getLayerLambda(ilay)
         
-        #add to tuple
-        values=[HGC.genEn,HGC.genEta]
-        for step in steps : values.append( length95[step] )
-        shower_tuple.Fill(array("f",values))
 
     showProfiles(histos=histos,norm=1./nEvts,genEn=en,output=opt.output)
     fIn.Close()
@@ -260,23 +296,25 @@ def main():
     ROOT.gStyle.SetOptTitle(0)
     ROOT.gStyle.SetOptStat(0)
 
-    #enRanges=[5, 10, 20, 40, 50, 100, 175, 250]
-    enRanges=[20,40]
-    steps=['sim','rec','clus']
-
-    #prepare output
-    fOut=ROOT.TFile.Open('%s/ShowerProfiles.root'%opt.output,'RECREATE')
-    fOut.cd()
-    shower_tuple=ROOT.TNtuple("shower","shower","en:eta:length95_sim:length95_rec:length95_clus")
-
-    for ien in xrange(0,len(enRanges)):
-        print 'Starting %f'%enRanges[ien]
-        runShowerProfileAnalysis(opt,enRanges[ien],steps,shower_tuple)
     
-    #dump to a file
-    fOut.cd()
-    shower_tuple.Write()
-    fOut.Close()
+    #launch jobs
+    steps=['sim','rec','clus']
+    threads = []
+    #for en in [10, 20, 40, 50, 75, 100, 125, 175, 250, 400, 500]:
+    for en in [10, 20, 40, 50, 75, 100, 175, 250, 400]:
+        print 'Starting %f'%en
+        t=threading.Thread(target=runShowerProfileAnalysis, args=(opt,en,steps,))
+        threads.append(t)
+        t.start()
+
+    nalive=len(threads)
+    while  nalive>0:
+        nalive=0
+        for t in threads: nalive += t.isAlive()
+        sys.stdout.write("\r %d threads active"%nalive)
+        continue
+    print 'All done'
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -35,12 +35,36 @@ For regression use flat gun
 python scripts/submitLocalHGCalProduction.py -q 2nw -n 2500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/FlatPtYSingle22_${CMSSW_VERSION}/RECO_a -c UserCode/HGCanalysis/python/particlePtYGun_cfi.py -n 200 -p 22 -f";
 python scripts/submitLocalHGCalProduction.py -q 1nw -n 2500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/FlatPtYSingle22_${CMSSW_VERSION}/RECO_b -c UserCode/HGCanalysis/python/particlePtYGun_cfi.py -n 200 -p 22 -f";
 
-Jet gun for neutral pions
+# DECEMBER JAMBOREE PRODUCTION
 
-energies=(10 20 50 100 250)
-for en in ${energies[@]}; do 
-    python scripts/submitLocalHGCalProduction.py -n 10 -q 2nd -s generateEventsFromCfi.sh -o "-c UserCode/HGCanalysis/python/jetGun_cfi.py -r 0 -o /store/cmst3/group/hgcal/CMSSW/Single111_${CMSSW_VERSION} -p 111 -n 500 -e ${en}"; 
+## SIM
+
+energies=(10 20 40 50 75 100 125 175 250 400 500)
+pids=(22 211 11)
+pu=(140 0 200)
+for p in ${pu[@]}; do
+for pid in ${pids[@]}; do
+    for en in ${energies[@]}; do
+      python scripts/submitLocalHGCalProduction.py -q 1nd -n 500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/ -p ${pid} -n 25 -e ${en} -s -a ${p}";
+     done
 done
+done
+
+pids=(111 15)
+for p in ${pu[@]}; do
+for pid in ${pids[@]}; do
+    for en in ${energies[@]}; do 
+    	python scripts/submitLocalHGCalProduction.py -n 500 -q 2nd -s generateEventsFromCfi.sh -o "-c UserCode/HGCanalysis/python/jetGun_cfi.py -o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/ -p ${pid} -n 25 -e ${en} -s -a ${p}"; 
+    done
+done
+done
+
+for p in ${pu[@]}; do
+    python scripts/submitLocalHGCalProduction.py -q 2nw -n 1000 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/VBFtoH125toTauTau_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/VBFH125toTauTau_cfi.py -n 25 -p 25 -s -a ${p}";
+    python scripts/submitLocalHGCalProduction.py -q 1nw -n 1000 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/QCDFlatPt15to3000_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/QCDForPF_14TeV_cfi.py -n 25 -p 1 -s -a ${p}";
+done
+
+
 
 #test alternative physics lists for pions
 phys=("QGSP_FTFP_BERT_EML" "FTFP_BERT_EML" "FTFP_BERT_XS_EML" "QBBC")

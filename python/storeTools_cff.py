@@ -33,6 +33,7 @@ def fillFromStore(dir,ffile=0,step=-1,generatePfn=True):
         print 'Will use lcg-ls to query (make sure your proxy is initiated)'
         prefix='root://cmsxrootd.fnal.gov//'
         lscommand = 'lcg-ls -D srmv2 -b %s'%dir
+        print lscommand
         lsout = commands.getstatusoutput(lscommand)[1].split()
         for l in lsout : 
             if l.find('.root')<0 : continue

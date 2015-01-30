@@ -7,8 +7,9 @@ PILEUP=0
 CFG=${CMSSW_BASE}/src/UserCode/HGCanalysis/test/digitizeAndMix_cfg.py
 WORKDIR="/tmp/`whoami`/"
 JOBNB=1
+INPUTF=""
 STOREDIR=${WORKDIR}
-while getopts "ho:t:m:p:j:c:" opt; do
+while getopts "ho:m:p:j:c:i:" opt; do
     case "$opt" in
     h)
         echo ""
@@ -16,7 +17,7 @@ while getopts "ho:t:m:p:j:c:" opt; do
 	echo "     -p      pileup"
 	echo "     -j      job number (file to re-digitize)"
 	echo "     -o      output directory (local or eos)"
-	echo "     -t      process tag"
+	echo "     -i      input file"
         echo "     -c      cfg file"
         echo "     -m      min. bias tag"
 	echo "     -h      help"
@@ -25,6 +26,8 @@ while getopts "ho:t:m:p:j:c:" opt; do
         ;;
     c)  CFG=$OPTARG
 	;;
+    i) INPUTF=$OPTARG
+        ;;
     p)  PILEUP=$OPTARG
         ;;
     o)  STOREDIR=$OPTARG
@@ -33,8 +36,6 @@ while getopts "ho:t:m:p:j:c:" opt; do
 	;;
     w)  WORKDIR=$OPTARG
 	;;
-    t)  TAG=$OPTARG
-        ;;
     m)  MINBIASTAG=$OPTARG
         ;;
     esac
@@ -43,6 +44,7 @@ done
 #
 # CONFIGURE JOB
 #
+DIGIOUTNAME=Events_PU${PILEUP}.root
 BASEJOBNAME=Events_${JOBNB}_PU${PILEUP}
 BASEJOBNAME=${BASEJOBNAME/","/"_"}
 OUTFILE=${BASEJOBNAME}.root
@@ -52,17 +54,18 @@ LOGFILE=${BASEJOBNAME}.log
 #
 # RUN cmsRun and at the end move the output to the required directory
 #
-echo "cmsRun ${CFG} ${TAG} ${JOBNB} 1 ${MINBIASTAG} ${PILEUP} ${WORKDIR}"
-cmsRun ${CFG} ${TAG} ${JOBNB} 1 ${MINBIASTAG} ${PILEUP} ${WORKDIR} > ${WORKDIR}/${LOGFILE} 2>&1
+echo "cmsRun ${CFG} ${INPUTF} ${MINBIASTAG} ${PILEUP} ${WORKDIR}"
+cmsRun ${CFG} ${INPUTF} ${MINBIASTAG} ${PILEUP} ${WORKDIR} > ${WORKDIR}/${LOGFILE} 2>&1
 
 #move output
+echo $STOREDIR
 if [[ $STOREDIR =~ .*/store/cmst3.* ]]; then
     cmsMkdir ${STOREDIR}
-    cmsStage -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
-    rm ${WORKDIR}/${OUTFILE}
+    cmsStage -f ${WORKDIR}/${DIGIOUTNAME} ${STOREDIR}/${OUTFILE}
+    rm ${WORKDIR}/${DIGIOUTNAME}
 elif [[ $STOREDIR =~ /afs/.* ]]; then
     cmsMkdir ${STOREDIR}
-    cp -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
-    rm ${WORKDIR}/${OUTFILE}
+    cp -f ${WORKDIR}/${DIGIOUTNAME} ${STOREDIR}/${OUTFILE}
+    rm ${WORKDIR}/${DIGIOUTNAME}
 fi
 

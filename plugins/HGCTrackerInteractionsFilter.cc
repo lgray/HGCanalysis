@@ -1,4 +1,5 @@
 #include "UserCode/HGCanalysis/plugins/HGCTrackerInteractionsFilter.h"
+#include "UserCode/HGCanalysis/interface/HGCAnalysisTools.h"
 
 using namespace std;
 
@@ -39,60 +40,16 @@ bool HGCTrackerInteractionsFilter::filter(edm::Event &iEvent, const edm::EventSe
   for(size_t igen=0; igen<maxGenParts; igen++)
     {
       //mc truth
-      const reco::GenParticle & p = (*genParticles)[igen];
+      //const reco::GenParticle & p = (*genParticles)[igen];
 
-      //sim tracks and vertices
-      math::XYZVectorD hitPos=getInteractionPosition(p,SimTk,SimVtx,genBarcodes->at(igen));
-      nHitsBeforeHGC=(hitPos.z()<317);
+      //sim tracks and vertices      
+      math::XYZVectorD hitPos=getInteractionPosition(SimTk.product(),SimVtx.product(),genBarcodes->at(igen)).pos;
+      nHitsBeforeHGC=(fabs(hitPos.z())<317);
     }
   
   bool accept(nHitsBeforeHGC<maxGenParts);
   cout << "For " << maxGenParts << " analyzed found " << nHitsBeforeHGC << " interacting in tracker => decision=" << accept << endl;
   return accept;
-}
-
-
-//
-math::XYZVectorD HGCTrackerInteractionsFilter::getInteractionPosition(const reco::GenParticle & genp,
-							     edm::Handle<edm::SimTrackContainer> &SimTk,
-							     edm::Handle<edm::SimVertexContainer> &SimVtx,
-							     int barcode)
-{
-  for (const SimTrack &simtrack : *SimTk) 
-    {
-      if (simtrack.genpartIndex()!=barcode) continue;
-      int simid = simtrack.trackId();
-      for (const SimVertex &simvertex : *SimVtx) 
-	{
-	  //for neutrals only one vertex
-	  if(genp.charge()==0)
-	    {
-	      if (simvertex.parentIndex()!=simid) continue;
-	      return math::XYZVectorD(simvertex.position());
-	    }
-	  else
-	    {
-	      uint32_t tkMult(0);
-	      for (const SimTrack &dausimtrack : *SimTk)
-		{
-		  int dausimid=dausimtrack.trackId();
-		  if(dausimid==simid) continue;
-		  unsigned int vtxIdx=dausimtrack.vertIndex(); 
-		  if(vtxIdx!=simvertex.vertexId()) continue;
-		  int tkType=abs(dausimtrack.type());
-		  
-		  //neglect ionization products
-		  if(tkType==11) continue;
-
-		  //check for nucleons or nuclei, neutral pions or gammas
-		  if(tkType==2112 || tkType==2212 || tkType>1000000000 || tkType==111 || tkType==22) tkMult++;
-		}
-	      if(tkMult>2) return  math::XYZVectorD(simvertex.position());
-	    }
-	}
-    }
-
-  return math::XYZVectorD(0,0,0);
 }
 
 

@@ -1,4 +1,5 @@
 #include "UserCode/HGCanalysis/plugins/HGCSimHitsAnalyzer.h"
+#include "UserCode/HGCanalysis/interface/HGCAnalysisTools.h"
 
 #include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecHitFwd.h"
@@ -55,7 +56,9 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   t_->Branch("genHitX",  &genHitX_,  "genHitX/F");  
   t_->Branch("genHitY",  &genHitY_,  "genHitY/F");  
   t_->Branch("genHitZ",  &genHitZ_,  "genHitZ/F");  
-  t_->Branch("hasInteractionBeforeHGC",   &hasInteractionBeforeHGC_,   "hasInteractionBeforeHGC/O");
+  t_->Branch("hasInteractionBeforeHGC",   &hasInteractionBeforeHGC_, "hasInteractionBeforeHGC/O");
+  t_->Branch("hasChargedInteraction",     &hasChargedInteraction_,   "hasChargedInteraction/O");
+  t_->Branch("layerShowerStart",          &layerShowerStart_,        "layerShowerStart/I");
   t_->Branch("nlay",        &nlay_,       "nlay/I");
   t_->Branch("pfMatchId",   &pfMatchId_,  "pfMatchId/I");
 
@@ -195,9 +198,9 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
   if(genParticles->size()>maxGenParts) std::cout << "[Warning] found more than " << maxGenParts << " gen particles, will save only first " << maxGenParts << std::endl;
 
   //Geant4 collections
-  edm::Handle<edm::SimTrackContainer> SimTk;
+  edm::Handle<std::vector<SimTrack> > SimTk;
   iEvent.getByLabel(g4TracksSource_,SimTk);
-  edm::Handle<edm::SimVertexContainer> SimVtx;
+  edm::Handle<std::vector<SimVertex> > SimVtx;
   iEvent.getByLabel(g4VerticesSource_,SimVtx); 
   edm::Handle<std::vector<int> > genBarcodes;
   iEvent.getByLabel("genParticles",genBarcodes);  
@@ -222,12 +225,28 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
   std::vector< edm::ESHandle<HGCalGeometry> > geom(geometrySource_.size());
   nlay_=0;
   std::vector<int> layerCtrOffset;
+  std::vector<float> layerZ;
   for(size_t i=0; i<geometrySource_.size(); i++)  {
     iSetup.get<IdealGeometryRecord>().get(geometrySource_[i],geom[i]);
     const HGCalTopology &topo=geom[i]->topology();
     const HGCalDDDConstants &dddConst=topo.dddConstants(); 
     layerCtrOffset.push_back(nlay_);
-    nlay_ += dddConst.layers(true); 
+    nlay_ += dddConst.layers(true);
+
+    for(size_t ilay=0; ilay<dddConst.layers(true); ilay++)
+      {
+	uint32_t mySubDet(ForwardSubdetector::HGCEE);
+	if(i==1) mySubDet=ForwardSubdetector::HGCHEF;
+	else if(i==2) mySubDet=ForwardSubdetector::HGCHEB;
+	uint32_t recoDetId = ( (i==0) ?
+			       (uint32_t)HGCEEDetId(ForwardSubdetector(mySubDet),0,ilay+1,1,0,1):
+			       (uint32_t)HGCHEDetId(ForwardSubdetector(mySubDet),0,ilay+1,1,0,1)
+			       );
+	
+	//require to be on the same side of the generated particle
+	const GlobalPoint pos( std::move( geom[i]->getPosition(recoDetId) ) );	  
+	layerZ.push_back(fabs(pos.z()));
+      }
   }
 
   //ready to roll and loop over generator level particles
@@ -255,12 +274,25 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	}
 
       //sim tracks and vertices
-      math::XYZVectorD hitPos=getInteractionPosition(p,SimTk,SimVtx,genBarcodes->at(igen));
+      G4InteractionPositionInfo intInfo=getInteractionPosition(SimTk.product(),SimVtx.product(),genBarcodes->at(igen));
+      math::XYZVectorD hitPos=intInfo.pos;
       genHitX_=hitPos.x();
       genHitY_=hitPos.y();
       genHitZ_=hitPos.z();
-      hasInteractionBeforeHGC_=(hitPos.z()<317);
-      
+      hasInteractionBeforeHGC_=(fabs(hitPos.z())<317);
+      hasChargedInteraction_=intInfo.info;
+
+      //match nearest HGC layer in Z
+      float dzMin(99999999.);
+      for(size_t ilay=0; ilay<layerZ.size(); ilay++)
+	{
+	  float dz=fabs(fabs(layerZ[ilay])-fabs(genHitZ_));
+	  if(dz>dzMin) continue;
+	  dzMin=dz;
+	  layerShowerStart_=ilay;
+	}
+
+
       //hits
       std::unordered_map<uint32_t,uint32_t> recHitsIdMap; //needed to decode hits in clusters
       std::map<TString, std::map<uint32_t,float> > allEdeps, allCtrlEdeps;
@@ -701,50 +733,6 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       //that's all folks...
       t_->Fill();
     }
-}
-
-
-//
-math::XYZVectorD HGCSimHitsAnalyzer::getInteractionPosition(const reco::GenParticle & genp,
-							     edm::Handle<edm::SimTrackContainer> &SimTk,
-							     edm::Handle<edm::SimVertexContainer> &SimVtx,
-							     int barcode)
-{
-  for (const SimTrack &simtrack : *SimTk) 
-    {
-      if (simtrack.genpartIndex()!=barcode) continue;
-      int simid = simtrack.trackId();
-      for (const SimVertex &simvertex : *SimVtx) 
-	{
-	  //for neutrals only one vertex
-	  if(genp.charge()==0)
-	    {
-	      if (simvertex.parentIndex()!=simid) continue;
-	      return math::XYZVectorD(simvertex.position());
-	    }
-	  else
-	    {
-	      uint32_t tkMult(0);
-	      for (const SimTrack &dausimtrack : *SimTk)
-		{
-		  int dausimid=dausimtrack.trackId();
-		  if(dausimid==simid) continue;
-		  unsigned int vtxIdx=dausimtrack.vertIndex(); 
-		  if(vtxIdx!=simvertex.vertexId()) continue;
-		  int tkType=abs(dausimtrack.type());
-		  
-		  //neglect ionization products
-		  if(tkType==11) continue;
-
-		  //check for nucleons or nuclei, neutral pions or gammas
-		  if(tkType==2112 || tkType==2212 || tkType>1000000000 || tkType==111 || tkType==22) tkMult++;
-		}
-	      if(tkMult>2) return  math::XYZVectorD(simvertex.position());
-	    }
-	}
-    }
-
-  return math::XYZVectorD(0,0,0);
 }
 
 

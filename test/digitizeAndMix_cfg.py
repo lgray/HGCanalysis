@@ -1,52 +1,52 @@
+# Auto generated configuration file
+# using: 
+# Revision: 1.20 
+# Source: /local/reps/CMSSW/CMSSW/Configuration/Applications/python/ConfigBuilder.py,v 
+# with command line options: step2 --conditions auto:upgradePLS3 -n 10 --eventcontent FEVTDEBUGHLT -s DIGI:pdigi_valid,L1,DIGI2RAW --datatier GEN-SIM-DIGI-RAW --customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon --geometry Extended2023HGCalMuon,Extended2023HGCalMuonReco --magField 38T_PostLS1 --filein file:step1.root --fileout file:step2.root
 import FWCore.ParameterSet.Config as cms
 
-procName='ReRECO'
-process = cms.Process(procName)
+process = cms.Process('DIGI2RAW')
 
 # import of standard configurations
 process.load('Configuration.StandardSequences.Services_cff')
 process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')
 process.load('FWCore.MessageService.MessageLogger_cfi')
 process.load('Configuration.EventContent.EventContent_cff')
-process.load('SimGeneral.MixingModule.mix_POISSON_average_cfi')
+process.load('SimGeneral.MixingModule.mix_POISSON_average_cfi') #mixNoPU_cfi')
 process.load('Configuration.Geometry.GeometryExtended2023HGCalMuonReco_cff')
 process.load('Configuration.StandardSequences.MagneticField_38T_PostLS1_cff')
 process.load('Configuration.StandardSequences.Digi_cff')
 process.load('Configuration.StandardSequences.SimL1Emulator_cff')
 process.load('Configuration.StandardSequences.DigiToRaw_cff')
-process.load('Configuration.StandardSequences.RawToDigi_cff')
-process.load('Configuration.StandardSequences.L1Reco_cff')
-process.load('Configuration.StandardSequences.Reconstruction_cff')
 process.load('Configuration.StandardSequences.EndOfProcess_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(25)
+    input = cms.untracked.int32(-1)
 )
 
 #configure from command line
 import os,sys
-if(len(sys.argv)<7):
-    print '\ncmsRun digitizeAndMix_cfg.py SampleName First_File Step_File MinBiasName AvgPU [OutputDir]\n'
+if(len(sys.argv)<5):
+    print '\ncmsRun digitizeAndMix_cfg.py SourceFile MinBiasName AvgPU [OutputDir]\n'
     sys.exit() 
-preFix        = sys.argv[2]
-ffile         = int(sys.argv[3])
-step          = int(sys.argv[4])
-minBiasPreFix = sys.argv[5]
-avgPU         = float(sys.argv[6])
+sourceF        = sys.argv[2]
+minBiasPreFix = sys.argv[3]
+avgPU         = float(sys.argv[4])
 outputDir='./'
-if len(sys.argv)>7 : outputDir=sys.argv[7]
+if len(sys.argv)>5 : outputDir=sys.argv[5]
+
 
 # Input source
 from UserCode.HGCanalysis.storeTools_cff import fillFromStore
 process.source = cms.Source("PoolSource",
-                            secondaryFileNames = cms.untracked.vstring(),
-                            fileNames=cms.untracked.vstring()
-                            )
-process.source.fileNames=fillFromStore('/store/cmst3/group/hgcal/CMSSW/%s'%preFix,ffile,step)
-print process.source.fileNames,'/store/cmst3/group/hgcal/CMSSW/%s'%preFix
+    secondaryFileNames = cms.untracked.vstring(),
+    fileNames = cms.untracked.vstring(sourceF)
+)
 
-process.options = cms.untracked.PSet(    )
+process.options = cms.untracked.PSet(
+
+)
 
 # Production Info
 process.configurationMetadata = cms.untracked.PSet(
@@ -57,29 +57,20 @@ process.configurationMetadata = cms.untracked.PSet(
 
 # Output definition
 
-process.output = cms.OutputModule("PoolOutputModule",
+process.FEVTDEBUGHLToutput = cms.OutputModule("PoolOutputModule",
     splitLevel = cms.untracked.int32(0),
     eventAutoFlushCompressedSize = cms.untracked.int32(5242880),
     outputCommands = process.FEVTDEBUGHLTEventContent.outputCommands,
-    fileName = cms.untracked.string('file:%s/Events_%d_PU%d.root'%(outputDir,ffile,avgPU)),
+    fileName = cms.untracked.string('file:%s/Events_PU%d.root'%(outputDir,avgPU)),
     dataset = cms.untracked.PSet(
         filterName = cms.untracked.string(''),
         dataTier = cms.untracked.string('GEN-SIM-DIGI-RAW')
     )
 )
 
-#for the moment keep only the bare minimum
-process.output.outputCommands.append('drop *_*_*_*')
-process.output.outputCommands.append('keep recoGenParticles_*__RECO')
-process.output.outputCommands.append('keep *_genParticles__RECO')
-process.output.outputCommands.append('keep SimTracks_g4SimHits__RECO')
-process.output.outputCommands.append('keep SimVertexs_g4SimHits__RECO')
-process.output.outputCommands.append('keep PCaloHits_g4SimHits_HGCHits*_RECO')
-process.output.outputCommands.append('keep *_mix_HGCDigis*_%s'%procName)
+# Additional output definition
 
-print process.output.outputCommands
-
-#mixing
+# Other statements
 process.mix.input.nbPileupEvents.averageNumber = cms.double(avgPU)
 process.mix.bunchspace = cms.int32(25)
 process.mix.minBunch = cms.int32(-12)
@@ -89,23 +80,18 @@ import random
 random.shuffle(mixFileNames)
 process.mix.input.fileNames = cms.untracked.vstring(mixFileNames)
 process.mix.digitizers = cms.PSet(process.theDigitizersValid)
-
 from Configuration.AlCa.GlobalTag import GlobalTag
-process.GlobalTag = GlobalTag(process.GlobalTag, 'DES23_62_V1::All', '')
+process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:upgradePLS3', '')
 
 # Path and EndPath definitions
 process.digitisation_step = cms.Path(process.pdigi_valid)
 process.L1simulation_step = cms.Path(process.SimL1Emulator)
 process.digi2raw_step = cms.Path(process.DigiToRaw)
-process.raw2digi_step = cms.Path(process.RawToDigi)
-process.L1Reco_step = cms.Path(process.L1Reco)
-process.reconstruction_step = cms.Path(process.reconstruction)
 process.endjob_step = cms.EndPath(process.endOfProcess)
-process.output_step = cms.EndPath(process.output)
+process.FEVTDEBUGHLToutput_step = cms.EndPath(process.FEVTDEBUGHLToutput)
 
 # Schedule definition
-#process.schedule = cms.Schedule(process.digitisation_step,process.L1simulation_step,process.digi2raw_step,process.raw2digi_step,process.L1Reco_step,process.reconstruction_step,process.endjob_step,process.output_step)
-process.schedule = cms.Schedule(process.digitisation_step,process.L1simulation_step,process.digi2raw_step,process.endjob_step,process.output_step)
+process.schedule = cms.Schedule(process.digitisation_step,process.L1simulation_step,process.digi2raw_step,process.endjob_step,process.FEVTDEBUGHLToutput_step)
 
 # customisation of the process.
 
@@ -116,17 +102,14 @@ from SLHCUpgradeSimulations.Configuration.combinedCustoms import cust_2023HGCalM
 process = cust_2023HGCalMuon(process)
 
 #custom digitization
-from SimCalorimetry.HGCSimProducers.customHGCdigitizer_cfi import customHGCdigitizer
-customHGCdigitizer(process=process,version="femodel-v0",debug=True)
+#from SimCalorimetry.HGCSimProducers.customHGCdigitizer_cfi import customHGCdigitizer
+#customHGCdigitizer(process=process,version="femodel-v0",debug=True)
 #customHGCdigitizer(process=process,version="simple0",debug=True)
 
 print 'Will digitize with the following parameters'
 print process.source.fileNames
-print 'Sample %s starting at %s and processing %d files'%(preFix,process.source.fileNames[0],step)
+print 'Sample %s '%(process.source.fileNames[0])
 print 'MinBias from %s will be used to generate <PU>=%f starting with %s'%(minBiasPreFix,avgPU,mixFileNames[0])
-print 'Output will be store in %s'%process.output.fileName
-
-
-
+print 'Output will be store in %s'%process.FEVTDEBUGHLToutput.fileName
 
 # End of customisation functions

@@ -16,18 +16,12 @@
 
 #include "SimDataFormats/CaloHit/interface/PCaloHit.h"
 #include "SimDataFormats/CaloHit/interface/PCaloHitContainer.h"
-#include "SimDataFormats/Track/interface/SimTrack.h"
-#include "SimDataFormats/Track/interface/SimTrackContainer.h"
-#include "SimDataFormats/Vertex/interface/SimVertex.h"
-#include "SimDataFormats/Vertex/interface/SimVertexContainer.h"
 
 #include "DataFormats/Candidate/interface/Candidate.h"
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
 #include "DataFormats/ParticleFlowReco/interface/PFClusterFwd.h"
 #include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
-
-#include "UserCode/HGCanalysis/interface/HGCSimulationEvent.h"
 
 #include "TH1F.h"
 #include "TTree.h"
@@ -58,15 +52,14 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
  private:
 
   //
-  math::XYZVectorD getInteractionPosition(const reco::GenParticle & genp, edm::Handle<edm::SimTrackContainer> &SimTk, edm::Handle<edm::SimVertexContainer> &SimVtx, int barcode);
-
-  //
   inline void resetCounters()
   {
     genId_=0;
     genEn_=0;   genEta_=0;  genPhi_=0;
     genHitX_=0; genHitY_=0; genHitZ_=0;
+    hasChargedInteraction_=false;
     hasInteractionBeforeHGC_=false;
+    layerShowerStart_=0;
     pfMatchId_=0;
     for(std::map<TString, Float_t * >::iterator keyIt=edeps_.begin();
 	keyIt!=edeps_.end();
@@ -121,7 +114,8 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   Float_t genEn_,genEta_,genPhi_;
   Float_t genHitX_, genHitY_, genHitZ_;
   Int_t pfMatchId_;
-  Bool_t hasInteractionBeforeHGC_;
+  Bool_t hasChargedInteraction_,hasInteractionBeforeHGC_;
+  Int_t layerShowerStart_;
   Int_t nlay_;
   std::map<TString, Float_t> showerMeanX_, showerMeanY_, showerMeanZ_, showerMeanEta_, showerMeanPhi_;
   std::map<TString,Int_t> nClusters_;

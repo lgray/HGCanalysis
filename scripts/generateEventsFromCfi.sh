@@ -17,8 +17,9 @@ HEF_AIR=""
 TAG=""
 PHYSLIST="QGSP_FTFP_BERT_EML"
 TKFILTER=""
-
-while getopts "hp:e:n:c:o:w:j:g:t:l:xzf" opt; do
+SIMONLY=""
+PU=0
+while getopts "hp:e:n:c:o:w:j:g:t:l:xzfsa:" opt; do
     case "$opt" in
     h)
         echo ""
@@ -38,11 +39,15 @@ while getopts "hp:e:n:c:o:w:j:g:t:l:xzf" opt; do
 	echo "     -z      exclude HEF (turn into air)"
         echo "     -t      tag to name output file"
 	echo "     -f      filter events interacting before HGC"
+	echo "     -s      sim only"
+	echo "     -a      average pileup"
 	echo "     -h      help"
         echo ""
 	exit 0
         ;;
     l)  PHYSLIST=$OPTARG
+	;;
+    a)  PU=$OPTARG
 	;;
     p)  PID=$OPTARG
         ;;
@@ -66,6 +71,8 @@ while getopts "hp:e:n:c:o:w:j:g:t:l:xzf" opt; do
 	;;
     t)  TAG=$OPTARG
         ;;
+    s)  SIMONLY="True"
+	;;
     f)  TKFILTER="True"
 	;;
     esac
@@ -90,13 +97,23 @@ PYFILE=${BASEJOBNAME}_cfg.py
 LOGFILE=${BASEJOBNAME}.log
 
 #run cmsDriver
-cmsDriver.py ${CFI} -n ${NEVENTS} \
-    --python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
-    -s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW,RAW2DIGI,L1Reco,RECO --datatier GEN-SIM-DIGI-RECO --eventcontent FEVTDEBUGHLT \
-    --conditions auto:upgradePLS3 --beamspot Gauss --magField 38T_PostLS1 \
-    --customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
-    --geometry ${GEOMETRY} \
-    --no_exec 
+if [ -z ${SIMONLY} ]; then
+    cmsDriver.py ${CFI} -n ${NEVENTS} \
+	--python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
+	-s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW,RAW2DIGI,L1Reco,RECO --datatier GEN-SIM-DIGI-RECO --eventcontent FEVTDEBUGHLT \
+	--conditions auto:upgradePLS3 --beamspot HLLHC --magField 38T_PostLS1 \
+	--customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
+	--geometry ${GEOMETRY} \
+	--no_exec 
+else
+    cmsDriver.py ${CFI} -n ${NEVENTS} \
+	--python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
+	-s GEN,SIM --datatier GEN-SIM --eventcontent FEVTDEBUGHLT \
+	--conditions auto:upgradePLS3 --beamspot HLLHC --magField 38T_PostLS1 \
+	--customise SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon \
+	--geometry ${GEOMETRY} \
+	--no_exec   
+fi
 
 #customize with values to be generated
 echo "process.g4SimHits.StackingAction.SaveFirstLevelSecondary = True" >> ${WORKDIR}/${PYFILE}
@@ -151,18 +168,22 @@ fi
 #
 cmsRun ${WORKDIR}/${PYFILE} > ${WORKDIR}/${LOGFILE} 2>&1
 
-if [[ $STOREDIR =~ .*/store/cmst3.* ]]; then
-    cmsMkdir ${STOREDIR}
-    cmsStage -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
-    rm ${WORKDIR}/${OUTFILE}
-elif [[ $STOREDIR =~ /afs/.* ]]; then
-    cmsMkdir ${STOREDIR}
-    cp -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
-    rm ${WORKDIR}/${OUTFILE}
+if [ -z ${SIMONLY} ]; then
+    if [[ $STOREDIR =~ .*/store/cmst3.* ]]; then
+	cmsMkdir ${STOREDIR}
+	cmsStage -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
+    elif [[ $STOREDIR =~ /afs/.* ]]; then
+	mkdir ${STOREDIR}
+	cp -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
+    fi
+else
+    echo "will digitize and mix for <PU>=${PU}"
+    digitizeAndMix.sh -o ${STOREDIR}/DIGI-PU${PU} -m MinBias_CMSSW_6_2_0_SLHC20 -i "file:${WORKDIR}/${OUTFILE}" -p ${PU} -j ${JOBNB};
 fi
 
+rm ${WORKDIR}/${OUTFILE}
 
-echo "Generated $NEVENTS events for pid=$PID with E=$ENERGY GeV"
-echo "Local output @ `hostname` stored @ ${WORKDIR}/${OUTFILE} being moved to ${STOREDIR}" 
-echo "cmsRun cfg file can be found in ${WORKDIR}/${PYFILE}"
-echo "log file can be found in ${WORKDIR}/${LOGFILE}"
+#echo "Generated $NEVENTS events for pid=$PID with E=$ENERGY GeV"
+#echo "Local output @ `hostname` stored @ ${WORKDIR}/${OUTFILE} being moved to ${STOREDIR}" 
+#echo "cmsRun cfg file can be found in ${WORKDIR}/${PYFILE}"
+#echo "log file can be found in ${WORKDIR}/${LOGFILE}"
