@@ -215,14 +215,12 @@ draws the correlation between showerVolume and energy estimator
 """
 def computeCompensationWeights(enRanges,etaRanges,ws,outDir):
 
+    print '[computeCompensationWeights]'
+
     divx=len(etaRanges)/2
     while True:
         if divx*2 >= len(etaRanges) : break
         divx+=1
-
-    #optimize in energy density ranges
-    #uRanges=[[0,0.1],[0.1,0.2],[0.2,0.3],[0.3,0.5]]
-    uRanges=[[0,0.2],[0.2,0.4],[0.4,0.6],[0.6,0.8]]
 
     weightOptimGr=[]
     aGr=ROOT.TGraphErrors()
@@ -240,16 +238,40 @@ def computeCompensationWeights(enRanges,etaRanges,ws,outDir):
         genEn_max=enRanges[ien][1]
         genEn_mean=0.5*(genEn_max+genEn_min)
 
+        #optimize in energy density ranges, based on the inclusive profile
+        iprof1d=len(all1DProfiles)
+        all1DProfiles.append( ROOT.TH1F('hprof1d%d'%ien,'Energy=%d GeV;U (shower density) [GeV/Volume];PDF'%genEn_mean,50,0,4) )
+        all1DProfiles[iprof1d].SetDirectory(0)
+        all1DProfiles[iprof1d].Sumw2()
+        allDensValues=[]
+        redIncData=ws.data('data_uncalib_final').reduce('en>=%f && en<=%f'%(genEn_min,genEn_max))
+        nEntries=redIncData.numEntries()
+        print nEntries
+        for ientry in xrange(0,nEntries):
+            entryVars=redIncData.get(ientry)
+            vol=entryVars.find('volume').getVal()
+            if vol<=0 : continue
+            erec=entryVars.find('lambda_emEn').getVal()
+            dens=erec/vol 
+            allDensValues.append( dens )
+            all1DProfiles[iprof1d].Fill(dens,1./nEntries)
+        
         #sums for weight optimization
+        uRanges=[]
+        prevQuantile=0
+        for q in [10,20,40,60,80,90]:
+            theQuantile=numpy.percentile(allDensValues,q)
+            uRanges.append([prevQuantile,theQuantile])
+            prevQuantile=theQuantile
+        uRanges.append([prevQuantile,numpy.percentile(allDensValues,99)])
+        print 'For E=%d GeV compensation weights will be optimised in the following en. density ranges'%genEn_mean
+        print uRanges
+
+        #arrays for optimisation
         nSum=[0]*len(uRanges)
         densSum=[0]*len(uRanges)
         eSum=[0]*len(uRanges)
         e2Sum=[0]*len(uRanges)
-
-        iprof1d=len(all1DProfiles)
-        all1DProfiles.append( ROOT.TH1F('hprof1d%d'%ien,'Energy=%d GeV;U (shower density) [GeV/Volume];PDF'%genEn_mean,50,0,1) )
-        all1DProfiles[iprof1d].SetDirectory(0)
-        all1DProfiles[iprof1d].Sumw2()
 
         canvas.Clear()
         canvas.Divide(divx,2)   
@@ -274,8 +296,7 @@ def computeCompensationWeights(enRanges,etaRanges,ws,outDir):
                 dens=0
                 if vol>0 : dens=erec/vol 
                 all2DScatters[iprof].Fill(erec,dens)
-                all1DProfiles[iprof1d].Fill(dens,1./redData.numEntries())
-
+                
                 #compute sums for maximization
                 for iuRange in xrange(0,len(uRanges)):
                     if dens<uRanges[iuRange][0] or dens>uRanges[iuRange][1] : continue
@@ -527,9 +548,9 @@ def adaptWorkspaceForPionCalibration(opt,outDir):
                 ienVal=entryVars.find('%sEn_%s_func'%(wType,subDet)).getVal()
 
                 #compute residual, if available -> this should change to shower mean eta...
-                if wType in emCalibMapRes:
-                    emcalib_residual=calibMapRes[wType].Eval(ROOT.TMath.Abs(ws.var('eta').getVal()))
-                    ienVal*=(1-emcalib_residual)
+                #if wType in emCalibMapRes:
+                #    emcalib_residual=calibMapRes[wType].Eval(ROOT.TMath.Abs(ws.var('eta').getVal()))
+                #    ienVal*=(1-emcalib_residual)
                     
                 #add corrected value
                 ws.var('%sEn_%s'%(wType,subDet)).setVal(ienVal)
@@ -773,7 +794,7 @@ def runCalibrationStudy(opt):
                 fitName          = 'range%d%d_%s'%(iEtaRange,iEnRange,vName)            
                 ws.var(vName).setRange(fitName,v_min,v_max)
                 ws.var(vName).setRange('fit_%s'%fitName,v_fitMin, v_fitMax)
-                ws.factory('RooCBShape::resol_%s(%s,mean_%s[%f,%f,%f],sigma_%s[%f,%f,%f],alpha_%s[-1.0,-20.0,-0.001],n_%s[2,1,10])'%
+                ws.factory('RooCBShape::resol_%s(%s,mean_%s[%f,%f,%f],sigma_%s[%f,%f,%f],alpha_%s[-3.0,-30.0,-0.01],n_%s[2,1,5])'%
                            (fitName,vName,
                             fitName,v_mean,v_min,v_max,
                             fitName,v_sigma,v_sigma*0.001, v_sigma*2,
@@ -782,9 +803,16 @@ def runCalibrationStudy(opt):
                            )
                 
                 #fit
-                fres = ws.pdf('resol_%s'%fitName).fitTo( redData, ROOT.RooFit.Range('fit_%s'%fitName), ROOT.RooFit.Save(True) )
+                theVar=ws.var(vName)
+                thePDF=ws.pdf('resol_%s'%fitName)
+                fres = thePDF.fitTo( redData, ROOT.RooFit.Range('fit_%s'%fitName), ROOT.RooFit.Save(True) )
                 meanFit, meanFit_error   = ws.var('mean_%s'%fitName).getVal(), ws.var('mean_%s'%fitName).getError()
                 sigmaFit, sigmaFit_error = ws.var('sigma_%s'%fitName).getVal(), ws.var('sigma_%s'%fitName).getError()
+                scanStep=(theVar.getMax()-theVar.getMin())*1e-4
+                tol=scanStep/4
+                effSigma = ROOT.getEffSigma(theVar,thePDF,theVar.getMin(),theVar.getMax(),scanStep,tol)
+                sigmaFit=0.5*(effSigma.second-effSigma.first)
+
 
                 #save results
                 np=etaSliceCalibGr[wType].GetN()
@@ -859,17 +887,33 @@ def main():
     parser.add_option('-v',      '--var' ,     dest='treeVarName',   help='Variable to use as energy estimator',                            default='edep_sim')
     (opt, args) = parser.parse_args()
 
-     #check inputs                                                                                                                                                                                                  
+    #check inputs    
     if opt.input is None and opt.wsUrl is None:
         parser.print_help()
         sys.exit(1)
 
     #basic ROOT customization
     customROOTstyle()
+    ROOT.gSystem.Load( "libUserCodeHGCanalysis")
+
     #ROOT.gROOT.SetBatch(False)
     ROOT.gROOT.SetBatch(True)
     ROOT.gStyle.SetOptTitle(0)
     ROOT.gStyle.SetOptStat(0)
+    ROOT.RooMsgService.instance().setSilentMode(True);
+    ROOT.RooMsgService.instance().getStream(0).removeTopic(ROOT.RooFit.Minimization);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.Minimization);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.ObjectHandling);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.DataHandling);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.Fitting);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.Plotting);
+    ROOT.RooMsgService.instance().getStream(0).removeTopic(ROOT.RooFit.InputArguments);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.InputArguments);
+    ROOT.RooMsgService.instance().getStream(0).removeTopic(ROOT.RooFit.Eval);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.Eval);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.Integration);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.NumIntegration);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.NumIntegration);
 
     runCalibrationStudy(opt)
     
