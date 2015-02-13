@@ -4,7 +4,7 @@
 
 #include "TTree.h"
 
-#define MAXGENPEREVENT 100
+#define MAXGENPEREVENT 5000
 #define MAXHGCHITSPEREVENT 1000000
 
 struct  HGCSimEvent_t
@@ -14,7 +14,7 @@ struct  HGCSimEvent_t
 
   //generator level particles
   Short_t ngen;
-  Int_t gen_id[MAXGENPEREVENT];
+  Int_t gen_id[MAXGENPEREVENT],gen_status[MAXGENPEREVENT];
   Float_t gen_pt[MAXGENPEREVENT], gen_eta[MAXGENPEREVENT], gen_phi[MAXGENPEREVENT], gen_en[MAXGENPEREVENT];
 
   //generator level jets

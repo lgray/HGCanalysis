@@ -35,9 +35,13 @@ def deriveROIPUParams(url, dist='csi', ndRbins=12, nCsiBins=56):
 	medianH.SetDirectory(0)
 	widthH=medianH.Clone('widthPU_%s'%dist)
 	widthH.SetDirectory(0)
+	sigma1H=medianH.Clone('sigma1PU_%s'%dist)
+	sigma1H.SetDirectory(0)
+	sigma2H=medianH.Clone('sigma2PU_%s'%dist)
+	sigma2H.SetDirectory(0)
 
 	#quantiles to determine per slice
-	probSum   = array('d',  [0.5,0.65])
+	probSum   = array('d',  [0.5,0.683,0.954])
 	quantiles = array('d', [0.0]*len(probSum))
 
 	#loop over slices in dR,layer,eta
@@ -75,9 +79,9 @@ def deriveROIPUParams(url, dist='csi', ndRbins=12, nCsiBins=56):
 			csiH[ieta].Scale(1./totalCts)
 			csiH[ieta].GetQuantiles(len(probSum), quantiles, probSum)
 			medianH.SetBinContent(ilay+1,normXbin+ieta*ndRbins,quantiles[0])
-			#medianH.SetBinError(ilay+1,normXbin+ieta*ndRbins,1.253*h.GetMeanError())
-			
-
+			sigma1H.SetBinContent(ilay+1,normXbin+ieta*ndRbins,quantiles[1])
+			sigma2H.SetBinContent(ilay+1,normXbin+ieta*ndRbins,quantiles[2])
+						
 			leftRMS=0
 			npForLeftRMS=0
 			for csiXbin in xrange(1,csiH[ieta].GetXaxis().GetNbins()):
@@ -91,7 +95,7 @@ def deriveROIPUParams(url, dist='csi', ndRbins=12, nCsiBins=56):
 			widthH.SetBinContent(ilay+1,normXbin+ieta*ndRbins,leftRMS)
 	fIn.Close()
 
-	return medianH, widthH
+	return medianH, widthH, sigma1H, sigma2H
 
 """
 mani function
@@ -101,8 +105,8 @@ def main() :
 	ROOT.gStyle.SetOptStat(0)
 	ROOT.gStyle.SetOptTitle(0)
 
-	medianCsiH, widthCsiH   = deriveROIPUParams( url='muontag.root', dist='csi' )
-	medianCsiTH, widthCsiTH = deriveROIPUParams( url='muontag.root', dist='csit' )
+	medianCsiH, widthCsiH, sigma1CsiH, sigma2CsiH   = deriveROIPUParams( url='muontag.root', dist='csi' )
+	medianCsiTH, widthCsiTH,sigma1CsiTH, sigma2CsiTH = deriveROIPUParams( url='muontag.root', dist='csit' )
 
 	#save output
 	fOut=ROOT.TFile.Open('ROIPUparams.root','RECREATE')
@@ -110,6 +114,10 @@ def main() :
 	widthCsiH.Write()
 	medianCsiTH.Write()
 	widthCsiTH.Write()
+	sigma1CsiH.Write()
+	sigma2CsiH.Write()
+	sigma1CsiTH.Write()
+	sigma2CsiTH.Write()
 	fOut.Close()
 
 

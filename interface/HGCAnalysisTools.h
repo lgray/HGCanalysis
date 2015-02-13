@@ -8,7 +8,15 @@
 #include <fastjet/PseudoJet.hh>
 #include <fastjet/ClusterSequence.hh>
 
+#include "RooRealVar.h"
+#include "RooAbsPdf.h"
+
 #include <vector>
+
+/**
+   @short gets lambda for a given layer
+ */
+float getLambdaForHGCLayer(int hit_layer);
 
 /**
    @short tries to find the interaction position based on G4 information
@@ -48,5 +56,8 @@ std::vector<fastjet::PseudoJet> runFastJetOn(const std::vector<const T*> &input,
   return sorted_by_pt(clust_seq.inclusive_jets(ptmin));
 }
 
+
+// get effective sigma from cumulative distribution function (from Hgg analysis)
+std::pair<float,float> getEffSigma(RooRealVar *var, RooAbsPdf *pdf, float wmin=-10,float wmax=10, float step=0.002, float epsilon=1e-4);
 
 #endif
