@@ -57,9 +57,11 @@ void HGCSimpleHitAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
 	      float energy = hit_it->energy()*1e6;
 	      float time   = hit_it->time();
 	      int layer(simId.layer()),cell(simId.cell());  
+	      
 	      std::pair<int,int> recoLayerCell=dddConst.simToReco(cell,layer,topo.detectorType());
 	      cell  = recoLayerCell.first;
 	      layer = recoLayerCell.second;
+	      
 	      if(layer<0) continue;
 
 	      //get global position
