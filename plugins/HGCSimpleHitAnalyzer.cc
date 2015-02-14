@@ -102,14 +102,18 @@ void HGCSimpleHitAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
 	    int iphi   = detId.iphi();
 	    int layer  = detId.depth();
 	    std::pair<double,double> etaphi = hcalDDD_->getEtaPhi(subdet,ieta,iphi);
-	    double rz = hcalDDD_->getRZ(subdet,ieta,iphi);
-	    HepGeom::Point3D<float> pos(rz*cos(etaphi.second)/cosh(etaphi.first),rz*sin(etaphi.second)/cosh(etaphi.first),rz*tanh(etaphi.first));
+	    float hit_eta(etaphi.first);
+	    float hit_phi(etaphi.second);
+
+	    // currently returning 0 always?
+	    //double rz = hcalDDD_->getRZ(subdet,ieta,iphi);
+	    // HepGeom::Point3D<float> pos(rz*cos(etaphi.second)/cosh(etaphi.first),rz*sin(etaphi.second)/cosh(etaphi.first),rz*tanh(etaphi.first));
 	    
 	    for(size_t igen=0; igen<genParticles->size(); igen++)
 	      {
 		const reco::GenParticle & p = (*genParticles)[igen];
-		if(pos.eta()*p.eta()<0) continue;
-		countHit(layer+nlay,energy,time,pos.eta()-p.eta(),(p.charge())*deltaPhi(pos.phi(),p.phi()));
+		if(hit_eta*p.eta()<0) continue;
+		countHit(layer+nlay,energy,time,hit_eta-p.eta(),(p.charge())*deltaPhi(hit_phi,p.phi()));
 		sdH_->Fill(layer+nlay,i);
 	      }
 	  }

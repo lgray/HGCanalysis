@@ -1,0 +1,39 @@
+<html>
+<head>
+<script type="text/javascript">
+function show(x,title) {
+document.write("<tr><td><i>"+title+"</i></td>");
+document.write("<td><img height=300 src=\""+x+".png\"/></td>");
+document.write("</td></tr>");
+}
+
+function showAll(title,lmin,lmax) {
+document.write("<table>");
+document.write("<tr><th colspan=3>"+title+"</th></tr>");
+
+var x="layersummary_prof";
+show(x,"Profiles");
+
+document.write("<tr><td colspan=3>Below follow the individual distribution per layer</td></tr>");
+
+for (var l = lmin; l <=lmax; l++) { 
+x="layersummary_";
+x=x+l.toString();
+var locTitle="Layer #";
+locTitle=locTitle + l.toString();
+show(x,locTitle);
+}
+
+document.write("</table>");
+}
+
+</script>
+
+<link rel="stylesheet" type="text/css" href="tableFormat.css"></link>
+</head>
+
+
+
+<body>
+<script type="text/javascript">showAll("Simple hit analysis summary",1,54)</script>
+</body>
