@@ -43,6 +43,13 @@
 #include <map>
 #include <string>
 
+struct GangedHitInfo_t
+{
+  int layer,subdet;
+  float energy,time;
+  float deta, qdphi;
+};
+
 class HGCSimpleHitAnalyzer : public edm::EDAnalyzer 
 {
  public:

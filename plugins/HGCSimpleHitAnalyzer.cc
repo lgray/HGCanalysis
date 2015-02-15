@@ -30,6 +30,7 @@ void HGCSimpleHitAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
     }
 
   int nlay(0);
+  std::map<uint32_t,GangedHitInfo_t> gangedHits;
   for(size_t i=0; i<hitCollections_.size(); i++)
     {
       std::string hitsName(hitCollections_[i]);
@@ -63,7 +64,7 @@ void HGCSimpleHitAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
 	      layer = recoLayerCell.second;
 	      
 	      if(layer<0) continue;
-
+	      
 	      //get global position
 	      uint32_t recoDetId = ( (i==0) ?
 				     (uint32_t)HGCEEDetId(ForwardSubdetector(mySubDet),simId.zside(),layer,simId.sector(),simId.subsector(),cell) :
@@ -74,8 +75,20 @@ void HGCSimpleHitAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
 		{
 		  const reco::GenParticle & p = (*genParticles)[igen];
 		  if(pos.eta()*p.eta()<0) continue;
-		  countHit(layer+nlay,energy,time,pos.eta()-p.eta(),(p.charge())*deltaPhi(pos.phi(),p.phi()));
-		  sdH_->Fill(layer+nlay,i);
+		  
+		  if(gangedHits.find(recoDetId)==gangedHits.end())
+		    {
+		      GangedHitInfo_t newhit;
+		      gangedHits[recoDetId]=newhit;
+		      gangedHits[recoDetId].energy=0;
+		      gangedHits[recoDetId].time=0;
+		    }
+		  gangedHits[recoDetId].subdet=i;
+		  gangedHits[recoDetId].layer   = layer+nlay;
+		  gangedHits[recoDetId].energy += energy;
+		  gangedHits[recoDetId].time   += energy*time;
+		  gangedHits[recoDetId].deta    = pos.eta()-p.eta();
+		  gangedHits[recoDetId].qdphi   = (p.charge())*deltaPhi(pos.phi(),p.phi());
 		}
 	    }
 
@@ -109,15 +122,35 @@ void HGCSimpleHitAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
 	    //double rz = hcalDDD_->getRZ(subdet,ieta,iphi);
 	    // HepGeom::Point3D<float> pos(rz*cos(etaphi.second)/cosh(etaphi.first),rz*sin(etaphi.second)/cosh(etaphi.first),rz*tanh(etaphi.first));
 	    
+	    uint32_t recoDetId=detId.rawId();
 	    for(size_t igen=0; igen<genParticles->size(); igen++)
 	      {
 		const reco::GenParticle & p = (*genParticles)[igen];
 		if(hit_eta*p.eta()<0) continue;
-		countHit(layer+nlay,energy,time,hit_eta-p.eta(),(p.charge())*deltaPhi(hit_phi,p.phi()));
-		sdH_->Fill(layer+nlay,i);
+
+		if(gangedHits.find(recoDetId)==gangedHits.end())
+		  {
+		    GangedHitInfo_t newhit;
+		    gangedHits[recoDetId]=newhit;
+		    gangedHits[recoDetId].energy=0;
+		    gangedHits[recoDetId].time=0;
+		  }
+		gangedHits[recoDetId].subdet=i;
+		gangedHits[recoDetId].layer   = layer+nlay;
+		gangedHits[recoDetId].energy += energy;
+		gangedHits[recoDetId].time   += energy*time;
+		gangedHits[recoDetId].deta    = hit_eta-p.eta();
+		gangedHits[recoDetId].qdphi   = (p.charge())*deltaPhi(hit_phi,p.phi());
 	      }
 	  }
       }
+    }
+
+  //count
+  for(std::map<uint32_t,GangedHitInfo_t>::iterator it=gangedHits.begin(); it!=gangedHits.end(); it++)
+    {
+      countHit(it->second.layer,it->second.energy,it->second.time/it->second.energy,it->second.deta,it->second.qdphi);
+      sdH_->Fill(it->second.layer,it->second.subdet);
     }
 }
 
@@ -129,10 +162,12 @@ void HGCSimpleHitAnalyzer::countHit(int layer,float en, float time, float deta, 
       edm::Service<TFileService> fs;
   
       TString pf("layer"); pf+=layer;
-      histos_["en"][layer]   = fs->make<TH1F>("en_"+pf,  ";Energy [keV];Hits",100,0,1000);
+      float maxEn(800);
+      if(layer>42) maxEn=50000;
+      histos_["en"][layer]   = fs->make<TH1F>("en_"+pf,  ";Energy [keV];Hits",100,0,maxEn);
       histos_["time"][layer] = fs->make<TH1F>("time_"+pf,";Time-of-arrival [ns];Hits",150,-25,50);
       histos_["deta"][layer] = fs->make<TH1F>("deta_"+pf,";#Delta#eta;Hits",100,-1,1);
-      histos_["dphi"][layer] = fs->make<TH1F>("dphi_"+pf,";charge x #Delta#phi [rad];Hits",200,-2,2);
+      histos_["dphi"][layer] = fs->make<TH1F>("dphi_"+pf,";charge x #Delta#phi [rad];Hits",300,-3.2,3.2);
     }
   histos_["en"][layer]->Fill(en);
   histos_["time"][layer]->Fill(time);

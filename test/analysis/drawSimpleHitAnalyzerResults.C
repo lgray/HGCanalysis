@@ -2,6 +2,7 @@
    
  */
 
+#include "TSpectrum.h"
 #include "TSystem.h"
 #include "TROOT.h"
 #include "TStyle.h"
@@ -58,6 +59,8 @@ void drawSimpleHitAnalyzerResults(TString inURL="SimpleHitAnalysis.root",TString
   TString dists[]={ "en","time","deta","dphi" };
   TFile *_file0 = TFile::Open(inURL);
 
+  TH2F *sdH=(TH2F *)_file0->Get("analysis/sd");
+
   gROOT->SetBatch(true);
   gStyle->SetOptStat(0);
   gStyle->SetOptTitle(0);
@@ -67,7 +70,6 @@ void drawSimpleHitAnalyzerResults(TString inURL="SimpleHitAnalysis.root",TString
   TF1 *lan=new TF1("lan","[0]*TMath::Landau(x,[1],[2])",0,2000);
   for(Int_t ilay=1; ilay<=maxLayers; ilay++)
     {
-
       TObjArray plots;       
       for(size_t idist=0; idist<sizeof(dists)/sizeof(TString); idist++)
 	{  
@@ -78,11 +80,23 @@ void drawSimpleHitAnalyzerResults(TString inURL="SimpleHitAnalysis.root",TString
 
 	  float profVal(h->GetMean()),profValUnc(h->GetMeanError());
 	  if(doLandauFit)
-	    {
-	      Int_t maxBin=h->GetMaximumBin();
-	      Float_t mpvest=h->GetXaxis()->GetBinCenter(maxBin);
-	      Float_t fitmin=h->GetXaxis()->GetBinCenter(maxBin-5);
-	      Float_t fitmax=h->GetXaxis()->GetBinCenter(maxBin+15);
+	    { 
+	      TSpectrum spec;
+	      spec.Search(h);
+	      Int_t npeaks=spec.GetNPeaks();
+
+	      Int_t thepeak(0);
+	      Float_t mpvest=spec.GetPositionX()[thepeak];
+	      if(npeaks>1 && mpvest<10) {
+		thepeak=1;
+		mpvest=spec.GetPositionX()[thepeak];
+	      }
+
+	      std::cout << npeaks << " peaks found, using #" << thepeak << " with x=" << mpvest << endl;	      
+	      Int_t peakbin=h->GetXaxis()->FindBin(mpvest);
+	      Float_t fitmin=h->GetXaxis()->GetBinCenter(peakbin-5);
+	      Float_t fitmax=h->GetXaxis()->GetBinCenter(peakbin+10);
+		
 	      h->Fit(lan,"WQR+","",fitmin,fitmax);
 	      lan->SetParameter(1,mpvest);
 	      profVal=lan->GetParameter(1);
@@ -113,13 +127,17 @@ void drawSimpleHitAnalyzerResults(TString inURL="SimpleHitAnalysis.root",TString
       TString name("layersummary_"); name+= ilay;
       showSummary(plots,name,title,outDir);
     }
-
-  
       
   TObjArray plots; 
   for(size_t i=0; i<profiles.size(); i++) plots.Add( profiles[i] );
   TString title("");
   showSummary(plots,"layersummary_prof","HGCal simulation profile",outDir);
+
+  TCanvas *c=new TCanvas("c","c",800,400);
+  c->SetLeftMargin(0.3);
+  sdH->Draw("colz");
+  sdH->GetYaxis()->SetTitleOffset(1.5);
+  c->SaveAs(outDir+"/sd.png");
 }
 
 //
@@ -140,6 +158,7 @@ void showSummary(TObjArray plots,TString name,TString title,TString outDir)
       p->SetRightMargin(0.02);
       p->SetBottomMargin(0.1);
       p->SetLeftMargin(0.12);
+      if(iplot==0) p->SetLogy();
       
       TObject *obj=plots.At(iplot);
       TString className=obj->ClassName();
