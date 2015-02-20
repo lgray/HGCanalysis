@@ -56,7 +56,7 @@ void drawSimpleHitAnalyzerResults(TString inURL="SimpleHitAnalysis.root",TString
   gSystem->Exec("mkdir -p " +outDir);
   gSystem->Exec("cp $CMSSW_BASE/src/UserCode/HGCanalysis/test/analysis/simplehitanalyzer_index.html " + outDir +"/index.html");
 
-  TString dists[]={ "en","time","deta","dphi" };
+  TString dists[]={ "en","envseta","time","deta","dphi", "phigenvsphihit" };
   TFile *_file0 = TFile::Open(inURL);
 
   TH2F *sdH=(TH2F *)_file0->Get("analysis/sd");
@@ -169,6 +169,12 @@ void showSummary(TObjArray plots,TString name,TString title,TString outDir)
 	  h->SetLineWidth(2);
 	  h->SetFillStyle(1001);
 	  h->SetFillColor(kGray);
+	  h->GetYaxis()->SetTitleOffset(1.2);
+	}
+      else if(className.Contains("TH2")) 
+	{
+	  TH2 *h=(TH2 *)obj;
+	  h->Draw("colz");
 	  h->GetYaxis()->SetTitleOffset(1.2);
 	}
       else if(className.Contains("TGraph"))

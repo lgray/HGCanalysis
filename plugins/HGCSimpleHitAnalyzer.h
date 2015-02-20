@@ -47,7 +47,8 @@ struct GangedHitInfo_t
 {
   int layer,subdet;
   float energy,time;
-  float deta, qdphi;
+  float eta,etagen,phi,phigen;
+  float q;
 };
 
 class HGCSimpleHitAnalyzer : public edm::EDAnalyzer 
@@ -61,7 +62,7 @@ class HGCSimpleHitAnalyzer : public edm::EDAnalyzer
   void analyzeHits (std::vector<PCaloHit>& hits);
   
 private:
-  void countHit(int layer,float en, float time, float deta, float dphi);
+  void countHit(int layer,float en, float time, float eta,float geneta, float phi,float genphi,float q);
   virtual void beginJob() override;
   virtual void analyze(const edm::Event&, const edm::EventSetup&) override;
   virtual void endJob() override;
@@ -72,6 +73,8 @@ private:
   // ----------member data ---------------------------
   std::vector<std::string> hitCollections_, geometrySource_;       
   std::map<TString, std::map<int,TH1F *> > histos_;
+  std::map<TString, std::map<int,TH2F *> > histos2D_;
+
   TH2F *sdH_;
   const HcalDDDRecConstants *hcalDDD_;
 };

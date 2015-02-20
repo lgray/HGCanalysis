@@ -1,6 +1,6 @@
 #include "UserCode/HGCanalysis/plugins/HGCSimpleHitAnalyzer.h"
 #include "SimDataFormats/CaloTest/interface/HcalTestNumbering.h"
-
+#include "TVector2.h"
 
 using namespace std;
 
@@ -87,11 +87,13 @@ void HGCSimpleHitAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
 		  gangedHits[recoDetId].layer   = layer+nlay;
 		  gangedHits[recoDetId].energy += energy;
 		  gangedHits[recoDetId].time   += energy*time;
-		  gangedHits[recoDetId].deta    = pos.eta()-p.eta();
-		  gangedHits[recoDetId].qdphi   = (p.charge())*deltaPhi(pos.phi(),p.phi());
+		  gangedHits[recoDetId].eta     = pos.eta();
+		  gangedHits[recoDetId].etagen  = p.eta();
+		  gangedHits[recoDetId].phi     = pos.phi();
+		  gangedHits[recoDetId].phigen  = p.phi();
+		  gangedHits[recoDetId].q       = p.charge();
 		}
 	    }
-
 	  //increment baseline of layer counting
 	  nlay += dddConst.layers(true);
 	}
@@ -111,17 +113,22 @@ void HGCSimpleHitAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
 	    float time    = hit_it->time();
 
 	    //get global position
+	    subdet     = detId.subdet();
 	    int ieta   = detId.ietaAbs();
 	    int iphi   = detId.iphi();
 	    int layer  = detId.depth();
-	    std::pair<double,double> etaphi = hcalDDD_->getEtaPhi(subdet,ieta,iphi);
+	    int zside  = detId.zside();
+	    std::pair<double,double> etaphi = hcalDDD_->getEtaPhi(subdet,zside*ieta,iphi);
 	    float hit_eta(etaphi.first);
-	    float hit_phi(etaphi.second);
+	    float hit_phi(TVector2::Phi_mpi_pi(etaphi.second));
+
 
 	    // currently returning 0 always?
-	    //double rz = hcalDDD_->getRZ(subdet,ieta,iphi);
-	    // HepGeom::Point3D<float> pos(rz*cos(etaphi.second)/cosh(etaphi.first),rz*sin(etaphi.second)/cosh(etaphi.first),rz*tanh(etaphi.first));
-	    
+	    double rz = hcalDDD_->getRZ(subdet,zside*ieta,iphi);
+	    HepGeom::Point3D<float> pos(rz*cos(etaphi.second)/cosh(etaphi.first),rz*sin(etaphi.second)/cosh(etaphi.first),rz*tanh(etaphi.first));
+	    //cout << rz << " " << hit_eta << " " << hit_phi << " " << pos.eta() << " " << pos.phi() << endl;
+
+
 	    uint32_t recoDetId=detId.rawId();
 	    for(size_t igen=0; igen<genParticles->size(); igen++)
 	      {
@@ -139,8 +146,11 @@ void HGCSimpleHitAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
 		gangedHits[recoDetId].layer   = layer+nlay;
 		gangedHits[recoDetId].energy += energy;
 		gangedHits[recoDetId].time   += energy*time;
-		gangedHits[recoDetId].deta    = hit_eta-p.eta();
-		gangedHits[recoDetId].qdphi   = (p.charge())*deltaPhi(hit_phi,p.phi());
+		gangedHits[recoDetId].eta     = hit_eta;
+		gangedHits[recoDetId].etagen  = p.eta();
+		gangedHits[recoDetId].phi     = hit_phi;
+		gangedHits[recoDetId].phigen  = p.phi();
+		gangedHits[recoDetId].q       = p.charge();
 	      }
 	  }
       }
@@ -149,13 +159,13 @@ void HGCSimpleHitAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
   //count
   for(std::map<uint32_t,GangedHitInfo_t>::iterator it=gangedHits.begin(); it!=gangedHits.end(); it++)
     {
-      countHit(it->second.layer,it->second.energy,it->second.time/it->second.energy,it->second.deta,it->second.qdphi);
+      countHit(it->second.layer,it->second.energy,it->second.time/it->second.energy,it->second.eta,it->second.etagen,it->second.phi,it->second.phigen,it->second.q);
       sdH_->Fill(it->second.layer,it->second.subdet);
     }
 }
 
 //
-void HGCSimpleHitAnalyzer::countHit(int layer,float en, float time, float deta, float dphi)
+void HGCSimpleHitAnalyzer::countHit(int layer,float en, float time, float eta,float geneta, float phi,float genphi,float q)
 {
   if(histos_["en"].find(layer)==histos_["en"].end())
     {
@@ -165,14 +175,18 @@ void HGCSimpleHitAnalyzer::countHit(int layer,float en, float time, float deta, 
       float maxEn(800);
       if(layer>42) maxEn=50000;
       histos_["en"][layer]   = fs->make<TH1F>("en_"+pf,  ";Energy [keV];Hits",100,0,maxEn);
+      histos2D_["envseta"][layer] = fs->make<TH2F>("envseta_"+pf,  ";Energy [keV];Pseudo-rapidity;Hits",25,0,0.5*maxEn,10,1.4,3.1);
       histos_["time"][layer] = fs->make<TH1F>("time_"+pf,";Time-of-arrival [ns];Hits",150,-25,50);
       histos_["deta"][layer] = fs->make<TH1F>("deta_"+pf,";#Delta#eta;Hits",100,-1,1);
+      histos2D_["phigenvsphihit"][layer] = fs->make<TH2F>("phigenvsphihit_"+pf,  ";Generated #phi [rad];Hit #phi [rad];Hits",50,-3.2,3.2,50,-3.2,3.2);
       histos_["dphi"][layer] = fs->make<TH1F>("dphi_"+pf,";charge x #Delta#phi [rad];Hits",300,-3.2,3.2);
     }
   histos_["en"][layer]->Fill(en);
+  histos2D_["envseta"][layer]->Fill(en,fabs(eta));
   histos_["time"][layer]->Fill(time);
-  histos_["deta"][layer]->Fill(deta);
-  histos_["dphi"][layer]->Fill(dphi);
+  histos_["deta"][layer]->Fill(eta-geneta);
+  histos2D_["phigenvsphihit"][layer]->Fill(genphi,phi);
+  histos_["dphi"][layer]->Fill(q*deltaPhi(phi,genphi));
 }
 
 // ------------ method called once each job just before starting event loop  ------------
