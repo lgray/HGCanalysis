@@ -120,11 +120,11 @@ void HGCSimpleHitAnalyzer::analyze(const edm::Event& iEvent, const edm::EventSet
 	    int zside  = detId.zside();
 	    std::pair<double,double> etaphi = hcalDDD_->getEtaPhi(subdet,zside*ieta,iphi);
 	    float hit_eta(etaphi.first);
-	    float hit_phi(TVector2::Phi_mpi_pi(etaphi.second));
-
+	    //float hit_phi(TVector2::Phi_mpi_pi(etaphi.second));
+	    float hit_phi(etaphi.second);
 
 	    // currently returning 0 always?
-	    double rz = hcalDDD_->getRZ(subdet,zside*ieta,iphi);
+	    double rz = hcalDDD_->getRZ(subdet,zside*ieta,layer);
 	    HepGeom::Point3D<float> pos(rz*cos(etaphi.second)/cosh(etaphi.first),rz*sin(etaphi.second)/cosh(etaphi.first),rz*tanh(etaphi.first));
 	    //cout << rz << " " << hit_eta << " " << hit_phi << " " << pos.eta() << " " << pos.phi() << endl;
 
