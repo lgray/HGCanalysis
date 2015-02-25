@@ -1,0 +1,45 @@
+<html>
+<head>
+<script type="text/javascript">
+function show(x,title) {
+document.write("<tr><td><i>"+title+"</i></td>");
+document.write("<td><img height=300 src=\""+x+".png\"/></td>");
+document.write("</td></tr>");
+}
+
+function showAll(title,lmin,lmax) {
+document.write("<table>");
+document.write("<tr><th colspan=3>"+title+"</th></tr>");
+
+var x="layersummary_prof";
+show(x,"Profiles");
+
+for (var l = lmin; l <=lmax; l++) { 
+x="layersummary_";
+x=x+l.toString();
+var locTitle="Layer #";
+locTitle=locTitle + l.toString();
+show(x,locTitle);
+}
+
+document.write("</table>");
+}
+
+</script>
+
+<link rel="stylesheet" type="text/css" href="tableFormat.css"></link>
+</head>
+
+
+
+<body>
+
+<p>
+Generated with CMSSW_6_2_0_SLHC23_patch2 + bsunanda:Phase2-hgx27.
+Distributions at SimHit level, after longitudinal ganging. The layers are numbered as follows from the plot.
+</p>
+
+<img height=300 src="sd.png"/>
+
+<script type="text/javascript">showAll("Summary",1,44)</script>
+</body>

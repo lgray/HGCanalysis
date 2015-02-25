@@ -20,9 +20,8 @@ events = Events (options)
 
 # create handle outside of loop
 gjhandle = Handle ("std::vector<reco::GenJet>")
-gjlabel = ("kt4GenJets")
 jhandle  = Handle ("std::vector<reco::PFJet>")
-jlabel = ("kt4PFJets")
+gjlabel,jlabel = ("kt4GenJets"), ("kt4PFJetsPandora")
 
 #optional, for single particle gun samples
 sthandle  = Handle('std::vector<SimTrack>')

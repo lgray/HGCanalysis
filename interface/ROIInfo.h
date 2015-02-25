@@ -22,7 +22,7 @@ class ROIInfo : public TObject {
   Float_t center_eta, center_phi;
   Float_t dr[MAXDRINROI];
   Float_t en[MAXDRINROI][3][3],     et2[MAXDRINROI][3][3], eta[MAXDRINROI][3][3], phi[MAXDRINROI][3][3],  shh[MAXDRINROI][3][3],   shp[MAXDRINROI][3][3], spp[MAXDRINROI][3][3], width[MAXDRINROI][3][3], totalVolume[MAXDRINROI][3][3];
-  Float_t nhits[MAXDRINROI][3][3];
+  Float_t nhits[MAXDRINROI][3][3],nhits5mip[MAXDRINROI][3][3];
   Float_t en_lay[MAXDRINROI][54][3],x[MAXDRINROI][54][3],  y[MAXDRINROI][54][3],  rho[MAXDRINROI][54][3], rho2[MAXDRINROI][54][3], area[MAXDRINROI][54][3];
   Float_t z[54];
 
