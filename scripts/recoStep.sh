@@ -44,7 +44,8 @@ LOGFILE=${BASEJOBNAME}.log
 #FILESFORTAG=(`cmsLs /store/cmst3/group/hgcal/CMSSW/${TAG} | awk '{print $5}'`)
 #FILEIN=${FILESFORTAG[${JOB}]}
 
-cmsRun ${CFG} ${TAG} ${JOBNB} 1 ${WORKDIR}
+echo "cmsRun ${CFG} ${TAG} ${JOBNB} 1 ${WORKDIR}"
+cmsRun ${CFG} ${TAG} ${JOBNB} 1 ${WORKDIR} > /dev/null 2>&1
 
 #move output
 if [[ $STOREDIR =~ .*/store/cmst3.* ]]; then
