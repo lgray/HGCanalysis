@@ -12,13 +12,17 @@ import threading
 Draws the final plots
 """
 def showProfiles(histos,norm,genEn,output):
+
+    COLORS=[1,8,9,46,33,2]
     
     #prepare output
     fOut=ROOT.TFile.Open('%s/ShowerProfiles_%d.root'%(output,genEn),'RECREATE')
 
     stepTitle={'sim':'SimHit',
-               'rec':'RecHit',
-               'clus':'Cluster',
+               'rec':'Perfect cluster',
+               'clus':'CMS PF',
+               'clus_arbor':'Arbor',
+               'clus_pandora':'Pandora',
                'pf':'PF candidate'}
     
     #show the histograms
@@ -40,6 +44,7 @@ def showProfiles(histos,norm,genEn,output):
 
         #inclusive distributions
         canvas.Clear()
+        canvas.SetRightMargin(0.15)
         leg=ROOT.TLegend(0.2,0.8,0.5,0.94)
         leg.SetFillStyle(0)
         leg.SetBorderSize(0)
@@ -51,8 +56,8 @@ def showProfiles(histos,norm,genEn,output):
             varProj.append( histos[var][step].ProjectionY('%s_%s_proj'%(var,step),1,histos[var][step].GetXaxis().GetNbins()) )
             if varProj[nproj].Integral()==0 : continue
             varProj[nproj].SetMarkerStyle(20+nproj)
-            varProj[nproj].SetMarkerColor(37+nproj)
-            varProj[nproj].SetLineColor(37+nproj)
+            varProj[nproj].SetMarkerColor(COLORS[nproj])
+            varProj[nproj].SetLineColor(COLORS[nproj])
             varProj[nproj].SetTitle(stepTitle[step])
             varProj[nproj].SetDirectory(0)
             varProj[nproj].GetYaxis().SetTitle('PDF')
@@ -71,6 +76,7 @@ def showProfiles(histos,norm,genEn,output):
 
         #profiles
         profCanvas.Clear()
+        profCanvas.SetRightMargin(0.15)
         profleg=ROOT.TLegend(0.2,0.8,0.5,0.94) 
         profleg.SetFillStyle(0)
         profleg.SetBorderSize(0)
@@ -84,8 +90,8 @@ def showProfiles(histos,norm,genEn,output):
             nprof=len(varProfs)
             varProfs.append( ROOT.TGraphErrors() )
             varProfs[nprof].SetMarkerStyle(20+nprof)
-            varProfs[nprof].SetMarkerColor(37+nprof)
-            varProfs[nprof].SetLineColor(37+nprof)
+            varProfs[nprof].SetMarkerColor(COLORS[nprof])
+            varProfs[nprof].SetLineColor(COLORS[nprof])
             varProfs[nprof].SetTitle(stepTitle[step])
             for xbin in xrange(1, histos[var][step].GetXaxis().GetNbins() ):
 
@@ -104,7 +110,10 @@ def showProfiles(histos,norm,genEn,output):
                 varProfs[nprof].SetPoint(np,xcen,quantiles[0])
                 varProfs[nprof].SetPointError(np,xerr,1.253*yproj.GetMeanError())
         
-            profleg.AddEntry(varProfs[nprof],varProfs[nprof].GetTitle(),'p')
+            #compute difference wrt to nprof=0
+            chi2,ndf=getChi2(varProfs[0],varProfs[nprof])
+            title ='%s #chi^{2} = %3.1f'%(varProfs[nprof].GetTitle(),chi2/ndf)
+            profleg.AddEntry(varProfs[nprof],title,'p')
             if nprof==0 :
                 varProfs[nprof].Draw('ap')
                 varProfs[nprof].GetYaxis().SetRangeUser(0,varProfs[nprof].GetYaxis().GetXmax()*1.5)
@@ -152,29 +161,34 @@ def getLayerLambda(layerIdx,eta=0) :
 """
 Loops over the trees and profiles the showers
 """
-def runShowerProfileAnalysis(opt,en,steps):
+def runShowerProfileAnalysis(opt,en):
     
+    #max layers to show
     maxLayers=54
-    #if opt.input.find('22')>=0 or opt.input.find('photon')>=0 or opt.input.find('11')>=0 : maxLayers=35
+    if opt.input.find('Single22')>=0 or opt.input.find('photon')>=0 : maxLayers=30
 
     #prepare histograms
     baseHistos={
-        #'length': ROOT.TH2F('length',';Pseudo-rapidity;Length [#lambda];Events',5,1.5,3.0,10,0,15)
-        #'width':ROOT.TH2F('width',';HGC layer;Area [cm^{2}];Events',maxLayers,0,maxLayers,25,0,200),
-        #'rho':ROOT.TH2F('rho',';HGC layer;<#rho> [cm];Events',maxLayers,0,maxLayers,20,0,50),
-        #'volume':ROOT.TH2F('volume',';Pseudo-rapidity;Volume [cm^{2}#lambda];Events',   5,1.5,3.0,50,0,10000),
+        'area'                     : ROOT.TH2F('area',';HGC layer;Area [cm^{2}];Events',maxLayers,0,maxLayers,50,0,100),
         'showerlength'             : ROOT.TH2F('showerlength',   ';Pseudo-rapidity;Shower length [#lambda];Events ',          5,1.5,3.0,45,0,6),
-        'showerlength_chargeex'    : ROOT.TH2F('showerlength_chargeex',   ';Pseudo-rapidity;Shower length [#lambda];Events ', 5,1.5,3.0,45,0,6),
-        'edep'                     : ROOT.TH2F('edep',   ';HGC layer;Energy [MIP];Events ',                                   maxLayers,0,maxLayers,1000,0,5e3),
-        'edep_chargeex'            : ROOT.TH2F('edep_chargeex',   ';HGC layer;Energy [MIP];Events ',                          maxLayers,0,maxLayers,1000,0,5e3),
-        'edep_beforestart'         : ROOT.TH2F('edep_beforestart',   ';Starting layer;Energy [MIP];Events ',                  maxLayers,0,maxLayers,1000,0,5e3),
-        'edep_afterstart'          : ROOT.TH2F('edep_afterstart',   ';#lambda after start;Energy [MIP];Events ',              45,0,6,1000,0,5e3),
-        'edep_chargeex_afterstart' : ROOT.TH2F('edep_chargeex_afterstart',   ';#lambda after start;Energy [MIP];Events ',     45,0,6,1000,0,5e3),
-        #'nhits':    ROOT.TH2F('nhits',  ';HGC layer;Number of hits;Events',             maxLayers,0,maxLayers,1000,0,1000),
-        #'sihih':    ROOT.TH2F('sihih',  ';HGC layer;#sigma(#eta,#eta);hits / event',    maxLayers,0,maxLayers,50,0,0.2),
-        #'sipip':    ROOT.TH2F('sipip',  ';HGC layer;#sigma(#phi,#phi);hits / event',    maxLayers,0,maxLayers,50,0,0.2),
-        #'sipih':    ROOT.TH2F('sipih',  ';HGC layer;#sigma(#eta,#phi);hits / event',    maxLayers,0,maxLayers,50,0,0.2)
+        'edep'                     : ROOT.TH2F('edep',   ';HGC layer;Energy [MIP];Events ',                                   maxLayers,0,maxLayers,2000,0,5e3),
+        'edep_beforestart'         : ROOT.TH2F('edep_beforestart',   ';Starting layer;Energy [MIP];Events ',                  maxLayers,0,maxLayers,2000,0,5e3),
+        'edep_afterstart'          : ROOT.TH2F('edep_afterstart',   ';#lambda after start;Energy [MIP];Events ',              45,0,6,2000,0,5e3),
+        'nhits'                    : ROOT.TH2F('nhits',  ';HGC layer;Number of hits;Events',             maxLayers,0,maxLayers,1000,0,1000),
+        'nhits5mip'                : ROOT.TH2F('nhits5mip',  ';HGC layer;Number of hits(>5 MIP);Events',             maxLayers,0,maxLayers,1000,0,1000),
+        'sihih'                    : ROOT.TH2F('sihih',  ';HGC layer;#sigma(#eta,#eta);hits / event',    maxLayers,0,maxLayers,50,0,0.2),
+        'sipip'                    : ROOT.TH2F('sipip',  ';HGC layer;#sigma(#phi,#phi);hits / event',    maxLayers,0,maxLayers,50,0,0.2),
+        'sipih'                    : ROOT.TH2F('sipih',  ';HGC layer;#sigma(#eta,#phi);hits / event',    maxLayers,0,maxLayers,50,0,0.2)
         }
+
+    #check steps needed to profile
+    steps=['rec','clus']
+    urlList=opt.input.split(',')
+    for url in urlList:
+        if url.find('pandoraRECO')>=0: steps.append('clus_pandora')
+        if url.find('mqRECO')>=0: steps.append('clus_arbor')
+
+    #instantiate histograms for all
     histos={}
     for var in baseHistos:
         histos[var]={}
@@ -183,95 +197,92 @@ def runShowerProfileAnalysis(opt,en,steps):
             histos[var][step]=baseHistos[var].Clone('%s_%s'%(var,step))
             histos[var][step].SetDirectory(0)
 
-    #fill histos
-    nEvts=0
-    url=opt.input
-    if url.find('/store/')>=0 : url='root://eoscms//eos/cms/%s'%url
-    fIn=ROOT.TFile.Open(url)
-    HGC=fIn.Get('analysis/HGC')
-    for i in xrange(0,HGC.GetEntriesFast()):
-        HGC.GetEntry(i)
+    #loop over available files
+    for url in urlList:
 
-        #kinematics filter
-        if HGC.genEn>en+1 or HGC.genEn<en-1 : continue 
+        #choose steps to profile
+        stepsToProf=[]
+        if url.find('pandoraRECO')>=0: 
+            stepsToProf.append('clus_pandora')
+        elif url.find('mqRECO')>=0: 
+            stepsToProf.append('clus_arbor')
+        else : 
+            stepsToProf.append('rec')
+            stepsToProf.append('clus')
 
-        #interaction in HGC
-        if HGC.hasInteractionBeforeHGC : continue
+        #loop over events
+        if url.find('/store/')>=0 : url='root://eoscms//eos/cms/%s'%url
+        nEvts=0
+        fIn=ROOT.TFile.Open(url)
+        HGC=fIn.Get('analysis/HGC')
+        print '\t processing %s'%url
+        for i in xrange(0,HGC.GetEntriesFast()):
+            HGC.GetEntry(i)
+            if i%1000==0 : drawProgressBar(float(i)/float(HGC.GetEntriesFast()))
 
-        #fully contained shower in HGC
-        sumBackHEB=0
-        for ilayer in [51,52,53]:
-            sumBackHEB+=(getattr(HGC,'edep_sim'))[ilayer-1]
-        if sumBackHEB>3 : continue
+            #kinematics filter
+            if HGC.genEn>en+1 or HGC.genEn<en-1 : continue 
 
-        #count selected event
-        nEvts=nEvts+1
+            #interaction in HGC
+            if HGC.hasInteractionBeforeHGC : continue
 
-        totalEn={}
-        totalEn95={}
-        length95={}
-        showerLength={}
-        for step in steps:
-        #    showerLength=getattr(HGC,'totalLength_%s'%(step))
-        #    histos['length'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerLength)
-        #    showerVol=getattr(HGC,'totalVolume_%s'%(step))
-        #    histos['volume'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerVol)
-            totalEn[step]=0
-        #    totalEn95[step]=0
-        #    length95[step]=0
-            showerLength[step]=0
+            #fully contained shower in HGC
+            sumBackHEB=0
+            for ilayer in [51,52,53]:
+                sumBackHEB+=(getattr(HGC,'edep_sim'))[ilayer-1]
+            if sumBackHEB>3 : continue
 
-        for ilay in xrange(0,HGC.nlay):
-            for step in steps:
+            #count selected event
+            nEvts=nEvts+1
 
-                #require some energy deposit in the layer and 1 hit
-                if getattr(HGC,'edep_%s'%(step))[ilay]<0.5: continue
-                if getattr(HGC,'nhits_%s'%(step))[ilay]==0: continue
+            #init counters
+            totalEn={}
+            showerLength={}
+            for step in stepsToProf:
+                totalEn[step]=0
+                showerLength[step]=0
 
-                ien=getattr(HGC,'edep_%s'%(step))[ilay]
-                totalEn[step]+=ien
+            for ilay in xrange(0,HGC.nlay):
 
-                #width
-                #layerWidth=getattr(HGC,'edepArea_%s'%(step))[ilay]
-                #histos['width'][step].Fill(ilay,layerWidth)
+                ilambda=getLayerLambda(ilay,HGC.genEta)
+
+                for step in stepsToProf:
+
+                    stepName=step.split('_')[0]
+
+                    #require some energy deposit in the layer and 1 hit
+                    ien=getattr(HGC,'edep_%s'%(stepName))[ilay]
+                    if ien<0.5: continue
+                    nhits=getattr(HGC,'nhits_%s'%(stepName))[ilay]
+                    if nhits==0: continue
+
+                    totalEn[step]+=ien
+
+                    #area
+                    layerArea=getattr(HGC,'edepArea_%s'%(stepName))[ilay]
+                    histos['area'][step].Fill(ilay,layerArea)
                 
-                #average distance
-                #rho=getattr(HGC,'edepdR_%s'%(step))[ilay]
-                #histos['rho'][step].Fill(ilay,rho)
+                    #other simple variables
+                    for var in ['edep','nhits','nhits5mip','sihih','sipip','sipih']:
+                        varVal=getattr(HGC,'%s_%s'%(var,stepName))[ilay]
+                        histos[var][step].Fill(ilay,varVal)
+                        if var!='edep': continue
+                        if ilay<HGC.layerShowerStart-2: 
+                            histos[var+'_beforestart'][step].Fill(ilay,varVal)
+                        else:
+                            showerLength[step]+=ilambda
+                            histos[var+'_afterstart'][step].Fill(showerLength[step],varVal)
+                        
 
-                #other simple variables
-                for var in ['edep']: #,'nhits','sihih','sipip','sipih']:
-                    varVal=getattr(HGC,'%s_%s'%(var,step))[ilay]
-                    if ilay<HGC.layerShowerStart-2: 
-                        histos[var+'_beforestart'][step].Fill(ilay,varVal)
-                    else:
-                        ilambda=getLayerLambda(ilay,HGC.genEta)
-                        showerLength[step]+=ilambda
-                        histos[var+'_afterstart'][step].Fill(showerLength[step],varVal)
-                        if HGC.hasChargedInteraction:
-                            histos[var+'_chargeex_afterstart'][step].Fill(showerLength[step],varVal)
-                    histos[var][step].Fill(ilay,varVal)
-                    if HGC.hasChargedInteraction:
-                        histos[var+'_chargeex'][step].Fill(ilay,varVal)
+            for step in stepsToProf:
+                histos['showerlength'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerLength[step])
 
-        for step in steps:
-            histos['showerlength'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerLength[step])
-            if HGC.hasChargedInteraction:
-                histos['showerlength_chargeex'][step].Fill(ROOT.TMath.Abs(HGC.genEta),showerLength[step])
-                
+        fIn.Close()
 
-        #for ilay in xrange(0,HGC.nlay):
-        #    for step in steps:
-        #        #require some energy deposit in the layer and 1 hit
-        #         if getattr(HGC,'edep_%s'%(step))[ilay]<0.5: continue
-        #         if getattr(HGC,'nhits_%s'%(step))[ilay]==0: continue
-        #         totalEn95[step]+=getattr(HGC,'edep_%s'%(step))[ilay]
-        #         if totalEn95[step]>0.95*totalEn[step]: break
-        #         length95[step]+=getLayerLambda(ilay)
-        
-
-    showProfiles(histos=histos,norm=1./nEvts,genEn=en,output=opt.output)
-    fIn.Close()
+    #show results
+    if nEvts>10:
+        showProfiles(histos=histos,norm=1./nEvts,genEn=en,output=opt.output)
+    
 
 """
 steer 
@@ -280,7 +291,7 @@ def main():
     
     usage = 'usage: %prog [options]'
     parser = optparse.OptionParser(usage)
-    parser.add_option('-i',      '--in' ,      dest='input',        help='Input file',              default=None)
+    parser.add_option('-i',      '--in' ,      dest='input',        help='Input files (CSV)',       default=None)
     parser.add_option('-o',      '--out' ,     dest='output',       help='Output directory',        default='./')
     (opt, args) = parser.parse_args()
                                        
@@ -298,12 +309,11 @@ def main():
 
     
     #launch jobs
-    steps=['sim','rec','clus']
     threads = []
     #for en in [10, 20, 40, 50, 75, 100, 125, 175, 250, 400, 500]:
-    for en in [10, 20, 40, 50, 75, 100, 175, 250, 400]:
+    for en in [10,20,50,75,100,175,250,500] :
         print 'Starting %f'%en
-        t=threading.Thread(target=runShowerProfileAnalysis, args=(opt,en,steps,))
+        t=threading.Thread(target=runShowerProfileAnalysis, args=(opt,en,))
         threads.append(t)
         t.start()
 
@@ -311,7 +321,7 @@ def main():
     while  nalive>0:
         nalive=0
         for t in threads: nalive += t.isAlive()
-        sys.stdout.write("\r %d threads active"%nalive)
+        #sys.stdout.write("\r %d threads active"%nalive)
         continue
     print 'All done'
 

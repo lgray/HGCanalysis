@@ -71,10 +71,15 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	showerMeanX_[key]=0; showerMeanY_[key]=0; showerMeanZ_[key]=0; showerMeanEta_[key]=0; showerMeanPhi_[key]=0;
 	nClusters_[key]=0;
 	totalE_[key]=0;
+	avgEPerHitEE_[key]=0;
+	avgEPerHitHEF_[key]=0;
+	avgEPerHitHEB_[key]=0;
 	totalX0WgtE_[key]=0;
 	totalLambdaWgtE_[key]=0;
 	totalLength_[key]=0;
-	totalVolume_[key]=0;
+	totalVolumeEE_[key]=0;
+	totalVolumeHEF_[key]=0;
+	totalVolumeHEB_[key]=0;
 	showerStart_[key]=-1;
 	for(size_t iclu=0; iclu<5; iclu++)
 	  {
@@ -85,7 +90,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	  }
 	for(size_t ilay=0; ilay<100; ilay++)
 	  {
-	    nhits_[key][ilay]=0;          nhits5mip_[key][ilay]=0;      nhits10mip_[key][ilay]=0;
+	    nhits_[key][ilay]=0;          nhitsavg_[key][ilay]=0;          nhits5mip_[key][ilay]=0;      nhits10mip_[key][ilay]=0;
 	    edeps_[key][ilay]=0;          edeps3x3_[key][ilay]=0;       edeps5x5_[key][ilay]=0;
 	    if(ctrledeps_.find(key)!=ctrledeps_.end()) { 
 	      ctrlnhits_[key][ilay]=0;
@@ -122,9 +127,9 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   std::map<TString, Float_t *> clusterEn_, clusterZ_, clusterEta_, clusterPhi_;
   std::map<TString, Float_t> hitMax_, hitMaxX_, hitMaxY_, hitMaxEta_, hitMaxPhi_;
   std::map<TString, Int_t> hitMaxLayer_, showerStart_;
-  std::map<TString, Float_t> totalE_, totalX0WgtE_, totalLambdaWgtE_, totalLength_, totalVolume_;
+  std::map<TString, Float_t> totalE_, avgEPerHitEE_,avgEPerHitHEF_,avgEPerHitHEB_, totalX0WgtE_, totalLambdaWgtE_, totalLength_, totalVolumeEE_,totalVolumeHEF_,totalVolumeHEB_;
   std::map<TString, Float_t *> edeps_, weightedEdeps_, edeps3x3_, edeps5x5_, ctrledeps_;
-  std::map<TString, Int_t *> nhits_, nhits5mip_, nhits10mip_, ctrlnhits_;
+  std::map<TString, Int_t *> nhits_, nhitsavg_, nhits5mip_, nhits10mip_, ctrlnhits_;
   std::map<TString, Float_t *> emeanX_, emeanY_, emeanPhi_,    emeanEta_;
   std::map<TString, Float_t *> sihih_,        sipip_,        sipih_,        edepdR_,        edepArea_;
 

@@ -1,4 +1,21 @@
 #include "UserCode/HGCanalysis/interface/HGCAnalysisTools.h"
+#include <vector>
+
+using namespace std;
+
+//
+float getLambdaForHGCLayer(int hit_layer)
+{
+  if (hit_layer==1)                       return 0.01; 
+  else if(hit_layer>=2 && hit_layer<=11)  return 0.036;
+  else if(hit_layer>=12 && hit_layer<=21) return 0.043;
+  else if(hit_layer>=22 && hit_layer<=30) return 0.056;
+  else if(hit_layer==31)                  return 0.338;
+  else if(hit_layer>=32 && hit_layer<=42) return 0.273;
+  else if(hit_layer>42)                   return 0.475;
+  return 0;
+}
+
 
 //
 G4InteractionPositionInfo getInteractionPosition(const std::vector<SimTrack> *SimTk, 
@@ -42,4 +59,40 @@ G4InteractionPositionInfo getInteractionPosition(const std::vector<SimTrack> *Si
     }
 
   return toRet;
+}
+
+
+//
+std::pair<float,float> getEffSigma(RooRealVar *var, RooAbsPdf *pdf, float wmin,float wmax, float step, float epsilon)
+{
+  //get cdf points
+  RooAbsReal *cdf = pdf->createCdf(RooArgList(*var));
+  float point=wmin;
+  vector<pair<float,float> > points;
+  while (point <= wmax){
+    var->setVal(point);
+    if (pdf->getVal() > epsilon){
+      points.push_back(pair<float,float>(point,cdf->getVal()));
+    }
+    point+=step;
+  }
+
+  float low = wmin;
+  float high = wmax;
+  float width = wmax-wmin;
+  for (unsigned int i=0; i<points.size(); i++){
+    for (unsigned int j=i; j<points.size(); j++){
+      float wy = points[j].second - points[i].second;
+      if (TMath::Abs(wy-0.683) < epsilon){
+	float wx = points[j].first - points[i].first;
+	if (wx < width){
+	  low = points[i].first;
+	  high = points[j].first;
+	  width=wx;
+	}
+      }
+    }
+  }
+  pair<float,float> result(low,high);
+  return result;
 }

@@ -116,15 +116,24 @@ To submit the production of the ntuples you can use the following script (it wil
 cmsRun runHGCSimHitsAnalyzer_cfg.py
 
 Submit several jobs to the batch and store the output in EOS
-tags=("Single211_CMSSW_6_2_0_SLHC21") # "Single2212_CMSSW_6_2_0_SLHC21")
-#tags=("Single22_CMSSW_6_2_0_SLHC21")
+tags=("Single211_CMSSW_6_2_0_SLHC23_patch1" "Single22_CMSSW_6_2_0_SLHC23_patch1" "Single130-FixE_CMSSW_6_2_0_SLHC23_patch2")
+#subdir="RECO-PU0"
+subdir="pandoraRECO";
+#subdir="mqRECO"
 for tag in ${tags[@]}; do
-    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/${tag}/RECO-v4 | awk '{print $5}'`);
+    #python scripts/checkProductionIntegrity.py -d /store/cmst3/group/hgcal/CMSSW/${tag}/${subdir}; 
+    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/${tag}/${subdir} | awk '{print $5}'`);
     nFiles=${#inputFiles[@]};	
     nJobs=$((nFiles/50));
     for i in `seq 0 ${nJobs}`; do
-    	startFile=$((i*=50));
-    	cmsRun test/runHGCSimHitsAnalyzer_cfg.py ${tag}/RECO-v4 ${startFile} 50 & 
+     	startFile=$((i*=50));
+   	cmsRun test/runHGCSimHitsAnalyzer_cfg.py ${tag}/${subdir} ${startFile} 50 & 
+	nrunning="`ps -u psilva | grep -ir cmsRun | wc -l`"
+	while [ $nrunning -gt 5 ]; do
+	      echo "$nrunning cmsRun processes launched, sleeping 30s"
+	      sleep 30;
+	      nrunning="`ps -u psilva | grep -ir cmsRun | wc -l`"
+	done
     done
 done
 

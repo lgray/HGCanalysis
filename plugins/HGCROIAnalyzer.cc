@@ -1,6 +1,8 @@
 #include "UserCode/HGCanalysis/plugins/HGCROIAnalyzer.h"
 #include "UserCode/HGCanalysis/interface/HGCAnalysisTools.h"
 
+#include "DataFormats/VertexReco/interface/VertexFwd.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "DataFormats/JetReco/interface/TrackJet.h"
 #include "DataFormats/JetReco/interface/TrackJetCollection.h"
@@ -44,7 +46,7 @@ HGCROIAnalyzer::HGCROIAnalyzer( const edm::ParameterSet &iConfig )
   saveHitTree_            = iConfig.getUntrackedParameter<bool>("saveHitTree");
   roipuParamFile_         = iConfig.getUntrackedParameter<edm::FileInPath>("roipuParamFile");
   trackJetCollection_     = iConfig.getUntrackedParameter< std::string >("trackJetCollection");
-  //vtxCollection_          = iConfig.getUntrackedParameter< std::string >("vtxCollection");
+  vtxCollection_          = iConfig.getUntrackedParameter< std::string >("vtxCollection");
 
   edm::Service<TFileService> fs;
 
@@ -52,11 +54,6 @@ HGCROIAnalyzer::HGCROIAnalyzer( const edm::ParameterSet &iConfig )
   nLayerBins_=54;
   nEtaBins_=15;
   regsH_=fs->make<TH2F>("regs",";Layer;Pseudo-rapidity;",nLayerBins_,1,nLayerBins_+1,nEtaBins_,1.5,3.0);
-  for(Int_t xbin=1; xbin<=regsH_->GetYaxis()->GetNbins(); xbin++)
-    {
-      roi_.add(regsH_->GetYaxis()->GetBinCenter(xbin),0.);
-      roi_.rotateInPhi(xbin-1);
-    }
 
   //energy flux distribution wrt to ROI centers
   ndRbins_=12;   drMin_=0;    drMax_=0.6;
@@ -70,26 +67,22 @@ HGCROIAnalyzer::HGCROIAnalyzer( const edm::ParameterSet &iConfig )
   
   //read cell counting from file
   TFile *fIn=TFile::Open(roipuParamFile_.fullPath().c_str());
-  medianPU_csiH_  = (TH2F *)fIn->Get("medianPU_csi");  medianPU_csiH_->SetDirectory(0);
-  widthPU_csiH_   = (TH2F *)fIn->Get("widthPU_csi");   widthPU_csiH_->SetDirectory(0);
-  medianPU_csitH_ = (TH2F *)fIn->Get("medianPU_csit");  medianPU_csitH_->SetDirectory(0);
-  widthPU_csitH_  = (TH2F *)fIn->Get("widthPU_csit");   widthPU_csitH_->SetDirectory(0);
+  medianPU_csiH_  = (TH2F *)fIn->Get("medianPU_csi");    medianPU_csiH_->SetDirectory(0);
+  widthPU_csiH_   = (TH2F *)fIn->Get("widthPU_csi");     widthPU_csiH_->SetDirectory(0);
+  sigma1PU_csiH_  = (TH2F *)fIn->Get("sigma1PU_csi");    sigma1PU_csiH_->SetDirectory(0);
+  sigma2PU_csiH_  = (TH2F *)fIn->Get("sigma2PU_csi");    sigma2PU_csiH_->SetDirectory(0);
+  medianPU_csitH_ = (TH2F *)fIn->Get("medianPU_csit");   medianPU_csitH_->SetDirectory(0);
+  widthPU_csitH_  = (TH2F *)fIn->Get("widthPU_csit");    widthPU_csitH_->SetDirectory(0);
   fIn->Close();
-
+  
   //init tree only if not in tagging mode
   if(!taggingMode_)
     {
-      if(saveHitTree_)
-	{
-	  hitT_=fs->make<TTree>("HGC","Event Summary");
-	  initHGCSimulationEventTree(hitT_,simEvt_);
-	}
       roiT_=fs->make<TTree>("HGCROI","ROI Summary");
       initHGCROITree(roiT_, roiEvt_);
+      //      if(saveHitTree_)
     }
   
-  //start counter
-  evtCtr_=0;
 }
 
 //
@@ -98,189 +91,361 @@ HGCROIAnalyzer::~HGCROIAnalyzer()
 }
 
 //
-void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &iSetup)
+void HGCROIAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSetup)
 {
-  evtCtr_++;
+  if(taggingMode_) tagEvent(iEvent,iSetup);
+  else             buildROI(iEvent,iSetup);
+}
 
-  //event header
-  simEvt_.run    = iEvent.id().run();          roiEvt_.run   =iEvent.id().run();
-  simEvt_.lumi   = iEvent.luminosityBlock();   roiEvt_.lumi  = iEvent.luminosityBlock(); 
-  simEvt_.event  = evtCtr_;                    roiEvt_.event = iEvent.id().event();
-
-  //generator level particles
-  simEvt_.ngen=0;
-  edm::Handle<edm::View<reco::Candidate> > genParticles;
-  iEvent.getByLabel(edm::InputTag(genSource_), genParticles);
-  if(genParticles.isValid())
-    {
-      for(size_t i = 0; i < genParticles->size(); ++ i)
-	{
-	  const reco::GenParticle & p = dynamic_cast<const reco::GenParticle &>( (*genParticles)[i] );
-	  
-	  //hard process
-	  bool isOutgoingNeutrino( p.status()==1 && (abs(p.pdgId())==12||abs(p.pdgId())==14||abs(p.pdgId())==16) );
-	  //bool isStatus2qg( p.status()==2 && (abs(p.pdgId())<6 || abs(p.pdgId())==21) );
-	  bool isStatus3q( p.status()==3 && abs(p.pdgId())<6);
-	  bool isStatus2l( p.status()==2 && (abs(p.pdgId())==11 || abs(p.pdgId())==13 || abs(p.pdgId())==14));
-	  //if(!isOutgoingNeutrino && !isStatus2qg && !isStatus2l) continue;
-	  if(!isOutgoingNeutrino && !isStatus3q && !isStatus2l) continue;
-	  
-	  simEvt_.gen_id[simEvt_.ngen]=p.pdgId();
-	  simEvt_.gen_pt[simEvt_.ngen]=p.pt();
-	  simEvt_.gen_eta[simEvt_.ngen]=p.eta();
-	  simEvt_.gen_phi[simEvt_.ngen]=p.phi();
-	  simEvt_.gen_en[simEvt_.ngen]=p.energy();
-	  simEvt_.ngen++;
-
-	  if(simEvt_.ngen>=MAXGENPEREVENT) break;
-	}
-    }
-
-  //reset or shuffle RoI
-  if(!taggingMode_) { roi_.reset(); }
-  else              { for(Int_t xbin=1; xbin<=regsH_->GetYaxis()->GetNbins(); xbin++) roi_.rotateInPhi(xbin-1); }
-
-
-
-  //prepare rechits for SC pre-selection
-  int layerCtrOffset(1);
-  std::map< uint32_t, std::pair<int, float> > recHitSummary;
+//
+void HGCROIAnalyzer::tagEvent( const edm::Event &iEvent, const edm::EventSetup &iSetup)
+{
+  //generate random phi directions
+  std::vector<float> randPhi;
+  for(Int_t ybin=1; ybin<=regsH_->GetYaxis()->GetNbins(); ybin++)
+    randPhi.push_back( rand_.Uniform(-TMath::Pi(),TMath::Pi()) );
+    
+  //chacterize energy flow
+  int layerCtrOffset=1;
   for(size_t i=0; i<geometrySource_.size(); i++)
     {
       edm::Handle<HGCRecHitCollection> recHits;
       iEvent.getByLabel(edm::InputTag("HGCalRecHit",hitCollections_[i]),recHits);
+      
+      edm::ESHandle<HGCalGeometry> geomH;
+      iSetup.get<IdealGeometryRecord>().get(geometrySource_[i],geomH);
+      const HGCalGeometry *geom=geomH.product();
+      
       for(HGCRecHitCollection::const_iterator hit_it=recHits->begin(); hit_it!=recHits->end(); hit_it++)
 	{
 	  //convert energy to keV
 	  float hitEn(hit_it->energy()*1e6/mipEn_[i]);
 	  if(hitEn<0.5) continue;
 
-	  //get layer
 	  uint32_t recoDetId(hit_it->id());
+
+	  //decode position
+	  const GlobalPoint refPos( std::move( geom->getPosition(recoDetId) ) );
 	  int layer( ((recoDetId >> 19) & 0x1f) + layerCtrOffset-1 );
+	  Int_t layerBin     = regsH_->GetXaxis()->FindBin(layer);
 
-	  //save summary
-	  recHitSummary[recoDetId]=std::pair<int,float>(layer,hitEn);
+	  for(Int_t etaBin=1; etaBin<=regsH_->GetYaxis()->GetNbins(); etaBin++)
+	    {
+	      float eta=regsH_->GetYaxis()->GetBinCenter(etaBin);
+	      float phi=randPhi[etaBin-1];
+	      float dR=deltaR(eta,phi,refPos.eta(),refPos.phi());
+	      if(dR>0.6 || dR<0.001) continue;
+	      float cell_csit =  TMath::Log( hitEn/TMath::CosH(fabs(refPos.eta())) );
+	      float cell_csi  =  TMath::Log( hitEn );
+	      if(cell_csi>csiMax_)  cell_csi=csiMax_;
+	      if(cell_csi<csiMin_)  cell_csi=csiMin_;
+	      if(cell_csit>csiMax_) cell_csit=csiMax_;
+	      if(cell_csit<csiMin_) cell_csit=csiMin_;
+	      regsH_->Fill( layer, eta);
+		  
+	      float dR_ext       = dR+(layerBin-1)*(drMax_-drMin_);
+	      float cell_csi_ext = cell_csi+(etaBin-1)*(csiMax_-csiMin_);
+	      csidrH_->Fill(dR_ext,cell_csi_ext);
+	      float cell_csit_ext = cell_csit+(etaBin-1)*(csiMax_-csiMin_);
+	      csitdrH_->Fill(dR_ext,cell_csit_ext);
+	    }
 	}
-
-      //increment offset
-      edm::ESHandle<HGCalGeometry> geomH;
-      iSetup.get<IdealGeometryRecord>().get(geometrySource_[i],geomH);
-      const HGCalGeometry *geom=geomH.product();
       const HGCalTopology &topo=geom->topology();
       const HGCalDDDConstants &dddConst=topo.dddConstants();
       layerCtrOffset +=dddConst.layers(true);
     }
-  
-  //use track jets associated to PV to define RoI
-  edm::Handle<std::vector<reco::TrackJet> > trackJets;
-  iEvent.getByLabel(trackJetCollection_,trackJets);
-  std::vector<const reco::TrackJet *> selTrackJets;
-  for(size_t i=0; i<trackJets->size(); i++)
-    {
-      const reco::TrackJet *jet=&(trackJets->at(i));
-      if(fabs(jet->eta())<1.5 || fabs(jet->eta())>3.0) continue;
-      if(jet->pt()<3) continue;
-      if(!jet->fromHardVertex()) continue;
-      selTrackJets.push_back(jet);
-    }
-  //cout << selTrackJets.size() << " track jets"<< endl;
+}
 
-  //analyze gen jets
-  simEvt_.njgen=0;
+
+//
+void HGCROIAnalyzer::buildROI( const edm::Event &iEvent, const edm::EventSetup &iSetup)
+{
+
+  //event header
+  roiEvt_.newEvent(iEvent.id().run(),iEvent.luminosityBlock(),iEvent.id().event());
+
+  //
+  // GENERATOR LEVEL
+  //
+
+  //generator level particles
+  edm::Handle<edm::View<reco::Candidate> > genParticles;
+  iEvent.getByLabel(edm::InputTag(genSource_), genParticles);
+  std::vector<int> selGenParticles;
+  if(genParticles.isValid())
+    {
+      for(size_t i = 0; i < genParticles->size(); ++ i)
+	{
+	  const reco::GenParticle & p = dynamic_cast<const reco::GenParticle &>( (*genParticles)[i] );
+	  if(p.status()==3)  
+	    {
+	      //save the generated vertex will update to the latest parton in the list
+	      if(abs(p.pdgId())==21 || abs(p.pdgId())<6)
+		 roiEvt_.addGenVertex( p.vertex().x(), p.vertex().y(), p.vertex().z() );
+
+	      //add the VBF quarks (both precede the Higgs)
+	      if(abs(p.pdgId())==25)
+		{
+		  selGenParticles.push_back(i-2);
+		  selGenParticles.push_back(i-1);
+		}
+	      
+	      continue;
+	    }
+
+	  if(p.status()!=2) continue;     //unstable partons
+	  if(! ( abs(p.pdgId())==21 || abs(p.pdgId())<6) ) continue; //only care about quarks and gluons
+	  selGenParticles.push_back(i);
+	}
+    }
+
+  //generator level jets
   edm::Handle<reco::GenJetCollection> genJets;
   iEvent.getByLabel(edm::InputTag(genJetsSource_), genJets);
-  std::vector< std::pair<const reco::GenJet *,int> > matchedGenJets;
-  std::vector< int > tagJetIdx;
-  std::vector< bool > nMatchedTkJets;
-  if(genJets.isValid() && !taggingMode_)
+  std::vector<const reco::GenJet *> selGenJets;
+  if(genJets.isValid() && genParticles.isValid())
     {
       //pre-select jets
       for(size_t k=0; k<genJets->size(); ++k)
 	{
 	  const reco::GenJet & j =(*genJets)[k];
-	  if(j.pt()<15 || fabs(j.eta())>4.7) continue;
-
-	  //require not to be matched to lepton (charged or neutrino)
-	  int matchedId(0),matchedIdx(-1);
-	  for(int igen=0; igen<simEvt_.ngen; igen++)
+	  if(j.pt()<10 || fabs(j.eta())>4.7) continue;
+	  
+	  //require to be matched to a quark or gluon
+	  int genid(0),genstatus(0);
+	  float minDR(0.4);
+	  for(size_t igen=0; igen<selGenParticles.size(); igen++)
 	    {
-	      float dR=deltaR(simEvt_.gen_eta[igen],simEvt_.gen_phi[igen],j.eta(),j.phi());
-	      if(dR>0.4) continue;
-	      if(matchedIdx>=0)
-		if(fabs(simEvt_.gen_en[igen]-j.energy())>fabs(simEvt_.gen_en[matchedIdx]-j.energy())) continue;
-	      matchedId=simEvt_.gen_id[igen];
-	      matchedIdx=igen;
-	    }
-	  if(abs(matchedId)>=11 && abs(matchedId)<=16) continue;
+	      const reco::GenParticle & p = dynamic_cast<const reco::GenParticle &>( (*genParticles)[ selGenParticles[igen] ] );
+	      float dr=deltaR(j,p);
+	      if(dr>minDR) continue;
 
-	  //store information
-	  matchedGenJets.push_back( std::pair<const reco::GenJet *,int>(&j,matchedId) );
-	  if(simEvt_.njgen<MAXGENPEREVENT)
-	    {
-	      simEvt_.genj_en[simEvt_.njgen]=j.energy();
-	      simEvt_.genj_eta[simEvt_.njgen]=j.eta();
-	      simEvt_.genj_phi[simEvt_.njgen]=j.phi();
-	      simEvt_.genj_pt[simEvt_.njgen]=j.pt();
-	      simEvt_.genj_emfrac[simEvt_.njgen]=j.emEnergy()/j.energy();
-	      simEvt_.genj_hadfrac[simEvt_.njgen]=j.hadEnergy()/j.energy();
-	      simEvt_.genj_invfrac[simEvt_.njgen]=j.invisibleEnergy()/j.energy();
-	      simEvt_.njgen++;
+	      //if already matched to a status 3 don't care more
+	      if(genstatus==3) continue;
+
+	      minDR=dr;
+	      genid=p.pdgId();
+	      genstatus=p.status();
 	    }
+	  if(genid==0) continue;
+
+	  selGenJets.push_back( &j );
+
+	  //if fiducial in HGC save
+	  if(abs(j.eta())<1.5 || abs(j.eta())>3.0) continue;
+	  roiEvt_.addGenJet(genid,genstatus,j.pt(),j.eta(),j.phi(),j.emEnergy()/j.energy(),j.hadEnergy()/j.energy(),j.invisibleEnergy()/j.energy());
 	}
 
-      //now do a VBF pre-selection mode
-      if(matchedGenJets.size()>=2)
+      //use this to select in the fiducial VBF selection region later
+      roiEvt_.gen_mjj=0;
+      roiEvt_.gen_detajj=0;
+      if(selGenJets.size()>=2)
 	{
-	  float dijetMass=(matchedGenJets[0].first->p4()+matchedGenJets[1].first->p4()).mass();
-	  float deta=fabs(matchedGenJets[0].first->eta()-matchedGenJets[1].first->eta());
-	  int idx1(0), idx2(1);
-	  for(size_t ij=0; ij<matchedGenJets.size(); ij++)
-	    for(size_t kj=ij+1; kj<matchedGenJets.size(); kj++)
+	  for(size_t ij=0; ij<selGenJets.size(); ij++)
+	    for(size_t kj=ij+1; kj<selGenJets.size(); kj++)
 	      {
-		float newDijetMass=(matchedGenJets[ij].first->p4()+matchedGenJets[kj].first->p4()).mass();
-		float newDeta=fabs(matchedGenJets[ij].first->eta()-matchedGenJets[kj].first->eta());
-		if(newDijetMass<dijetMass) continue;
-		dijetMass=newDijetMass;
-		deta=newDeta;
-		idx1=ij; idx2=kj;
+		float newDijetMass=(selGenJets[ij]->p4()+selGenJets[kj]->p4()).mass();
+		float newDeta=fabs(selGenJets[ij]->eta()-selGenJets[kj]->eta());
+		if(newDijetMass<roiEvt_.gen_mjj) continue;
+		roiEvt_.gen_mjj=newDijetMass;
+		roiEvt_.gen_detajj=newDeta;
 	      }
+	}
+    }
 
-	  //save if good
-	  if(dijetMass>250 && deta>2.5)
+  //
+  // RECO LEVEL
+  //
+
+  //PV collection (select all vertices within 10 mm of the generated vertex)
+  edm::Handle<reco::VertexCollection> vtxH;
+  iEvent.getByLabel(vtxCollection_, vtxH);
+  for(size_t iv=0; iv<vtxH->size(); iv++)
+    {
+      const reco::Vertex &vtx=vtxH->at(iv);
+      if(!vtx.isValid()) continue;
+      if(vtx.isFake()) continue;
+      float dzToSimVtx( fabs(vtx.position().z()-roiEvt_.gen_z) );
+      if(dzToSimVtx>0.1) continue; 
+      roiEvt_.addRecoVertex(iv,vtx.nTracks(),vtx.x(),vtx.y(),vtx.z(),vtx.p4().pt(),vtx.normalizedChi2());
+    }
+
+  //track jets
+  edm::Handle<std::vector<reco::TrackJet> > trackJets;
+  iEvent.getByLabel(trackJetCollection_,trackJets);
+  for(size_t i=0; i<trackJets->size(); i++)
+    {
+      //pre-select the jet
+      const reco::TrackJet *jet=&(trackJets->at(i));
+      if(fabs(jet->eta())<1.5 || fabs(jet->eta())>3.0) continue;
+      if(jet->pt()<3) continue;
+      const reco::VertexRef vtx = jet->primaryVertex();
+      if(vtx.isNull()) continue;
+      if(!vtx->isValid()) continue;
+      if(vtx->isFake()) continue;
+
+      //check index of PV (require to be pre-selected)
+      int pvIdx=-1;
+      for(Int_t iv=0; iv<roiEvt_.nvtx; iv++)
+	{
+	  math::XYZPoint vtxDist( vtx->position().x()-roiEvt_.vtx_x[iv], 
+				  vtx->position().y()-roiEvt_.vtx_y[iv], 
+				  vtx->position().z()-roiEvt_.vtx_z[iv]);
+	  if( vtxDist.R()>0 ) continue;
+	  pvIdx=iv;
+	  break;
+	}
+      if(pvIdx<0) continue;
+
+      //check generated jet index
+      int genIdx(-1);
+      float minDR(0.4);
+      for(Int_t igen=0; igen<roiEvt_.ngen; igen++)
+	{
+	  float dr=deltaR(jet->eta(),jet->phi(),roiEvt_.gen_eta[igen],roiEvt_.gen_phi[igen]);
+	  if(dr>minDR) continue;
+	  minDR=dr;
+	  genIdx=igen;
+	}
+      
+      //add information
+      roiEvt_.addTrackJet(pvIdx,genIdx,jet->pt(), jet->eta(), jet->phi(), jet->numberOfTracks() );
+      roiEvt_.roi_info->push_back( ROIInfo(jet->eta(),jet->phi()) );
+    }
+
+  //
+  // ROI analysis
+  //
+
+  //re-center RoI based on RecHit energy sum (EE hits >25MIP)
+  std::vector<float> etaSum(roiEvt_.roi_info->size(),0),phiSum(roiEvt_.roi_info->size(),0),enSum(roiEvt_.roi_info->size(),0);
+  for(size_t i=0; i<1; i++)
+    {
+  
+      edm::Handle<HGCRecHitCollection> recHits;
+      iEvent.getByLabel(edm::InputTag("HGCalRecHit",hitCollections_[i]),recHits);
+      
+      edm::ESHandle<HGCalGeometry> geomH;
+      iSetup.get<IdealGeometryRecord>().get(geometrySource_[i],geomH);
+      const HGCalGeometry *geom=geomH.product();
+      
+      for(HGCRecHitCollection::const_iterator hit_it=recHits->begin(); hit_it!=recHits->end(); hit_it++)
+	{
+	  //convert energy to MIP
+	  float hitEn(hit_it->energy()*1e6/mipEn_[i]);
+	  if(hitEn<25) continue;
+	  
+	  uint32_t recoDetId(hit_it->id());
+	  
+	  //decode position
+	  const GlobalPoint refPos( std::move( geom->getPosition(recoDetId) ) );
+	  
+	  for(size_t iroi=0; iroi<roiEvt_.roi_info->size(); iroi++)
 	    {
-	      for(size_t ij=0; ij<2; ij++)
-		{
-		  int idx(ij==0 ? idx1 : idx2);
-
-		  //
-		  float etaTkJet(0),phiTkJet(0), enTkJet(0);
-		  for(size_t itkj=0; itkj<selTrackJets.size(); itkj++)
-		    {
-		      const reco::TrackJet *jet=selTrackJets[itkj];
-		      float dR=deltaR(*jet,*(matchedGenJets[idx].first));
-		      if(dR>0.4) continue;
-		      if(jet->energy() < enTkJet) continue;
-		      enTkJet = jet->energy();
-		      phiTkJet = jet->phi();
-		      etaTkJet = jet->eta();
-		    }
-
-
-		  if(fabs(matchedGenJets[idx].first->eta())>1.5 && fabs(matchedGenJets[idx].first->eta())<3.0)
-		    {
-		      float roiEta(matchedGenJets[idx].first->eta()), roiPhi(matchedGenJets[idx].first->phi());
-		      if(enTkJet>0) {roiEta=etaTkJet; roiPhi=phiTkJet; }
-		      roi_.add(roiEta,roiPhi);
-		      tagJetIdx.push_back(idx);
-		      nMatchedTkJets.push_back( (enTkJet>0) );
-		    }
-		}
+	      float dr=deltaR(refPos.eta(),refPos.phi(),(*(roiEvt_.roi_info))[iroi].center_eta,(*(roiEvt_.roi_info))[iroi].center_phi);
+	      if(dr>0.4) continue;
+	      etaSum[iroi] += hitEn*refPos.eta();
+	      phiSum[iroi] += hitEn*TVector2::Phi_mpi_pi(refPos.phi());
+	      enSum[iroi]  += hitEn;
 	    }
 	}
     }
   
-  //read rec hits and geometry
+  //update RoI wrt to initial track jet estimate
+  for(size_t iroi=0; iroi<roiEvt_.roi_info->size(); iroi++)
+    {
+      if(enSum[iroi]==0) continue;
+      float newEta=etaSum[iroi]/enSum[iroi];
+      float newPhi=TVector2::Phi_mpi_pi(phiSum[iroi]/enSum[iroi]);
+      (*(roiEvt_.roi_info))[iroi].center_eta=newEta;
+      (*(roiEvt_.roi_info))[iroi].center_phi=newPhi;
+    }
+
+  //store hits in re-centered RoIs
+  Int_t layerCtrOffset(1);
+  for(size_t i=0; i<geometrySource_.size(); i++)
+    {
+      edm::Handle<HGCRecHitCollection> recHits;
+      iEvent.getByLabel(edm::InputTag("HGCalRecHit",hitCollections_[i]),recHits);
+      
+      edm::ESHandle<HGCalGeometry> geomH;
+      iSetup.get<IdealGeometryRecord>().get(geometrySource_[i],geomH);
+      const HGCalGeometry *geom=geomH.product();
+      
+      int hitCtr(0);
+      for(HGCRecHitCollection::const_iterator hit_it=recHits->begin(); hit_it!=recHits->end(); hit_it++, hitCtr++)
+	{
+	  //convert energy to MIP
+	  float hitEn(hit_it->energy()*1e6/mipEn_[i]);
+	  if(hitEn<0.5) continue;
+
+	  uint32_t recoDetId(hit_it->id());
+
+	  //decode position
+	  const GlobalPoint refPos( std::move( geom->getPosition(recoDetId) ) );
+	  int layer( ((recoDetId >> 19) & 0x1f) + layerCtrOffset-1 );
+
+	  //add to RoIs
+	  for(size_t iroi=0; iroi<roiEvt_.roi_info->size(); iroi++)
+	    {
+	      //check if hit is to be considered
+	      float center_eta=(*(roiEvt_.roi_info))[iroi].center_eta;
+	      float center_phi=(*(roiEvt_.roi_info))[iroi].center_phi;
+	      float dR=deltaR(refPos.eta(),refPos.phi(),center_eta,center_phi);
+	      if(dR>0.6) continue;
+
+	      //compute weight to assign based on layer and distance to center
+	      Int_t layerBin     = regsH_->GetXaxis()->FindBin(layer);
+	      Int_t etaBin       = regsH_->GetYaxis()->FindBin(TMath::Abs(center_eta));
+
+	      //compute weights
+	      float cell_csi  = dR>0.01 ? TMath::Log( hitEn ) : -9999;
+	      float hitWeight(1.0),hitWeight2(1.0); 
+	      if(medianPU_csiH_ && sigma1PU_csiH_ && sigma2PU_csiH_)
+		{
+		  Int_t dRbin=medianPU_csiH_->GetYaxis()->FindBin(dR);
+		  Int_t weightsYbin( dRbin + (etaBin-1)*ndRbins_ );
+
+		  float medianVal=medianPU_csiH_->GetBinContent(layerBin,weightsYbin);
+		  float sigmaVal=sigma1PU_csiH_->GetBinContent(layerBin,weightsYbin);
+		  float chi2=sigmaVal>0 ? (cell_csi>medianVal)*TMath::Power((cell_csi-medianVal)/sigmaVal,2) : 0;
+		  hitWeight=chi2 > 0 ? ROOT::Math::chisquared_cdf(chi2,1) : 0;
+		  
+		  sigmaVal=sigma2PU_csiH_->GetBinContent(layerBin,weightsYbin);
+		  chi2=sigmaVal>0 ? (cell_csi>medianVal)*TMath::Power((cell_csi-medianVal)/sigmaVal,2) : 0;
+		  hitWeight2=chi2 > 0 ? ROOT::Math::chisquared_cdf(chi2,1) : 0; 
+		}
+	      
+	      //update ROI info
+	      (*(roiEvt_.roi_info))[iroi].add(hitEn,refPos.x(), refPos.y(), refPos.z(), refPos.eta(), refPos.phi(), hitWeight,hitWeight2, layer);
+	    }
+	}
+      
+      const HGCalTopology &topo=geom->topology();
+      const HGCalDDDConstants &dddConst=topo.dddConstants();
+      layerCtrOffset +=dddConst.layers(true);
+    }
+  
+  
+  //finalize and fill
+  for(size_t iroi=0; iroi<roiEvt_.roi_info->size(); iroi++) (*(roiEvt_.roi_info))[iroi].finalize();
+  roiT_->Fill();
+
+
+
+  
+  /*
+  
+  //reset or shuffle RoI
+  if(!taggingMode_) { roi_.reset(); }
+  else              { for(Int_t xbin=1; xbin<=regsH_->GetYaxis()->GetNbins(); xbin++) roi_.rotateInPhi(xbin-1); }
+
+
+
+
+
+
+  //store hits in re-centered ROI
   layerCtrOffset=1;
   simEvt_.nhits=0;
   for(size_t i=0; i<geometrySource_.size(); i++)
@@ -306,8 +471,7 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 	  int layer( ((recoDetId >> 19) & 0x1f) + layerCtrOffset-1 );
 
        	  //check if hits are in ROI
-	  int roiIdx=roi_.findROI(refPos.eta(),refPos.phi());	      
-	  if(roiIdx<0) continue;
+	  int roiIdx=roi_.findROI(refPos.eta(),refPos.phi());	
 
 	  //compute weight to assign based on layer and distance to center
 	  Int_t layerBin     = regsH_->GetXaxis()->FindBin(layer);
@@ -337,29 +501,34 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 	  //if not characterizing, save hits to tree
 	  if(taggingMode_) continue;
 	  
-	  float hitWeight(1.0);
+	  float hitWeight(1.0),hitWeightT(1.0); 
 	  if(medianPU_csiH_ && widthPU_csiH_)
 	    {
 	      Int_t dRbin=medianPU_csiH_->GetYaxis()->FindBin(dR);
 	      Int_t weightsYbin( dRbin + (etaBin-1)*ndRbins_ );
 
 	      float medianVal=medianPU_csiH_->GetBinContent(layerBin,weightsYbin);
-	      float sigmaVal=widthPU_csiH_->GetBinContent(layerBin,weightsYbin);
+	      //float sigmaVal=widthPU_csiH_->GetBinContent(layerBin,weightsYbin);
+	      float sigmaVal=sigma1PU_csiH_->GetBinContent(layerBin,weightsYbin);
 	      float chi2=sigmaVal>0 ? (cell_csi>medianVal)*TMath::Power((cell_csi-medianVal)/sigmaVal,2) : 0;
 	      hitWeight=chi2 > 0 ? ROOT::Math::chisquared_cdf(chi2,1) : 0;
+
+	      sigmaVal=sigma2PU_csiH_->GetBinContent(layerBin,weightsYbin);
+	      chi2=sigmaVal>0 ? (cell_csi>medianVal)*TMath::Power((cell_csi-medianVal)/sigmaVal,2) : 0;
+	      hitWeightT=chi2 > 0 ? ROOT::Math::chisquared_cdf(chi2,1) : 0; 
 	    }
 	  
-	  float hitWeightT(1.0);
-	  if(medianPU_csitH_ && widthPU_csitH_)
-	    {
-	      Int_t dRbin=medianPU_csitH_->GetYaxis()->FindBin(dR);
-	      Int_t weightsYbin( dRbin + (etaBin-1)*ndRbins_ );
+	  // float hitWeightT(1.0);
+	  // if(medianPU_csitH_ && widthPU_csitH_)
+	  //   {
+	  //     Int_t dRbin=medianPU_csitH_->GetYaxis()->FindBin(dR);
+	  //     Int_t weightsYbin( dRbin + (etaBin-1)*ndRbins_ );
 
-	      float medianVal=medianPU_csitH_->GetBinContent(layerBin,weightsYbin);
-	      float sigmaVal=widthPU_csitH_->GetBinContent(layerBin,weightsYbin);
-	      float chi2=sigmaVal>0 ? (cell_csi>medianVal)*TMath::Power((cell_csi-medianVal)/sigmaVal,2) : 0;
-	      hitWeightT=chi2 > 0 ? ROOT::Math::chisquared_cdf(chi2,1) : 0;
-	    }
+	  //     float medianVal=medianPU_csitH_->GetBinContent(layerBin,weightsYbin);
+	  //     float sigmaVal=widthPU_csitH_->GetBinContent(layerBin,weightsYbin);
+	  //     float chi2=sigmaVal>0 ? (cell_csi>medianVal)*TMath::Power((cell_csi-medianVal)/sigmaVal,2) : 0;
+	  //     hitWeightT=chi2 > 0 ? ROOT::Math::chisquared_cdf(chi2,1) : 0;
+	  //   }
 
 	  //update for hit tree
 	  simEvt_.hit_layer[simEvt_.nhits]   = layer;
@@ -374,7 +543,7 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 	  simEvt_.nhits++;
 
 	  //update ROI info
-	  roi_.roiInfo_[roiIdx].add(hitEn,refPos.x(), refPos.y(), refPos.z(), refPos.eta(), refPos.phi(), hitWeight,layer);
+	  roi_.roiInfo_[roiIdx].add(hitEn,refPos.x(), refPos.y(), refPos.z(), refPos.eta(), refPos.phi(), hitWeight,hitWeightT, layer);
 	}
       
       const HGCalTopology &topo=geom->topology();
@@ -392,11 +561,20 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 	{
 	  roi_.roiInfo_[i].finalize();
 
+	  roiEvt_.nvtx = vtxH->size();
+
 	  roiEvt_.ncandsc=selTrackJets.size();
 
 	  roiEvt_.roi_eta=roi_.roiInfo_[i].center_eta;
 	  roiEvt_.roi_phi=roi_.roiInfo_[i].center_phi;
 	  roiEvt_.roi_nsc=nMatchedTkJets[i];
+
+	  
+	  roiEvt_.tkj_pt  = roiTrackJets[i] ? roiTrackJets[i]->pt() : -1;
+	  roiEvt_.tkj_eta = roiTrackJets[i] ? roiTrackJets[i]->eta() : 0;
+	  roiEvt_.tkj_phi = roiTrackJets[i] ? roiTrackJets[i]->phi() : 0;
+	  roiEvt_.tkj_ntk = roiTrackJets[i] ? roiTrackJets[i]->numberOfTracks() : -1; 
+	  roiEvt_.tkj_vtx = roiTrackJets[i] ? roiTrackJetsVtxIndex[i] : -1;
 
 	  const reco::GenJet *j=matchedGenJets[ tagJetIdx[i] ].first;
 	  roiEvt_.gen_id=matchedGenJets[tagJetIdx[i] ].second;
@@ -408,7 +586,7 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 	  roiEvt_.gen_hadfrac=j->hadEnergy()/j->energy();
 	  roiEvt_.gen_invfrac=j->invisibleEnergy()/j->energy();
 
-	  for(size_t j=0; j<6; j++)
+	  for(size_t j=0; j<8; j++)
 	    {
 	      //per sub detector
 	      for(size_t k=0; k<3; k++)
@@ -426,6 +604,13 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 		  roiEvt_.wgt_width[j][k]       = roi_.roiInfo_[i].width[j][k][1];
 		  roiEvt_.wgt_totalVolume[j][k] = roi_.roiInfo_[i].totalVolume[j][k][1];
 		  roiEvt_.wgt_nhits[j][k]       = roi_.roiInfo_[i].nhits[j][k][1];
+
+		  roiEvt_.wgt2_en[j][k]          = roi_.roiInfo_[i].en[j][k][2];
+		  roiEvt_.wgt2_eta[j][k]         = roi_.roiInfo_[i].eta[j][k][2];
+		  roiEvt_.wgt2_phi[j][k]         = roi_.roiInfo_[i].phi[j][k][2];
+		  roiEvt_.wgt2_width[j][k]       = roi_.roiInfo_[i].width[j][k][2];
+		  roiEvt_.wgt2_totalVolume[j][k] = roi_.roiInfo_[i].totalVolume[j][k][2];
+		  roiEvt_.wgt2_nhits[j][k]       = roi_.roiInfo_[i].nhits[j][k][2];
 		}
 
 	      //per layer
@@ -442,15 +627,14 @@ void HGCROIAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetup &i
 
 	  roiT_->Fill();
 	}
-
     }
+
+*/
 }
 
 //
-void HGCROIAnalyzer::endJob()
-{
-  cout << "Analysed " << evtCtr_ << " events" << endl;
-}
+void HGCROIAnalyzer::endJob() { }
+
 
 //define this as a plug-in
 DEFINE_FWK_MODULE(HGCROIAnalyzer);

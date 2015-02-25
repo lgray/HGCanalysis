@@ -11,5 +11,7 @@ analysis = cms.EDAnalyzer("HGCSimHitsAnalyzer",
                           pfCandAssociationCone    = cms.untracked.double(0.3),
                           pfClusterAssociationCone = cms.untracked.double(0.3),
                           pfClustersCollection     = cms.untracked.string('particleFlowClusterHGCEE'),
+                          #pfClustersCollection     = cms.untracked.string('pandorapfanew'),
                           emPFClustersCollection   = cms.untracked.string('particleFlowSuperClusterHGCEE')
                           )
+

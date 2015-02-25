@@ -1,86 +1,87 @@
 #include "UserCode/HGCanalysis/interface/HGCROISummary.h"
 
-void initHGCROITree(TTree *t,HGCROISummary_t &simEvt)
+void initHGCROITree(TTree *t,HGCROISummary &simEvt)
 {
   t->Branch("run",       &simEvt.run,        "run/I");
   t->Branch("lumi",      &simEvt.lumi,       "lumi/I");
   t->Branch("event",     &simEvt.event,      "event/I");
 
-  t->Branch("ncandsc",       &simEvt.ncandsc,        "ncandsc/I");
+  t->Branch("gen_x",         &simEvt.gen_x,          "gen_x/F");
+  t->Branch("gen_y",         &simEvt.gen_y,          "gen_y/F");
+  t->Branch("gen_z",         &simEvt.gen_z,          "gen_z/F");
 
-  t->Branch("roi_nsc",       &simEvt.roi_nsc,        "roi_nsc/I");
-  t->Branch("roi_eta",       &simEvt.roi_eta,        "roi_eta/F");
-  t->Branch("roi_phi",       &simEvt.roi_phi,        "roi_phi/F");
+  t->Branch("nvtx",          &simEvt.nvtx,           "nvtx/I");
+  t->Branch("vtx_ntk",        simEvt.vtx_ntk,        "vtx_ntk[nvtx]/I");
+  t->Branch("vtx_rank",       simEvt.vtx_rank,       "vtx_rank[nvtx]/I");
+  t->Branch("vtx_x",          simEvt.vtx_x,          "vtx_x[nvtx]/F");
+  t->Branch("vtx_y",          simEvt.vtx_y,          "vtx_y[nvtx]/F");
+  t->Branch("vtx_z",          simEvt.vtx_z,          "vtx_z[nvtx]/F");
+  t->Branch("vtx_pt",         simEvt.vtx_pt,         "vtx_pt[nvtx]/F");
+  t->Branch("vtx_normchi2",   simEvt.vtx_normchi2,   "vtx_normchi2[nvtx]/F");
 
-  t->Branch("gen_id",    &simEvt.gen_id,     "gen_id/I");
-  t->Branch("gen_pt",    &simEvt.gen_pt,     "gen_pt/F");
-  t->Branch("gen_eta",   &simEvt.gen_eta,    "gen_eta/F");
-  t->Branch("gen_phi",   &simEvt.gen_phi,    "gen_phi/F");
-  t->Branch("gen_en",    &simEvt.gen_en,     "gen_en/F"); 
-  t->Branch("gen_emfrac",    &simEvt.gen_emfrac,     "gen_emfrac/F"); 
-  t->Branch("gen_hadfrac",    &simEvt.gen_hadfrac,     "gen_hadfrac/F"); 
-  t->Branch("gen_invfrac",    &simEvt.gen_invfrac,     "gen_invfrac/F"); 
+  t->Branch("ntkj",          &simEvt.ntkj,           "ntkj/I");
+  t->Branch("tkj_ntk",        simEvt.tkj_ntk,        "tkj_ntk[ntkj]/I");
+  t->Branch("tkj_vtxIdx",     simEvt.tkj_vtxIdx,     "tkj_vtxIdx[ntkj]/I");
+  t->Branch("tkj_genIdx",     simEvt.tkj_genIdx,     "tkj_genIdx[ntkj]/I");
+  t->Branch("tkj_pt",         simEvt.tkj_pt,         "tkj_pt[ntkj]/F");
+  t->Branch("tkj_eta",        simEvt.tkj_eta,        "tkj_eta[ntkj]/F");
+  t->Branch("tkj_phi",        simEvt.tkj_phi,        "tkj_phi[ntkj]/F");
 
-  t->Branch("en", simEvt.en, "en[6][3]/F");
-  t->Branch("nhits", simEvt.nhits, "nhits[6][3]/I");
-  t->Branch("eta", simEvt.eta, "eta[6][3]/F");
-  t->Branch("phi", simEvt.phi, "phi[6][3]/F");
-  t->Branch("width", simEvt.width, "width[6][3]/F");
-  t->Branch("totalVolume", simEvt.totalVolume, "totalVolume[6][3]/F");
-  t->Branch("x", simEvt.x, "x[6][54]/F");
-  t->Branch("y", simEvt.y, "y[6][54]/F");
+  t->Branch("ngen",           &simEvt.ngen,         "ngen/I");
+  t->Branch("gen_id",          simEvt.gen_id,       "gen_id[ngen]/I");
+  t->Branch("gen_status",      simEvt.gen_status,   "gen_status[ngen]/I");
+  t->Branch("gen_pt",          simEvt.gen_pt,       "gen_pt[ngen]/F");
+  t->Branch("gen_eta",         simEvt.gen_eta,      "gen_eta[ngen]/F");
+  t->Branch("gen_phi",         simEvt.gen_phi,      "gen_phi[ngen]/F");
+  t->Branch("gen_emfrac",      simEvt.gen_emfrac,   "gen_emfrac[ngen]/F"); 
+  t->Branch("gen_hadfrac",     simEvt.gen_hadfrac,  "gen_hadfrac[ngen]/F"); 
+  t->Branch("gen_invfrac",     simEvt.gen_invfrac,  "gen_invfrac[ngen]/F"); 
+  t->Branch("gen_mjj",        &simEvt.gen_mjj,      "gen_mjj/F");
+  t->Branch("gen_detajj",     &simEvt.gen_detajj,   "gen_detajj/F");
 
-  t->Branch("wgt_en", simEvt.wgt_en, "wgt_en[6][3]/F");
-  t->Branch("wgt_nhits", simEvt.wgt_nhits, "wgt_nhits[6][3]/I");
-  t->Branch("wgt_eta", simEvt.wgt_eta, "wgt_eta[6][3]/F");
-  t->Branch("wgt_phi", simEvt.wgt_phi, "wgt_phi[6][3]/F");
-  t->Branch("wgt_width", simEvt.wgt_width, "wgt_width[6][3]/F");
-  t->Branch("wgt_totalVolume", simEvt.wgt_totalVolume, "wgt_totalVolume[6][3]/F");
-  t->Branch("wgt_x", simEvt.wgt_x, "wgt_x[6][54]/F");
-  t->Branch("wgt_y", simEvt.wgt_y, "wgt_y[6][54]/F");
-
-  t->Branch("z", simEvt.z, "z[54]/F");
-
+  t->Branch("roi_info",          "std::vector<ROIInfo>",      &simEvt.roi_info);
 }
 
 //
-void attachHGCSimulationEventTree(TTree *t,HGCROISummary_t &simEvt)
+void attachHGCROITree(TTree *t,HGCROISummary &simEvt)
 {
   t->SetBranchAddress("run",       &simEvt.run);
   t->SetBranchAddress("lumi",      &simEvt.lumi);
   t->SetBranchAddress("event",     &simEvt.event);
 
-  t->SetBranchAddress("roi_nsc",       &simEvt.roi_nsc);
-  t->SetBranchAddress("roi_eta",       &simEvt.roi_eta);
-  t->SetBranchAddress("roi_phi",       &simEvt.roi_phi);
+  t->SetBranchAddress("gen_x",         &simEvt.gen_x);
+  t->SetBranchAddress("gen_y",         &simEvt.gen_y);
+  t->SetBranchAddress("gen_z",         &simEvt.gen_z);
 
-  t->SetBranchAddress("gen_id",    &simEvt.gen_id);
-  t->SetBranchAddress("gen_pt",    &simEvt.gen_pt);
-  t->SetBranchAddress("gen_eta",   &simEvt.gen_eta);
-  t->SetBranchAddress("gen_phi",   &simEvt.gen_phi);
-  t->SetBranchAddress("gen_en",    &simEvt.gen_en);
-  t->SetBranchAddress("gen_emfrac",  &simEvt.gen_emfrac);
-  t->SetBranchAddress("gen_hadfrac", &simEvt.gen_hadfrac);
-  t->SetBranchAddress("gen_invfrac", &simEvt.gen_invfrac);
+  t->SetBranchAddress("nvtx",          &simEvt.nvtx);
+  t->SetBranchAddress("vtx_ntk",        simEvt.vtx_ntk);
+  t->SetBranchAddress("vtx_rank",       simEvt.vtx_rank);
+  t->SetBranchAddress("vtx_x",          simEvt.vtx_x);
+  t->SetBranchAddress("vtx_y",          simEvt.vtx_y);
+  t->SetBranchAddress("vtx_z",          simEvt.vtx_z);
+  t->SetBranchAddress("vtx_pt",         simEvt.vtx_pt);
+  t->SetBranchAddress("vtx_normchi2",   simEvt.vtx_normchi2);
 
-  t->SetBranchAddress("en", simEvt.en);
-  t->SetBranchAddress("nhits", simEvt.nhits);
-  t->SetBranchAddress("eta", simEvt.eta);
-  t->SetBranchAddress("phi", simEvt.phi);
-  t->SetBranchAddress("width", simEvt.width);
-  t->SetBranchAddress("totalVolume", simEvt.totalVolume);
-  t->SetBranchAddress("x", simEvt.x);
-  t->SetBranchAddress("y", simEvt.y);
+  t->SetBranchAddress("ntkj",          &simEvt.ntkj);
+  t->SetBranchAddress("tkj_ntk",        simEvt.tkj_ntk);
+  t->SetBranchAddress("tkj_vtxIdx",     simEvt.tkj_vtxIdx);
+  t->SetBranchAddress("tkj_genIdx",     simEvt.tkj_genIdx);
+  t->SetBranchAddress("tkj_pt",         simEvt.tkj_pt);
+  t->SetBranchAddress("tkj_eta",        simEvt.tkj_eta);
+  t->SetBranchAddress("tkj_phi",        simEvt.tkj_phi);
 
-  t->SetBranchAddress("wgt_en", simEvt.wgt_en);
-  t->SetBranchAddress("wgt_nhits", simEvt.wgt_nhits);
-  t->SetBranchAddress("wgt_eta", simEvt.wgt_eta);
-  t->SetBranchAddress("wgt_phi", simEvt.wgt_phi);
-  t->SetBranchAddress("wgt_width", simEvt.wgt_width);
-  t->SetBranchAddress("wgt_totalVolume", simEvt.wgt_totalVolume);
-  t->SetBranchAddress("wgt_x", simEvt.wgt_x);
-  t->SetBranchAddress("wgt_y", simEvt.wgt_y);
+  t->SetBranchAddress("ngen",           &simEvt.ngen);
+  t->SetBranchAddress("gen_id",          simEvt.gen_id);
+  t->SetBranchAddress("gen_status",      simEvt.gen_status);
+  t->SetBranchAddress("gen_pt",          simEvt.gen_pt);
+  t->SetBranchAddress("gen_eta",         simEvt.gen_eta);
+  t->SetBranchAddress("gen_phi",         simEvt.gen_phi);
+  t->SetBranchAddress("gen_emfrac",      simEvt.gen_emfrac);
+  t->SetBranchAddress("gen_hadfrac",     simEvt.gen_hadfrac);
+  t->SetBranchAddress("gen_invfrac",     simEvt.gen_invfrac);
+  t->SetBranchAddress("gen_mjj",        &simEvt.gen_mjj);
+  t->SetBranchAddress("gen_detajj",     &simEvt.gen_detajj);
 
-  t->SetBranchAddress("z", simEvt.z);
+  t->SetBranchAddress("roi_info",          &simEvt.roi_info);
 
 }

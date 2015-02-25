@@ -96,6 +96,15 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       totalE_[key]    = 0;
       t_->Branch("totalE_"+key,      &totalE_[key],       "totalE_"+key+"/F");
 
+      avgEPerHitEE_[key]    = 0;
+      t_->Branch("avgEPerHitEE_"+key,      &avgEPerHitEE_[key],       "avgEPerHitEE_"+key+"/F");
+
+      avgEPerHitHEF_[key]    = 0;
+      t_->Branch("avgEPerHitHEF_"+key,      &avgEPerHitHEF_[key],       "avgEPerHitHEF_"+key+"/F");
+
+      avgEPerHitHEB_[key]    = 0;
+      t_->Branch("avgEPerHitHEB_"+key,      &avgEPerHitHEB_[key],       "avgEPerHitHEB_"+key+"/F");
+
       totalX0WgtE_[key]=0;
       t_->Branch("totalX0WgtE_"+key,   &totalX0WgtE_[key],    "totalX0WgtE_"+key+"/F");
 
@@ -105,8 +114,14 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       totalLength_[key]=0;
       t_->Branch("totalLength_"+key,   &totalLength_[key],    "totalLength_"+key+"/F");
 
-      totalVolume_[key]=0;
-      t_->Branch("totalVolume_"+key,   &totalVolume_[key],    "totalVolume_"+key+"/F");
+      totalVolumeEE_[key]=0;
+      t_->Branch("totalVolumeEE_"+key,   &totalVolumeEE_[key],    "totalVolumeEE_"+key+"/F");
+
+      totalVolumeHEF_[key]=0;
+      t_->Branch("totalVolumeHEF_"+key,   &totalVolumeHEF_[key],    "totalVolumeHEF_"+key+"/F");
+
+      totalVolumeHEB_[key]=0;
+      t_->Branch("totalVolumeHEB_"+key,   &totalVolumeHEB_[key],    "totalVolumeHEB_"+key+"/F");
 
       showerStart_[key]=-1;
       t_->Branch("showerStart_"+key,   &showerStart_[key],    "showerStart_"+key+"/I");
@@ -131,6 +146,9 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
 
       nhits_[key]    = new Int_t[100];
       t_->Branch("nhits_"+key,     nhits_[key],    "nhits_"+key+"[nlay]/I");
+
+      nhitsavg_[key]    = new Int_t[100];
+      t_->Branch("nhitsavg_"+key,     nhitsavg_[key],    "nhitsavg_"+key+"[nlay]/I");
 
       nhits5mip_[key]    = new Int_t[100];
       t_->Branch("nhits5mip_"+key,     nhits5mip_[key],    "nhits5mip_"+key+"[nlay]/I");
@@ -398,7 +416,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  float dR=deltaR(c_it->position(),p);
 	  if(dR>pfClusterAssociationCone_) continue;
 	  pToClusters.push_back(&(*c_it));
-	}	 
+	}
       
       nClusters_[key]=pToClusters.size();
       sort(pToClusters.begin(),pToClusters.end(),sortClustersByEnergy);
@@ -438,7 +456,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       
       //RECHITS FROM SUPERCLUSTERS (e/gamma) or CLUSTERS IN  SELECTED PF CANDIDATE
       key="pf";
-      if(abs(genId_)==11 || abs(genId_)==22)
+      if((abs(genId_)==11 || abs(genId_)==22) && pfClustersCollection_.find("pandora")==std::string::npos)
 	{
 	  //pick the leading supercluster (there should be only one in principle)
 	  const reco::SuperCluster * pToCluster=0;
@@ -571,7 +589,8 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	    }
 	  
 	  //loop over the hits
-	  float totalEn(0),totalX0WgtEn(0), totalLambdaWgtEn(0);
+	  int nhitsEE(0), nhitsHEF(0), nhitsHEB(0);
+	  float totalEn(0),totalX0WgtEn(0), totalLambdaWgtEn(0),totalEnEE(0),totalEnHEF(0),totalEnHEB(0);
 	  for(std::map<uint32_t,float>::iterator detIt=stepIt->second.begin();
 	      detIt!=stepIt->second.end();
 	      detIt++)
@@ -598,6 +617,9 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      int layerIdx(hitLayer+layerCtrOffset[subDetCtr]-1); 
 	      float en(detIt->second);
 	      totalEn                    += en;
+	      if(subDetCtr==0)           { totalEnEE += en; nhitsEE++; }
+	      if(subDetCtr==1)           { totalEnHEF += en; nhitsHEF++; }
+	      if(subDetCtr==2)           { totalEnHEB += en; nhitsHEB++; }
 	      totalX0WgtEn               += en*getLayerWeight(layerIdx,true);
 	      totalLambdaWgtEn           += en*getLayerWeight(layerIdx,false);
 	      edeps_[key][layerIdx]      += en;
@@ -636,6 +658,9 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  totalE_[key]=totalEn;
 	  totalX0WgtE_[key]=totalX0WgtEn;
 	  totalLambdaWgtE_[key]=totalLambdaWgtEn;
+	  avgEPerHitEE_[key] = nhitsEE> 0 ? totalEnEE/nhitsEE : 0.;
+	  avgEPerHitHEF_[key] = nhitsHEF> 0 ? totalEnHEF/nhitsHEF : 0.;
+	  avgEPerHitHEB_[key] = nhitsHEB> 0 ? totalEnHEB/nhitsHEB : 0.;
 
 	  //loop once more over hits to determine distance to shower direction
 	  for(std::map<uint32_t,float>::iterator detIt=stepIt->second.begin();
@@ -678,8 +703,12 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      float refY( refRho*TMath::Sin( showerMeanPhi_[key] ) );
 	      
 	      float rho=sqrt(pow(hitX-refX,2)+pow(hitY-refY,2));
-	      edepdR_[key][layerIdx]   += en*rho;
-	      edepArea_[key][layerIdx]  += en*pow(rho,2);
+	      float avgToUse(avgEPerHitEE_[key]);
+	      if(subDetCtr==1) avgToUse=avgEPerHitHEF_[key];
+	      if(subDetCtr==2) avgToUse=avgEPerHitHEB_[key];
+	      nhitsavg_[key][layerIdx] += (en>avgToUse);
+	      edepdR_[key][layerIdx]   += en*rho;        //en*rho;
+	      edepArea_[key][layerIdx] += cellSize;
 	      sihih_[key][layerIdx]    += en*pow(hitEta-emeanEta_[key][layerIdx],2);
 	      sipip_[key][layerIdx]    += en*pow(deltaPhi(hitPhi,emeanPhi_[key][layerIdx]),2);
 	      sipih_[key][layerIdx]    += en*(hitEta-emeanEta_[key][layerIdx])*(deltaPhi(hitPhi,emeanPhi_[key][layerIdx]));
@@ -694,20 +723,18 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      hitLayCtr++;
 	      if(showerStart_[key]<0 && hitLayCtr==3) showerStart_[key]=ilay;
 	      edepdR_[key][ilay]   /= iTotalEn;
-	      edepArea_[key][ilay] /= iTotalEn;
-	      edepArea_[key][ilay] = TMath::Pi()*(edepArea_[key][ilay]-pow(edepdR_[key][ilay],2));
-	      //if(edepArea_[key][ilay]<0) edepArea_[key][ilay]=0;
 
 	      sihih_[key][ilay]    /= iTotalEn; sihih_[key][ilay]=sqrt(sihih_[key][ilay]);
 	      sipip_[key][ilay]    /= iTotalEn; sipip_[key][ilay]=sqrt(sipip_[key][ilay]);
 	      sipih_[key][ilay]    /= iTotalEn; sipih_[key][ilay]=sqrt(fabs(sipih_[key][ilay]));
 	      
-	      float corrOverburden(getLayerWeight(ilay,false)*TMath::TanH(fabs(showerMeanEta_[key])));
+	      float corrOverburden(getLayerWeight(ilay,false));
 	      totalLength_[key] += corrOverburden;
 
-	      //do not use HEB for the volume
-	      if(ilay>=41) continue;
-	      totalVolume_[key] += (edepArea_[key][ilay]>0 ? edepArea_[key][ilay] : 0 )*corrOverburden;
+	      //do not use EE or HEB for the volume
+	      if(ilay<30)      totalVolumeEE_[key] += (edepArea_[key][ilay]>0 ? edepArea_[key][ilay] : 0 )*corrOverburden;
+	      else if(ilay<42) totalVolumeHEF_[key] += (edepArea_[key][ilay]>0 ? edepArea_[key][ilay] : 0 )*corrOverburden;
+	      else             totalVolumeHEB_[key] += (edepArea_[key][ilay]>0 ? edepArea_[key][ilay] : 0 )*corrOverburden;
 	    }	 
 	}
 

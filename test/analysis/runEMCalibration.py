@@ -7,146 +7,188 @@ import commands
 from UserCode.HGCanalysis.PlotUtils import *
 from UserCode.HGCanalysis.HGCTree2Workspace import *
 
+"""
+"""
+def adaptWorkspaceForEMCalibration(opt):
+    
+    wsUrl             = opt.wsUrl
+
+    #prepare workspace (if needed) and output
+    if wsUrl is None :
+
+        #readout material overburden file
+        matFurl='%s/src/UserCode/HGCanalysis/data/HGCMaterialOverburden.root'%os.environ['CMSSW_BASE']
+        matF=ROOT.TFile.Open(matFurl)
+        matParamBeforeHGCGr=matF.Get("x0Overburden")
+        matF.Close()
+
+        #init weighting scheme
+        weightingScheme={
+            'EE': [([1, 1 ], matParamBeforeHGCGr, 0.08,  1.0),
+                   ([2, 11], None,                0.620, 1.0),
+                   ([12,21], None,                0.809, 1.0),
+                   ([22,30], None,                1.239, 1.0)]
+            }
+
+        #prepare the workspace and get new url
+        wsUrl=prepareWorkspace(url=opt.input,weightingScheme=weightingScheme,vetoTrackInt=opt.vetoTrackInt,vetoHEBLeaks=False,treeVarName=opt.treeVarName)
+        
+    return wsUrl
+
+"""
+draws the correlation shower leakage, and phi resolution
+"""
+def computeCompensationWeights(enRanges,etaRanges,ws,outDir):
+
+    print '[computeCompensationWeights] will look at correlations between shower leakage, phi and resolutions'
+
+    fitFunc=ROOT.TF1('phicorr','TMath::Abs(x-[0])>0.03 ? [3]*pow([0]+0.03,2)+[2]*([0]+0.03)+[1] : [3]*pow(x-[0],2)+[2]*TMath::Abs(x-[0])+[1]',0,ROOT.TMath.Pi()/9.)
+    fitFunc.SetParameter(0,ROOT.TMath.Pi()/18.)
+    canvas=ROOT.TCanvas('c','c',1000,500)
+    for ien in xrange(0,len(enRanges)):
+
+        genEn_min=enRanges[ien][0]
+        genEn_max=enRanges[ien][1]
+        genEn_mean=0.5*(genEn_max+genEn_min)
+
+        tailFracH = ROOT.TH2F('tailfrac%d'%ien,';Tail fraction;#DeltaE/E',10,0,0.5,50,0.5,1.5)
+        tailFracH.Sumw2()
+        tailFracH.SetDirectory(0)
+        phiH      = ROOT.TH2F('phi%d'%ien,';#phi [rad];#DeltaE/E',25,0,ROOT.TMath.Pi()/9.,50,0.5,1.5)
+        phiH.Sumw2()
+        phiH.SetDirectory(0)
+
+        #fill histograms and prepare for quantile computation
+        redIncData=ws.data('data').reduce('en>=%f && en<=%f'%(genEn_min,genEn_max))
+        nEntries=redIncData.numEntries()
+        if nEntries<10: continue
+        entryWeight=1./float(nEntries)
+
+        recEn_mean=redIncData.mean(ws.var('en_EE'))
+        for ientry in xrange(0,nEntries):
+            entryVars=redIncData.get(ientry)
+            phi=entryVars.find('phi').getVal()
+            nphi=ROOT.TMath.Floor(ROOT.TMath.Abs(9*phi/ROOT.TMath.Pi()))
+            phi=ROOT.TMath.Abs(phi)-nphi*ROOT.TMath.Pi()/9.
+            tailFrac=entryVars.find('tailfrac_EE').getVal()
+            recEn=entryVars.find('en_EE').getVal()
+            phiH.Fill(phi,recEn/recEn_mean,entryWeight)
+            tailFracH.Fill(tailFrac,recEn/recEn_mean,entryWeight)
+        
+        #show profile
+        canvas.Clear()
+        canvas.Divide(2,1)   
+        p=canvas.cd(1)
+        p.SetRightMargin(0.15)
+        tailFracH.Draw('colz')
+        MyPaveText('#bf{CMS} #it{simulation} Energy=%d'%genEn_mean)
+        p=canvas.cd(2)
+        p.SetRightMargin(0.15)
+        phiH.Draw('colz')
+        phiprofH=phiH.ProfileX('phiprof_%d'%ien)
+        phiprofH.SetMarkerStyle(20)
+        phiprofH.Draw('e1same')
+        phiprofH.Fit(fitFunc,'MRQ+','same')        
+        canvas.Modified()
+        canvas.Update()
+        canvas.SaveAs('%s/em_%d_profile.png'%(outDir,ien))
+        canvas.SaveAs('%s/em_%d_profile.C'%(outDir,ien))
+
+    return fitFunc
 
 """
 Steer the calibration study
 """
 def runCalibrationStudy(opt):
 
-    url               = opt.input
-    wsUrl             = opt.wsUrl
-    calibUrl          = opt.calibUrl
-    treeVarName       = opt.treeVarName
-    vetoTrackInt      = opt.vetoTrackInt
-    
-    #init phase space regions of interest
-    etaRanges = [[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75],[2.75,2.9]]
-    enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[149,151],[249,251]] 
-    if (url and url.find('Single11_')>=0) or (wsUrl and wsUrl.find('Single11_')>=0) :
-        enRanges=[[19,21],[39,41],[49,51],[74,75],[99,101],[149,151],[249,251]]
-        etaRanges=[[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75]]
-    if treeVarName.find('pf')>=0:
-        enRanges  = [[49,51],[74,75],[99,101],[149,151],[249,251]] 
-    
-    #etaRanges = [[1.6,2.9]]
-    #enRanges  = [[9,11],[29,31],[49,51]]
-    
-    #init weights and integration ranges
-    integRanges       = [[1,1],[2,11],[12,21],[22,30],[31,31],[32,42],[43,54]]
-    weights={}
-    #weights["Trivial"] = [1.0,  1.0,   1.0,    1.0,    1.0,    1.0,    1.0]
-    weights["x0"]      = [0.08, 0.620, 0.809,  1.239,  3.580,  3.103,  5.228]
-    #weights["lambda"]  = [0.01, 0.036, 0.043,  0.056,  0.338,  0.273,  0.476]
-    weightTitles={}
-    #weightTitles["Trivial"] = "Trivial weights"
-    weightTitles["x0"]      = "X_{0}-based weights"
-    weightTitles["lambda"]  = "#lambda-based weights"
-    
-    #prepare workspace (if needed) and output
-    outDir="./"
-    if wsUrl is None :
-        outDir=url.replace('.root','')
-        os.system('mkdir -p '+outDir)
-        wsUrl=prepareWorkspace(url=url,integRanges=integRanges,vetoTrackInt=vetoTrackInt,treeVarName=treeVarName)
-    else:
-        outDir=os.path.dirname(wsUrl)
-
-    #get the workspace from the file
+    #get the workspace
+    wsUrl = adaptWorkspaceForEMCalibration(opt)
+    print 'Workspace for e.m. calibration, stored @ %s'%wsUrl
     wsOutF=ROOT.TFile.Open(wsUrl)
     ws=wsOutF.Get('w')
     wsOutF.Close()
 
-    #readout material overburden file
-    matParamBeforeHGCMap={}
-    matF=ROOT.TFile.Open("/afs/cern.ch/user/p/psilva/work/HGCal/Calib/CMSSW_6_2_0_SLHC20/src/UserCode/HGCanalysis/data/HGCMaterialOverburden.root")
-    for wType in weights:
-        matParamBeforeHGCMap[wType]=matF.Get("%sOverburden"%wType)
-        matF.Close()
+    #prepare output dir
+    outDir=os.path.dirname(wsUrl)
+    
+
+    #init phase space regions of interest
+    etaRanges = [[1.5,1.6],[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75],[2.75,2.95]]
+    enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[149,151],[249,251]] 
 
     #readout calibration
+    weightTitles={'simple':'Simple sum'}
     calibPostFix='uncalib'
     calibMap={}
     calibMapRes={}
-    if calibUrl:
-        calibPostFix=os.path.basename(calibUrl)
+    try:
+        calibPostFix=os.path.basename(opt.calibUrl)
         calibPostFix='_'+calibPostFix.replace('.root','')
-        calibF=ROOT.TFile.Open(calibUrl)
-        print 'Reading out calibrations from %s'%calibUrl
-        for wType in weights:
+        calibF=ROOT.TFile.Open(opt.calibUrl)
+        print 'Reading out calibrations from %s'%opt.calibUrl
+        for wType in weightTitles:
             calibMap[wType]=calibF.Get('%s_calib'%wType).Clone()
             calibMapRes[wType]=calibF.Get('%s_calib_res'%wType).Clone()
         calibF.Close()
+    except:
+        print 'No calibration will be applied'
 
-    #prepare energy estimators
-    funcArgs=''
-    funcFormula={}
-    for wType in weights: funcFormula[wType]=''
-    for ireg in xrange(0,len(integRanges)) :
-        #list of function arguments
-        if ireg==0:
-            funcArgs += '{edep%d'%ireg
-        else:
-            funcArgs += ',edep%d'%ireg
-        if ireg==len(integRanges)-1:
-            funcArgs += '}'
-        #functions
-        for wType in weights:
-            if ireg==0:
-                funcFormula[wType] += '%f*edep%d'%(weights[wType][ireg],ireg)
-            else:
-                funcFormula[wType] += '+%f*edep%d'%(weights[wType][ireg],ireg)
-            if ireg==len(integRanges)-1:
-                funcFormula[wType] += ''
-    for wType in weights: 
-        calib_offset, calib_slope = 0.0, 1.0
-        if wType in calibMap:
-            calib_offset=calibMap[wType].GetParameter(1)
-            calib_slope=calibMap[wType].GetParameter(0)
-        ws.factory('%sEn_%s[0,0,999999999]'%(wType,calibPostFix))
-        ws.var('%sEn_%s'%(wType,calibPostFix)).SetTitle( weightTitles[wType] )
-        theFunc=ws.factory("RooFormulaVar::%sEn_func('(%s-%f)/%f',%s)"%(wType,funcFormula[wType],calib_offset,calib_slope,funcArgs))
-        ws.data('data').addColumn( theFunc ) 
+    #compensation as function of critical variables
+    phiCorrGr=computeCompensationWeights(enRanges,etaRanges,ws,outDir)
 
-        
     #create dataset for calibration
-    uncalibDataVars=ROOT.RooArgSet(ws.var('en'), ws.var('eta'), ws.var('phi'))
-    for wType in weights: uncalibDataVars.add( ws.var('%sEn_%s'%(wType,calibPostFix) ) )
-    getattr(ws,'import')( ROOT.RooDataSet('data_%s'%calibPostFix,'data_%s'%calibPostFix,uncalibDataVars) )
+    uncalibDataVars=ROOT.RooArgSet(ws.var('en'), ws.var('eta'), ws.var('phi'),ws.var('tailfrac_EE'))
+    for wType in weightTitles: 
+        ws.factory('%sEn[0,0,999999999]'%wType)
+        ws.var('%sEn'%wType).SetTitle( '%s'%weightTitles[wType] )
+        uncalibDataVars.add( ws.var('%sEn'%wType ) )
+    getattr(ws,'import')( ROOT.RooDataSet('data_uncalib_final','data_uncalib_final',uncalibDataVars) )
     for ientry in xrange(0,ws.data('data').numEntries()):
+
         entryVars=ws.data('data').get(ientry)
         newEntry=ROOT.RooArgSet()
-        for baseVar in ['en','eta','phi']: 
+
+        for baseVar in ['en','eta','phi','tailfrac_EE']: 
             ws.var(baseVar).setVal( entryVars.find(baseVar).getVal() )
             newEntry.add( ws.var(baseVar) )
 
-        for wType in weights :
-            ienVal=entryVars.find('%sEn_func'%wType).getVal()
 
-            #check if a material correction is available
-            try:
-                genEta = ROOT.TMath.Abs(ws.var('eta').getVal())
-                edep0  = ws.var('edep0').getVal()/ROOT.TMath.TanH(genEta) #remove previously applied eta correction
-                ienVal+= edep0*matParamBeforeHGCMap[wType].Eval(genEta)*int(vetoTrackInt) 
-            except:
-                pass
+        #check phi
+        phi=entryVars.find('phi').getVal()
+        nphi=ROOT.TMath.Floor(ROOT.TMath.Abs(9*phi/ROOT.TMath.Pi()))
+        phi=ROOT.TMath.Abs(phi)-nphi*ROOT.TMath.Pi()/9.
+        if ROOT.TMath.Abs(phi-ROOT.TMath.Pi()/18.)<0.03 : continue
+
+        enEstimators={'simple':entryVars.find('en_EE').getVal()}
             
-            #compute residual, if available
-            calib_residual=0.0
+        for wType in weightTitles :
+
+            ienVal=enEstimators[wType]
+
+            calib_offset, calib_slope = 0.0, 1.0
+            if wType in calibMap:
+                #calib_offset=calibMap[wType].GetParameter(1)
+                calib_slope=calibMap[wType].GetParameter(0)
+            
+            calib_residual = 0.0
             if wType in calibMapRes:
                 calib_residual=calibMapRes[wType].Eval(ROOT.TMath.Abs(ws.var('eta').getVal()))
 
-            #add corrected energy
-            ws.var('%sEn_%s'%(wType,calibPostFix)).setVal(ienVal*(1-calib_residual))
-            newEntry.add(ws.var('%sEn_%s'%(wType,calibPostFix)))
-        ws.data('data_%s'%calibPostFix).add( newEntry )
 
+            #calibrated energy estimator
+            ienVal=((ienVal-calib_offset)/calib_slope)*(1-calib_residual)
+            ws.var('%sEn'%wType).setVal(ienVal)
+            newEntry.add(ws.var('%sEn'%wType))
+
+        #all filled, add new row
+        ws.data('data_uncalib_final').add(newEntry)
 
 
     #calibrate the energy estimators (split up in different energies and pseudo-rapidity ranges)
     nSigmasToFit=2.8 #2.8
     calibGr={}
     resGr={}
-    for wType in weights:
+    for wType in weightTitles:
         calibGr[wType]=ROOT.TMultiGraph()
         calibGr[wType].SetName('calib_%s'%wType)
         calibGr[wType].SetTitle( weightTitles[wType] )
@@ -162,7 +204,7 @@ def runCalibrationStudy(opt):
         etaSliceCalibGr={}
         etaSliceResGr={}
         iwtype=0
-        for wType in weights:
+        for wType in weightTitles:
             iwtype=iwtype+1
             etaSliceCalibGr[wType]=ROOT.TGraphErrors()
             etaSliceCalibGr[wType].SetName('calib_%s_%s'%(iEtaRange,wType))
@@ -175,14 +217,14 @@ def runCalibrationStudy(opt):
         for iEnRange in xrange(0,len(enRanges)):
             genEn_min = enRanges[iEnRange][0]
             genEn_max = enRanges[iEnRange][1]
-            redData=ws.data('data_%s'%calibPostFix).reduce('en>=%f && en<=%f && eta>=%f && eta<=%f'%(genEn_min,genEn_max,genEta_min,genEta_max))
+            redData=ws.data('data_uncalib_final').reduce('en>=%f && en<=%f && eta>=%f && eta<=%f'%(genEn_min,genEn_max,genEta_min,genEta_max))
             if redData.numEntries()<10 : continue
             genEn_mean, genEn_sigma = redData.mean(ws.var('en')),  redData.sigma(ws.var('en'))
 
-            for wType in weights :
+            for wType in weightTitles:
 
                 #prepare the fit to this slice
-                vName = '%sEn_%s'%(wType,calibPostFix)
+                vName = '%sEn'%wType
                 v_mean, v_sigma    = redData.mean(ws.var(vName)), redData.sigma(ws.var(vName))
                 v_min, v_max       = v_mean-2*v_sigma, v_mean+2*v_sigma
                 v_fitMin, v_fitMax = v_mean-nSigmasToFit*v_sigma, v_mean+nSigmasToFit*v_sigma
@@ -228,30 +270,36 @@ def runCalibrationStudy(opt):
                                            fitName=fitName,
                                            outDir=outDir)
 
-        for wType in weights: 
+        for wType in weightTitles:
             calibGr[wType].Add(etaSliceCalibGr[wType],'p')
             resGr[wType].Add(etaSliceResGr[wType],'p')
 
     #derive calibration
     calibModel=ROOT.TF1('calibmodel',"[0]*x+[1]",0,800)
     calibModel.SetLineWidth(1)
-    for wType in weights :
+    for wType in weightTitles:
         calibGr[wType].Fit(calibModel,'MER+')
         calibGr[wType].GetFunction(calibModel.GetName()).SetLineColor(calibGr[wType].GetListOfGraphs().At(0).GetLineColor())
 
     #show results
-    resCorrectionGr=showCalibrationCurves(calibGr=calibGr,calibRanges=etaRanges,outDir=outDir,calibPostFix=calibPostFix)
+    resCorrectionGr,resCalibGr=showCalibrationCurves(calibGr=calibGr,calibRanges=etaRanges,outDir=outDir,calibPostFix=calibPostFix)
     showResolutionCurves(resGr=resGr,outDir=outDir,calibPostFix=calibPostFix)
 
     #save all to file
     calibModelRes=ROOT.TF1('calibmodelres',"[0]*x*x+[1]*x+[2]",1.45,3.1)
     calibF=ROOT.TFile.Open('%s/calib_%s.root'%(outDir,calibPostFix),'RECREATE')
-    for wType in weights :
+    for wType in weightTitles :
         calibGr[wType].Write()
         calibGr[wType].GetFunction(calibModel.GetName()).Write('%s_calib'%wType)
+        for gr in resCalibGr[wType].GetListOfGraphs():
+            gr.Fit(calibModelRes,'WMR+')
+            gr.Write()
         resCorrectionGr[wType].Write()
         resCorrectionGr[wType].Fit(calibModelRes,'WMR+')
         resCorrectionGr[wType].GetFunction(calibModelRes.GetName()).Write('%s_calib_res'%wType)
+        for gr in resGr[wType].GetListOfGraphs():
+            gr.Write()
+        
     calibF.Close()
 
 
@@ -282,7 +330,21 @@ def main():
     ROOT.gROOT.SetBatch(True)
     ROOT.gStyle.SetOptTitle(0)
     ROOT.gStyle.SetOptStat(0)
-    
+    ROOT.RooMsgService.instance().setSilentMode(True);
+    ROOT.RooMsgService.instance().getStream(0).removeTopic(ROOT.RooFit.Minimization);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.Minimization);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.ObjectHandling);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.DataHandling);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.Fitting);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.Plotting);
+    ROOT.RooMsgService.instance().getStream(0).removeTopic(ROOT.RooFit.InputArguments);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.InputArguments);
+    ROOT.RooMsgService.instance().getStream(0).removeTopic(ROOT.RooFit.Eval);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.Eval);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.Integration);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.NumIntegration);
+    ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.NumIntegration);
+
     runCalibrationStudy(opt)
     
 if __name__ == "__main__":

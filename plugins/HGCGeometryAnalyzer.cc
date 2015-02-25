@@ -72,7 +72,8 @@ void HGCGeometryAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSet
 	  int simcells=dddConst.maxCells(ilay,false);
 	  int simrows=dddConst.maxRows(ilay,false);
 	  std::vector<HGCalDDDConstants::hgtrap>::const_iterator simModIt( dddConst.getFirstModule(false) );
-	  for(int klay=1; klay<ilay; klay++) simModIt++;
+	  std::vector<HGCalDDDConstants::hgtrform>::const_iterator trformIt( dddConst.getFirstTrForm() );
+	  for(int klay=1; klay<ilay; klay++) { simModIt++; trformIt++; }
 	  std::cout.precision(4);
 	  cout << " " << SEP  
 	       << ilay << " : " 
@@ -82,7 +83,8 @@ void HGCGeometryAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSet
 	       << simModIt->bl << "/"
 	       << simModIt->tl << "/"
 	       << simModIt->h << "/"
-	       << simModIt->alpha << SEP ;
+	       << simModIt->alpha 
+	       << SEP ;
 
 	  std::pair<int,int>  simToReco=dddConst.simToReco(1,ilay,false);
 	  std::vector<HGCalDDDConstants::hgtrap>::const_iterator recModIt( dddConst.getFirstModule(true) );
@@ -98,7 +100,8 @@ void HGCGeometryAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSet
 		   << recModIt->bl << "/"
 		   << recModIt->tl << "/"
 		   << recModIt->h << "/"
-		   << recModIt->alpha ;
+		   << recModIt->alpha 
+		   << "/" << trformIt->h3v.perp() << "/" << trformIt->h3v.perp()-recModIt->h << "/" << trformIt->h3v.perp()+recModIt->h << "/" << trformIt->h3v.z();
 	      
 	      if(fabs(simModIt->bl-10*recModIt->bl)>1e-3 ||
 		 fabs(simModIt->tl-10*recModIt->tl)>1e-3 ||

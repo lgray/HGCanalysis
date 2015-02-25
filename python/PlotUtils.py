@@ -31,6 +31,59 @@ class MyPaveText(ROOT.TPaveText):
 
 
 """
+computes a chi2 between two TGraphERrors
+"""
+def getChi2(gr1,gr2):
+
+    chi2,ndf=0,0
+    x,y1,y2 = ROOT.Double(0), ROOT.Double(0),ROOT.Double(0)
+    for np in xrange(0,gr1.GetN()) :
+
+        gr1.GetPoint(np,x,y1)
+        y1_err=gr1.GetErrorY(np)
+
+        gr2.GetPoint(np,x,y2)
+        y2_err=gr2.GetErrorY(np)
+
+        den=(y1_err*y1_err+y2_err*y2_err)
+        if den==0: continue
+
+        ndf+=1
+        chi2+=ROOT.TMath.Power(y1-y2,2)/den
+        
+    return chi2,ndf
+
+"""
+Computes the ratio of the two graphs
+"""
+def getRatio(gr1,gr2):
+	grratio=ROOT.TGraphErrors()
+	grratio.SetName('%s_ratio_%s'%(gr1.GetName(),gr2.GetName()))
+        grratio.SetTitle(gr2.GetTitle())
+	grratio.SetLineColor(gr2.GetLineColor())
+	grratio.SetMarkerColor(gr2.GetMarkerColor())
+	grratio.SetMarkerStyle(gr2.GetMarkerStyle())
+	grratio.SetLineStyle(gr2.GetLineStyle())
+        x,y1,y2 = ROOT.Double(0), ROOT.Double(0),ROOT.Double(0)
+	for np in xrange(0,gr1.GetN()):
+             
+            gr1.GetPoint(np,x,y1)
+            y1_err=gr1.GetErrorY(np)
+            
+            gr2.GetPoint(np,x,y2)
+            y2_err=gr2.GetErrorY(np)
+
+            if y1==0 : continue
+
+            nnp=grratio.GetN()
+            grratio.SetPoint(nnp,x,y2/y1)
+            grratio.SetPointError(nnp,0,ROOT.TMath.Sqrt(ROOT.TMath.Power(y2*y1_err,2)+ROOT.TMath.Power(y1*y2_err,2))/(y1*y1))
+
+        return grratio
+
+
+
+"""
 Style options mostly from CMS's tdrStyle.C
 """
 def customROOTstyle() :

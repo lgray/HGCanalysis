@@ -10,25 +10,20 @@ from UserCode.HGCanalysis.PlotUtils import *
 """
 Converts all to a workspace and computes optimized weights
 """
-def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False,addRaw=False):
+def prepareWorkspace(url,weightingScheme,treeVarName,vetoTrackInt,vetoHEBLeaks=False):
 
-    #optimization with linear regression
-    optimVec = numpy.zeros( len(integRanges) )
-    optimMatrix = numpy.zeros( (len(integRanges), len(integRanges) ) )
- 
     #prepare the workspace
     outUrl=os.path.basename(url).replace('.root','')
     os.system('mkdir -p %s'%outUrl)
     ws=ROOT.RooWorkspace("w")
-    dsVars=ROOT.RooArgSet( ws.factory('eta[1.5,1.45,3.1]'), 
-                           ws.factory('en[0,0,9999999999]'), 
-                           ws.factory('phi[0,-3.2,3.2]'),
-                           ws.factory('length[0,0,9999999.]'), 
-                           ws.factory('volume[0,0,9999999.]') )
-    for ireg in xrange(0,len(integRanges)): dsVars.add( ws.factory('edep%d[0,0,99999999]'%ireg) )
-    if addRaw : 
-        for ilay in xrange(1,55):
-            dsVars.add( ws.factory('rawedep%d[0,0,99999999]'%ilay) )
+    dsVars=ROOT.RooArgSet( ws.factory('en[0,0,9999999999]'), 
+                           ws.factory('eta[1.5,1.45,3.1]'), 
+                           ws.factory('phi[0,-3.2,3.2]') )
+    for key in weightingScheme:
+        dsVars.add( ws.factory('en_%s[0,0,99999999]'%key) )
+        dsVars.add( ws.factory('tailfrac_%s[0,0,99999999]'%key) )
+        dsVars.add( ws.factory('c_%s[0,0,99999999]'%key) )
+        dsVars.add( ws.factory('rho_%s[0,0,99999999]'%key) )
     getattr(ws,'import')( ROOT.RooDataSet('data','data',dsVars) )
 
     #read all to a RooDataSet
@@ -36,13 +31,21 @@ def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False
     fin=ROOT.TFile.Open(url)
     HGC=fin.Get('analysis/HGC')
     simStep=treeVarName.split('_')[1]
-    print 'Updating status every 1k events read / %dk events available'%(HGC.GetEntriesFast()/1000)
+    print 'Reading hits from HGC tree found in %s'%url
+    print 'Status will be updated every 1k events read / %dk events available'%(HGC.GetEntriesFast()/1000)
     for entry in xrange(0,HGC.GetEntriesFast()+1):
         HGC.GetEntry(entry)
         if entry%1000==0 : drawProgressBar(float(entry)/float(HGC.GetEntriesFast()))
 
         #veto interactions in the tracker
         if vetoTrackInt and HGC.hasInteractionBeforeHGC : continue
+
+        #check the amount of energy deposited in the back HEB
+        if vetoHEBLeaks:
+            sumBackHEB=0
+            for ilayer in [51,52,53]:
+                sumBackHEB+=(getattr(HGC,treeVarName))[ilayer-1]
+            if sumBackHEB>3: continue
 
         #require generated particle to be in the endcap
         genEn=HGC.genEn
@@ -52,67 +55,65 @@ def prepareWorkspace(url,integRanges,treeVarName,vetoTrackInt,vetoHEBLeaks=False
         ws.var('en').setVal(genEn)
         ws.var('eta').setVal(genEta)
         ws.var('phi').setVal(genPhi)
-        showerLength,showerVolume=0,0
-        try:
-            showerLength, showerVolume=getattr(HGC,'totalLength_%s'%(simStep)),getattr(HGC,'totalVolume_%s'%(simStep))
-        except:
-            pass
-        ws.var('length').setVal(showerLength)
-        ws.var('volume').setVal(showerVolume)
-        newEntry=ROOT.RooArgSet(ws.var('en'), ws.var('eta'),  ws.var('phi'), ws.var('length'), ws.var('volume') )
 
-        #showerMeanEta=getattr(HGC,'showerMeanEta_%s'%simStep)
-        showerMeanEta=genEta
-        #geomCorrection=ROOT.TMath.TanH(genEta)
-        geomCorrection=1./ROOT.TMath.TanH(showerMeanEta)
-        
-        #check the amount of energy deposited in the back HEB
-        if vetoHEBLeaks:
-            sumBackHEB=0
-            for ilayer in [51,52,53]:
-                sumBackHEB+=(getattr(HGC,treeVarName))[ilayer-1]
-            if sumBackHEB>3: continue
+        #start a new entry
+        newEntry=ROOT.RooArgSet(ws.var('en'), ws.var('eta'),  ws.var('phi'))
 
         #get the relevant energy deposits and add new row
-        for ireg in xrange(0,len(integRanges)):
-            totalEnInIntegRegion=0           
-            for ilayer in xrange(integRanges[ireg][0],integRanges[ireg][1]+1):
-                irawEdep=(getattr(HGC,treeVarName))[ilayer-1]
-                totalEnInIntegRegion=totalEnInIntegRegion+irawEdep
-                if addRaw:
-                    ws.var('rawedep%d'%ilayer).setVal(irawEdep*geomCorrection)
-                    newEntry.add(ws.var('rawedep%d'%ilayer))
+        for subDet,subDetScheme in weightingScheme.iteritems():
+            
+            totalEn, totalEnTail, nhits, nhits10mip, nhitsavg = 0, 0, 0, 0, 0
+            for subDetRange in subDetScheme:
 
-            ws.var('edep%d'%ireg).setVal(totalEnInIntegRegion*geomCorrection)
-            newEntry.add(ws.var('edep%d'%(ireg)))
+                #decode corrections to apply to this sub-detector range
+                integRange             = subDetRange[0]
+                etaDepWeight           = 0.0
+                if not (vetoTrackInt or subDetRange[1] is None):
+                    etaDepWeight       = subDetRange[1].Eval(genEta)
+                geomCorrection         = 1. #/ROOT.TMath.TanH(genEta)
+                weight                 = subDetRange[2]
+                finalScale             = subDetRange[3]
+
+                #integrate layers applying corrections
+                totalEnTail=0
+                for ilay in xrange(integRange[0],integRange[1]+1):
+                    ien         = finalScale*(weight*geomCorrection+etaDepWeight)*(getattr(HGC,treeVarName))[ilay-1]
+                    totalEn    += ien
+                    if ilay>integRange[1]-3: totalEnTail += ien
+                    nhits      += (getattr(HGC,'nhits_%s'%(simStep)))[ilay-1]
+                    nhits10mip += (getattr(HGC,'nhits10mip_%s'%(simStep)))[ilay-1]
+                    nhitsavg   += (getattr(HGC,'nhitsavg_%s'%(simStep)))[ilay-1]
+                        
+            #add to the set of variables the values computed for this subdetector
+            ws.var('en_%s'%subDet).setVal(totalEn)
+            newEntry.add(ws.var('en_%s'%subDet))
+
+            tailfrac=0
+            if totalEn>0: tailfrac=totalEnTail/totalEn
+            ws.var('tailfrac_%s'%subDet).setVal(tailfrac)
+            newEntry.add(ws.var('tailfrac_%s'%subDet))
+
+            cfrac = 0
+            if nhits>1:
+                cfrac = float(nhits-nhits10mip)/float(nhits-nhitsavg)
+            ws.var('c_%s'%subDet).setVal(cfrac)
+            newEntry.add(ws.var('c_%s'%subDet))
+
+            rho = 0
+            volume=getattr(HGC,'totalVolume%s_%s'%(subDet,simStep))
+            if volume>0:
+                rho   = totalEn/volume
+            ws.var('rho_%s'%subDet).setVal(rho)
+            newEntry.add(ws.var('rho_%s'%subDet))
 
         ws.data('data').add( newEntry )
 
-        #for optimization
-        for ie in xrange(0,len(integRanges)):
-            optimVec[ie]=optimVec[ie]+ws.var('edep%d'%ie).getVal()/genEn
-            for je in xrange(0,len(integRanges)):
-                optimMatrix[ie][je]=optimMatrix[ie][je]+ws.var('edep%d'%ie).getVal()*ws.var('edep%d'%je).getVal()/(genEn*genEn)
-
-
     fin.Close()
-
-    #finalize optimization
-    try:
-        optimWeights=numpy.linalg.solve(optimMatrix,optimVec)
-        optimData={}
-        optimData['IntegrationRanges'] = [ {'first':fLayer, 'last':lLayer} for fLayer,lLayer in integRanges ]
-        optimData['OptimWeights'] = [ item for item in optimWeights ]
-        with io.open('%s/optim_weights.dat'%outUrl, 'w', encoding='utf-8') as f: f.write(unicode(json.dumps(optimData, sort_keys = True, ensure_ascii=False, indent=4)))
-    except:
-        print 'Failed to optimize - singular matrix?'
-        print 'Matrix: ',optimMatrix
-        print 'Vector: ',optimVec
 
     #all done, write to file
     wsFileUrl='%s/workspace.root'%outUrl
     ws.writeToFile(wsFileUrl,True)
-    print 'Created the analysis RooDataSet with %d events, stored @ %s'%(ws.data('data').numEntries(),wsFileUrl)
+    print '\nCreated the analysis RooDataSet with %d events, stored @ %s'%(ws.data('data').numEntries(),wsFileUrl)
     return wsFileUrl
 
 """
@@ -304,14 +305,14 @@ def showResolutionCurves(resGr,outDir,calibPostFix,model=0) :
     for wType in resGr:
         if igr==0:
             resGr[wType].Draw('a')
-            resGr[wType].GetXaxis().SetTitleSize(0)
-            resGr[wType].GetXaxis().SetLabelSize(0)
+            resGr[wType].GetXaxis().SetTitleSize(0.05)
+            resGr[wType].GetXaxis().SetLabelSize(0.05)
             resGr[wType].GetXaxis().SetTitle('Generated energy [GeV]')
             resGr[wType].GetYaxis().SetTitle('#sigma_{E} / E')
-            resGr[wType].GetYaxis().SetTitleOffset(1.3)
-            resGr[wType].GetYaxis().SetTitleSize(0.07)
-            resGr[wType].GetYaxis().SetLabelSize(0.05)
-            resGr[wType].GetYaxis().SetRangeUser(1,resGr[wType].GetYaxis().GetXmax()*2)
+            resGr[wType].GetYaxis().SetTitleOffset(1.1)
+            resGr[wType].GetYaxis().SetTitleSize(0.05)
+            resGr[wType].GetYaxis().SetLabelSize(0.04)
+            resGr[wType].GetYaxis().SetRangeUser(0.,0.25)
             for gr in resGr[wType].GetListOfGraphs():
                 leg.AddEntry(gr,gr.GetTitle(),"p")
         else:
