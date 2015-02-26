@@ -137,4 +137,12 @@ for tag in ${tags[@]}; do
     done
 done
 
+### JET ANALYZER
+a=(pandoraRECO-PU140 pandoraRECO-PU0)
+b=(/store/cmst3/group/hgcal/CMSSW/RelValQCD_Pt_80_120_14TeV /store/cmst3/group/hgcal/CMSSW/RelValQCDForPF_14TeV)
+for i in ${a[@]}; do 
+    for j in ${b[@]}; do 
+        cmsRun test/runHGCJetsAnalyzer_cfg.py ${j}/${i} `basename ${j}`.root & 
+    done
+done
 

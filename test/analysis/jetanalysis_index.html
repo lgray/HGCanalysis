@@ -1,0 +1,61 @@
+<html>
+<head>
+<script type="text/javascript">
+function showPlot(x,xtit) {
+document.write("<tr><td colspan=3 bgcolor=\"#ffcc88\"><a id=\""+x+"\"><b>"+xtit+"</b></a></td></tr>");
+document.write("<tr>");
+var algos = ["ak4_cmspf", "ak5", "ak4", "ak3", "ak2", "kt4"];
+for (index = 0; index < algos.length; index++) {
+   document.write("<td><img height=350 src=\""+x+"_"+algos[index]+".png\"/></td>");
+}
+document.write("</tr>");
+}
+</script>
+
+<body>
+
+<h1> HEADERGOESHERE </h1>
+
+<table>
+<tr bgcolor="#ffcc88">
+<th>CMS particle flow (SLHC23)</th>
+<th colspan=5>Pandora PFA</th>
+<th>k<sub>T</sub>2 jets</th>
+</tr>
+<tr>
+<th>Anti-k<sub>T</sub>4 jets (CMS PF)</th>
+<th>Anti-k<sub>T</sub>5 jets</th>
+<th>Anti-k<sub>T</sub>4 jets</th>
+<th>Anti-k<sub>T</sub>3 jets</th>
+<th>Anti-k<sub>T</sub>2 jets</th>
+<th>k<sub>T</sub>4 jets</th>
+</tr>
+<script type="text/javascript">showPlot("receff","Reconstruction efficiency")</script>
+<script type="text/javascript">showPlot("genkin_0","Transverse momentum")</script>
+<script type="text/javascript">showPlot("genkin_1","Pseudo-rapidity")</script>
+<script type="text/javascript">showPlot("const_enfrac_pt","Constituent's energy fraction")</script>
+<script type="text/javascript">showPlot("const_enfrac_eta"," ")</script>
+<script type="text/javascript">showPlot("const_en_pt","Constituent's total energy")</script>
+<script type="text/javascript">showPlot("const_en_eta"," ")</script>
+<script type="text/javascript">showPlot("const_inden_pt","Constituent's energy")</script>
+<script type="text/javascript">showPlot("const_inden_eta"," ")</script>
+<script type="text/javascript">showPlot("const_mult_pt","Constituent's multiplicity")</script>
+<script type="text/javascript">showPlot("const_mult_eta"," ")</script>
+<script type="text/javascript">showPlot("jetresponseevol_eta_1","Jet response versus &eta;")</script>
+<script type="text/javascript">showPlot("jetresponseevol_eta_2"," ")</script>
+<script type="text/javascript">showPlot("jetresponse_eta"," ")</script>
+<script type="text/javascript">showPlot("jetresponseevol_pt_1","Jet response versus p<sub>T</sub>")</script>
+<script type="text/javascript">showPlot("jetresponseevol_pt_2"," ")</script>
+<script type="text/javascript">showPlot("jetresponse_pt"," ")</script>
+<script type="text/javascript">showPlot("const_unm_enfrac_pt","Constituent's energy fraction for unmatched jets")</script>
+<script type="text/javascript">showPlot("const_unm_enfrac_eta"," ")</script>
+<script type="text/javascript">showPlot("const_unm_en_pt","Constituent's total energy for unmatched jets")</script>
+<script type="text/javascript">showPlot("const_unm_en_eta"," ")</script>
+<script type="text/javascript">showPlot("const_unm_inden_pt","Constituent's energy for unmatched jets")</script>
+<script type="text/javascript">showPlot("const_unm_inden_eta"," ")</script>
+<script type="text/javascript">showPlot("const_unm_mult_pt","Constituent's multiplicity for unmatched jets")</script>
+<script type="text/javascript">showPlot("const_unm_mult_eta"," ")</script>
+</table>
+
+</body>
+</html>
