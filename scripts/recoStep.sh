@@ -6,14 +6,17 @@
 WORKDIR="/tmp/`whoami`/"
 JOBNB=0
 STOREDIR=${WORKDIR}
+PROCESSTHESE=1
 CFG=''
-while getopts "hj:t:o:w:c:" opt; do
+while getopts "hj:t:o:w:c:f:n:" opt; do
     case "$opt" in
     h)
         echo ""
         echo "recoStep.sh [OPTIONS]"
-	echo "     -j      job number (file to re-reco, default=$JOBNB)"
+	echo "     -j      job number will be used to skip (# events to process x job number) "
 	echo "     -o      output directory (local or eos, default=$STOREDIR)"
+	echo "     -n      number of events to process (1 by default)"
+	echo "     -f      file to process in directory"
 	echo "     -t      process tag"
 	echo "     -w      workdir (default=$WORKDIR)"
 	echo "     -h      help"
@@ -26,6 +29,10 @@ while getopts "hj:t:o:w:c:" opt; do
 	;;
     j)  JOBNB=$OPTARG
 	;;
+    f)  FILENUMBER=$OPTARG
+	;;
+    n)  PROCESSTHESE=$OPTARG
+	;;
     w)  WORKDIR=$OPTARG
 	;;
     t)  TAG=$OPTARG
@@ -36,18 +43,17 @@ done
 #
 # CONFIGURE JOB
 #
-BASEJOBNAME=Events_${JOBNB}
-BASEJOBNAME=${BASEJOBNAME/","/"_"}
+SKIPTHESE=$(((JOBNB-1)*PROCESSTHESE))
+BASEJOBNAME=Events_${FILENUMBER}_${SKIPTHESE}_${PROCESSTHESE}
 OUTFILE=${BASEJOBNAME}.root
-#PYFILE=${BASEJOBNAME}_cfg.py
-LOGFILE=${BASEJOBNAME}.log
-#FILESFORTAG=(`cmsLs /store/cmst3/group/hgcal/CMSSW/${TAG} | awk '{print $5}'`)
-#FILEIN=${FILESFORTAG[${JOB}]}
 
-echo "cmsRun ${CFG} ${TAG} ${JOBNB} 1 ${WORKDIR}"
-cmsRun ${CFG} ${TAG} ${JOBNB} 1 ${WORKDIR} > /dev/null 2>&1
+echo "cmsRun ${CFG} ${TAG} ${FILENUMBER} 1 ${WORKDIR} ${SKIPTHESE} ${PROCESSTHESE}"
+echo "Expecting to produce ${OUTFILE}"
+
+cmsRun ${CFG} ${TAG} ${FILENUMBER} 1 ${WORKDIR} ${SKIPTHESE} ${PROCESSTHESE}
 
 #move output
+echo "Moving result to $STOREDIR"
 if [[ $STOREDIR =~ .*/store/cmst3.* ]]; then
     cmsMkdir ${STOREDIR}
     cmsStage -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
@@ -57,4 +63,3 @@ elif [[ $STOREDIR =~ /afs/.* ]]; then
     cp -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
     rm ${WORKDIR}/${OUTFILE}
 fi
-
