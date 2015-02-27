@@ -140,14 +140,15 @@ if [ "${step}" -eq "7" ]; then
 
     vars=("edep_rec" "edep_clus")
     baseDir="/store/cmst3/group/hgcal/CMSSW/ntuples/"
-    ntuples=("Single130-FixE_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits" "Single130-FixE_CMSSW_6_2_0_SLHC23_patch2_pandoraRECO_SimHits" "Single130-FixE_CMSSW_6_2_0_SLHC23_patch2_mqRECO_SimHits")
+    #ntuples=("Single130-FixE_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits" "Single130-FixE_CMSSW_6_2_0_SLHC23_patch2_pandoraRECO_SimHits" "Single130-FixE_CMSSW_6_2_0_SLHC23_patch2_mqRECO_SimHits")
     #ntuples=("Single211_CMSSW_6_2_0_SLHC23_patch1_RECO-PU0_SimHits" "Single211_CMSSW_6_2_0_SLHC23_patch1_pandoraRECO_SimHits" "Single211_CMSSW_6_2_0_SLHC23_patch1_mqRECO_SimHits")
+    ntuples=("Single211_CMSSW_6_2_0_SLHC23_patch1_pandoraRECO_SimHits")
+    noCompOption="--noComp"
     for var in ${vars[@]}; do
 	for ntuple in ${ntuples[@]}; do
 	  
 	    outDir=${ntuple}
 	    mkdir -p ${outDir}/${var};
-	    echo "${ntuple} ${var} ${outDir}/${var}"
 
 	    calibVar=${var}
 	    extraOpts=""
@@ -160,8 +161,8 @@ if [ "${step}" -eq "7" ]; then
 	    #mv ${outDir}/*.* ${outDir}/${var}
 
 	    #extraOpts="--ehComb ${ntuple}/edep_rec/EEHEFHEB_comb.root"
-	    extraOpts="--ehComb Single211_CMSSW_6_2_0_SLHC23_patch1_RECO-PU0_SimHits/edep_rec/EEHEFHEB_comb.root"
-
+	    extraOpts="--ehComb Single211_CMSSW_6_2_0_SLHC23_patch1_RECO-PU0_SimHits/edep_rec/EEHEFHEB_comb.root ${noCompOption}"
+	    
 	    python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -w ${outDir}/${var}/workspace.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/${calibVar}--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/${calibVar}--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/${calibVar}--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${calibVar}/HEFHEB_comb.root ${extraOpts} -v ${var};
 
 	    python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -w ${outDir}/${var}/workspace.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/${calibVar}--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/${calibVar}--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/${calibVar}--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${calibVar}/HEFHEB_comb.root ${extraOpts} --compWeights ${outDir}/${var}/swcompweights.root --calib ${outDir}/${var}/calib_uncalib.root -v ${var};
