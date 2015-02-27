@@ -18,22 +18,30 @@ HGCJetAnalyzer::HGCJetAnalyzer( const edm::ParameterSet &iConfig )
   histMap_["kin_gen_matched"] = fs->make<TH2F>("kin_gen_matched", ";Transverse momentum [GeV];Pseudo-rapidity;Jets",    40, 0, 1000, 15, 1.5, 3.0);
   histMap_["kin_rec"]         = fs->make<TH2F>("kin_rec",         ";Transverse momentum [GeV];Pseudo-rapidity;Jets",    40, 0, 1000, 15, 1.5, 3.0);
   histMap_["kin_rec_unm"]     = fs->make<TH2F>("kin_rec_unm",     ";Transverse momentum [GeV];Pseudo-rapidity;Jets",    40, 0, 1000, 15, 1.5, 3.0);
-  histMap_["ptresp_pt"]       = fs->make<TH2F>("ptresp_pt",       ";p_{T}(gen) [GeV];p_{T}(reco)/p_{T}(gen);Jets",      40, 0,   1000, 100,0,4);
-  histMap_["ptresp_eta"]      = fs->make<TH2F>("ptresp_eta",      ";Pseudo-rapidity (gen);p_{T}(reco)/p_{T}(gen);Jets", 15, 1.5, 3.0,  100,0,4);
+  histMap_["ptresp_pt"]       = fs->make<TH2F>("ptresp_pt",       ";p_{T}(gen) [GeV];p_{T}(reco)/p_{T}(gen);Jets",      50, 0, 500, 100,0,4);
+
+  TString ptthr[]={"","_pt30","_pt70","_pt200"};
+  for(size_t i=0; i<sizeof(ptthr)/sizeof(TString); i++)
+    histMap_["ptresp_eta"+ptthr[i]]      = fs->make<TH2F>("ptresp_eta"+ptthr[i],      ";Pseudo-rapidity (gen);p_{T}(reco)/p_{T}(gen);Jets", 15, 1.5, 3.0,  100,0,4);
+
   TString comp[]={"gamma","chf","nhf"};
   TString jetType[]={"","_unm"};
   for(size_t i=0; i<sizeof(comp)/sizeof(TString); i++)
     {
       for(size_t j=0; j<sizeof(jetType)/sizeof(TString); j++)
 	{
-	  histMap_[comp[i]+"_pt_enfrac"+jetType[j] ] = fs->make<TH2F>(comp[i]+"_pt_enfrac"+jetType[j],     ";Transverse momentum [GeV];"+comp[i]+" fraction;Jets",             40, 0, 1000, 50,0,1);
-	  histMap_[comp[i]+"_pt_en"+jetType[j] ] = fs->make<TH2F>(comp[i]+"_pt_en"+jetType[j],         ";Transverse momentum [GeV];"+comp[i]+" total energy [GeV];Jets",         40, 0, 1000, 50,0,500);
-	  histMap_[comp[i]+"_pt_inden"+jetType[j]] = fs->make<TH2F>(comp[i]+"_pt_inden"+jetType[j],      ";Transverse momentum [GeV];"+comp[i]+" energy [GeV];Jets", 40, 0, 1000, 50,0,250);
-	  histMap_[comp[i]+"_pt_mult"+jetType[j]] = fs->make<TH2F>(comp[i]+"_pt_mult"+jetType[j],       ";Transverse momentum [GeV];"+comp[i]+" multiplicity;Jets",         40, 0, 1000, 80,0,80);
-	  histMap_[comp[i]+"_eta_enfrac"+jetType[j]] = fs->make<TH2F>(comp[i]+"_eta_enfrac"+jetType[j],     ";Pseudo-rapidity;"+comp[i]+" fraction;Jets",             15, 1.5, 3.0, 50,0,1);
-	  histMap_[comp[i]+"_eta_en"+jetType[j]] = fs->make<TH2F>(comp[i]+"_eta_en"+jetType[j],         ";Pseudo-rapidity;"+comp[i]+" total energy [GeV];Jets",         15, 1.5, 3.0, 50,0,250);
-	  histMap_[comp[i]+"_eta_inden"+jetType[j]] = fs->make<TH2F>(comp[i]+"_eta_inden"+jetType[j],      ";Pseudo-rapidity;"+comp[i]+" energy [GeV];Jets", 15, 1.5, 3.0, 50,0,250);
-	  histMap_[comp[i]+"_eta_mult"+jetType[j]] = fs->make<TH2F>(comp[i]+"_eta_mult"+jetType[j],       ";Pseudo-rapidity;"+comp[i]+" multiplicity;Jets",         15, 1.5, 3.0, 50,0,50);
+	  histMap_[comp[i]+"_pt_enfrac"+jetType[j] ] = fs->make<TH2F>(comp[i]+"_pt_enfrac"+jetType[j],  ";Transverse momentum [GeV];"+comp[i]+" fraction;Jets",           40, 0, 1000,  50,0,1);
+	  histMap_[comp[i]+"_pt_en"+jetType[j] ]     = fs->make<TH2F>(comp[i]+"_pt_en"+jetType[j],      ";Transverse momentum [GeV];"+comp[i]+" total energy [GeV];Jets", 40, 0, 1000,  100,0,100);
+	  histMap_[comp[i]+"_pt_inden"+jetType[j]]   = fs->make<TH2F>(comp[i]+"_pt_inden"+jetType[j],   ";Transverse momentum [GeV];"+comp[i]+" energy [GeV];Jets",       40, 0, 1000,  100,0,100);
+	  histMap_[comp[i]+"_pt_mult"+jetType[j]]    = fs->make<TH2F>(comp[i]+"_pt_mult"+jetType[j],    ";Transverse momentum [GeV];"+comp[i]+" multiplicity;Jets",       40, 0, 1000,  100,0,100);
+	  
+	  for(size_t k=0; k<sizeof(ptthr)/sizeof(TString); k++)
+	    {
+	      histMap_[comp[i]+"_eta"+ptthr[k]+"_enfrac"+jetType[j]] = fs->make<TH2F>(comp[i]+"_eta"+ptthr[k]+"_enfrac"+jetType[j], ";Pseudo-rapidity;"+comp[i]+" fraction;Jets",           15, 1.5, 3.0, 50,0,1);
+	      histMap_[comp[i]+"_eta"+ptthr[k]+"_en"+jetType[j]]     = fs->make<TH2F>(comp[i]+"_eta"+ptthr[k]+"_en"+jetType[j],     ";Pseudo-rapidity;"+comp[i]+" total energy [GeV];Jets", 15, 1.5, 3.0, 100,0,1000);
+	      histMap_[comp[i]+"_eta"+ptthr[k]+"_inden"+jetType[j]]  = fs->make<TH2F>(comp[i]+"_eta"+ptthr[k]+"_inden"+jetType[j],  ";Pseudo-rapidity;"+comp[i]+" energy [GeV];Jets",       15, 1.5, 3.0, 100,0,100);
+	      histMap_[comp[i]+"_eta"+ptthr[k]+"_mult"+jetType[j]]   = fs->make<TH2F>(comp[i]+"_eta"+ptthr[k]+"_mult"+jetType[j],   ";Pseudo-rapidity;"+comp[i]+" multiplicity;Jets",       15, 1.5, 3.0, 100,0,100);
+	    }
 	}
     }
   
@@ -107,12 +115,19 @@ void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
 
       //fill histos
       TString jetType("");
+      float ptToUse(genpt>0 ? genpt : pt);
+      float etaToUse(genpt>0 ? geneta : eta);
+      std::vector<TString> ptcats(1,"");
+      if(ptToUse>200)     ptcats.push_back("_pt200");
+      else if(ptToUse>70) ptcats.push_back("_pt70");
+      else if(ptToUse>30) ptcats.push_back("_pt30");
       if(genpt>0) 
 	{
 	  histMap_["kin_gen_matched"]->Fill(genpt,geneta);
 	  histMap_["kin_rec"]->Fill(pt,eta);
-	  histMap_["ptresp_pt"]->Fill(genpt,pt/genpt);
-	  histMap_["ptresp_eta"]->Fill(geneta,pt/genpt);
+	  float resp(pt/genpt);
+	  histMap_["ptresp_pt"]->Fill(min(genpt,float(499.)),resp);
+	  for(size_t k=0; k<ptcats.size(); k++) histMap_["ptresp_eta"+ptcats[k]]->Fill(geneta,resp);
 	}
       else
 	{
@@ -121,21 +136,21 @@ void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
 	}
 
       //jet components
-      float ptToUse(genpt>0 ? genpt : pt);
-      float etaToUse(genpt>0 ? geneta : eta);
       for(std::map<TString, std::vector<float> >::iterator it=compInfo.begin();
 	  it!=compInfo.end();
 	  it++)
 	{
 	  if(pt<20) continue;
-
+	  
 	  histMap_[ it->first + "_pt_enfrac"+jetType ] ->Fill( ptToUse, it->second[0] );
 	  histMap_[ it->first + "_pt_en"+jetType ]     ->Fill( ptToUse, it->second[1] );
 	  histMap_[ it->first + "_pt_mult"+jetType ]   ->Fill( ptToUse, it->second[2] );
-
-	  histMap_[ it->first + "_eta_enfrac"+jetType ] ->Fill( etaToUse, it->second[0] );
-	  histMap_[ it->first + "_eta_en"+jetType ]     ->Fill( etaToUse, it->second[1] );
-	  histMap_[ it->first + "_eta_mult"+jetType ]   ->Fill( etaToUse, it->second[2] );
+	  for(size_t k=0; k<ptcats.size(); k++)
+	    {
+	      histMap_[ it->first + "_eta"+ptcats[k]+"_enfrac"+jetType ] ->Fill( etaToUse, it->second[0] );
+	      histMap_[ it->first + "_eta"+ptcats[k]+"_en"+jetType ]     ->Fill( etaToUse, it->second[1] );
+	      histMap_[ it->first + "_eta"+ptcats[k]+"_mult"+jetType ]   ->Fill( etaToUse, it->second[2] );
+	    }
 	}
       
       //loop over constituents
@@ -148,7 +163,8 @@ void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
 	  else if( (*cIt)->particleId() == reco::PFCandidate::h0 )   compType="nhf";
 	  else continue;
 	  histMap_[ compType + "_pt_inden"  + jetType ]->Fill( ptToUse, (*cIt)->energy() );
-	  histMap_[ compType + "_eta_inden" + jetType ]->Fill( etaToUse, (*cIt)->energy() );
+	   for(size_t k=0; k<ptcats.size(); k++)
+	     histMap_[ compType + "_eta"+ptcats[k]+"_inden" + jetType ]->Fill( etaToUse, (*cIt)->energy() );
  	}
     }
 }

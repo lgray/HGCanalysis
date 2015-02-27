@@ -33,49 +33,68 @@ def showEfficiencyMap(algo,fIn,outputDir,hasPU) :
 
     #show projected kinematics
     for i in xrange(0,2):
-        c.Clear()
-        c.SetRightMargin(0.04)
-        c.SetLogy()
-        
-        genprof = gen.ProjectionX('genx') if i==0 else gen.ProjectionY('geny')
-        fixExtremities(genprof)
-        genprof.SetLineColor(1)
-        genprof.SetFillStyle(1001)
-        genprof.SetFillColor(ROOT.kCyan-10)
-        genprof.SetTitle('gen')
-        genprof.Draw('hist')
-        genprof.GetYaxis().SetTitle('Jets')
-        genprof.GetYaxis().SetTitleOffset(1.2)
-        genprof.GetYaxis().SetLabelSize(0.04)
-        genprof.GetYaxis().SetTitleSize(0.04)
-        genprof.GetYaxis().SetRangeUser(1,genprof.GetMaximum()*2)
-        
-        if i==1 and hasPU : genprof.GetYaxis().SetRangeUser(1,genprof.GetMaximum()*4)
 
-        recprof = rec.ProjectionX('recx') if i==0 else rec.ProjectionY('recy')
-        fixExtremities(recprof)
-        recprof.SetLineColor(1)
-        recprof.SetLineWidth(2)
-        recprof.SetTitle('reco (matched)')
-        recprof.Draw('histsame')
-        
-        recunmprof = rec_unm.ProjectionX('recunmx') if i==0 else rec_unm.ProjectionY('recunmy')
-        fixExtremities(recunmprof)
-        recunmprof.SetLineColor(ROOT.kRed)
-        recunmprof.SetLineWidth(2)
-        recunmprof.SetTitle('reco (unmatched)')
-        recunmprof.Draw('histsame')
-        
-        leg=c.BuildLegend(0.6,0.8,0.95,0.95)
-        leg.SetFillStyle(0)
-        leg.SetBorderSize(0)
-        leg.SetTextFont(42)
-        leg.SetTextSize(0.035)
+        binRanges=[(0,-1)]
+        if i==1:
+            binRanges=[(0,gen.GetXaxis().FindBin(50)),
+                       (gen.GetXaxis().FindBin(50)+1,gen.GetXaxis().FindBin(300)),
+                       (gen.GetXaxis().FindBin(300)+1,-1)]
+            
+        for binmin,binmax in binRanges:
 
-        MyPaveText('#bf{CMS} #it{simulation}    %s jets'%algo)
-        c.Modified()
-        c.Update()
-        c.SaveAs('%s/genkin_%d_%s.png'%(outputDir,i,algo))
+            xmin,xmax=gen.GetXaxis().GetBinLowEdge(binmin),gen.GetXaxis().GetBinUpEdge(binmax)
+            if binmin==0 : xmin=gen.GetXaxis().GetXmin()
+            if binmax==-1: xmax=gen.GetXaxis().GetXmax()
+
+
+            c.Clear()
+            c.SetRightMargin(0.04)
+            c.SetLogy()        
+            genprof = gen.ProjectionX('genx',binmin,binmax) if i==0 else gen.ProjectionY('geny',binmin,binmax)
+            fixExtremities(genprof)
+            genprof.SetLineColor(1)
+            genprof.SetFillStyle(1001)
+            genprof.SetFillColor(ROOT.kCyan-10)
+            genprof.SetTitle('gen')
+            genprof.Draw('hist')
+            genprof.GetYaxis().SetTitle('Jets')
+            genprof.GetYaxis().SetTitleOffset(1.2)
+            genprof.GetYaxis().SetLabelSize(0.04)
+            genprof.GetYaxis().SetTitleSize(0.04)
+            genprof.GetYaxis().SetRangeUser(1,genprof.GetMaximum()*2)
+        
+            #if i==1 and hasPU : genprof.GetYaxis().SetRangeUser(1,genprof.GetMaximum()*2)
+
+            recprof = rec.ProjectionX('recx',binmin,binmax) if i==0 else rec.ProjectionY('recy',binmin,binmax)
+            fixExtremities(recprof)
+            recprof.SetLineColor(1)
+            recprof.SetLineWidth(2)
+            recprof.SetTitle('reco (matched)')
+            recprof.Draw('histsame')
+        
+            recunmprof = rec_unm.ProjectionX('recunmx',binmin,binmax) if i==0 else rec_unm.ProjectionY('recunmy',binmin,binmax)
+            fixExtremities(recunmprof)
+            recunmprof.SetLineColor(ROOT.kRed)
+            recunmprof.SetLineWidth(2)
+            recunmprof.SetTitle('reco (unmatched)')
+            recunmprof.Draw('histsame')
+            
+            leg=c.BuildLegend(0.6,0.8,0.95,0.95)
+            leg.SetFillStyle(0)
+            leg.SetBorderSize(0)
+            leg.SetTextFont(42)
+            leg.SetTextSize(0.035)
+            
+            if binmin!=0 or binmax!=-1:
+                if binmax==-1 : MyPaveText('[ >%3.2f ]'%(xmin),0.2,0.85,0.4,0.9).SetTextSize(0.035)
+                else: MyPaveText('[ %3.2f-%3.2f ]'%(xmin,xmax),0.2,0.85,0.4,0.9).SetTextSize(0.035)
+            else:
+                MyPaveText('[ inclusive ]',0.2,0.85,0.4,0.9).SetTextSize(0.035)
+            MyPaveText('#bf{CMS} #it{simulation}    %s jets'%algo)
+
+            c.Modified()
+            c.Update()
+            c.SaveAs('%s/genkin_%d_%d_%d_%s.png'%(outputDir,i,binmin,binmax,algo))
     
 """
 """
@@ -91,48 +110,68 @@ def showConstituentsProfiles(algo,fIn,outputDir) :
     c=ROOT.TCanvas('c','c',500,500)
     for jetType in ['','_unm']:
         for profvar in ['pt','eta']:
+
             for var in varMap:
                 ch2d=fIn.Get('analysis_%s/chf_%s_%s%s'%(algo,profvar,var,jetType))
 
-                ch=ch2d.ProfileX('ch_prof')
-                ch.SetMarkerStyle(20)
-                ch.SetTitle('charged had.')
-
-                gamma=fIn.Get('analysis_%s/gamma_%s_%s%s'%(algo,profvar,var,jetType)).ProfileX('gamma_prof')
-                gamma.SetMarkerStyle(24)
-                gamma.SetMarkerColor(ROOT.kRed)
-                gamma.SetLineColor(ROOT.kRed)
-                gamma.SetTitle('photons')
+                binRanges=[(0,-1)]
+                #if profvar=='eta':
+                #    binRanges=[(0,ch2d.GetXaxis().FindBin(50)),
+                #               (ch2d.GetXaxis().FindBin(50),ch2d.GetXaxis().FindBin(300)),
+                #               (ch2d.GetXaxis().FindBin(300),-1)]
                 
-                nh=fIn.Get('analysis_%s/nhf_%s_%s%s'%(algo,profvar,var,jetType)).ProfileX('nh_prof')
-                nh.SetMarkerStyle(23)
-                nh.SetMarkerColor(30)
-                nh.SetLineColor(30)
-                nh.SetTitle('neutral had.')
+                for binmin,binmax in binRanges:
+
+                    xmin,xmax=ch2d.GetXaxis().GetBinLowEdge(binmin),ch2d.GetXaxis().GetBinUpEdge(binmax)
+                    if binmin==0 : xmin=ch2d.GetXaxis().GetXmin()
+                    if binmax==-1: xmin=ch2d.GetXaxis().GetXmax()
+
+                    ch=ch2d.ProfileX('ch_prof',binmin,binmax)
+                    ch.SetMarkerStyle(20)
+                    ch.SetTitle('charged had.')
+
+                    gamma=fIn.Get('analysis_%s/gamma_%s_%s%s'%(algo,profvar,var,jetType)).ProfileX('gamma_prof',binmin,binmax)
+                    gamma.SetMarkerStyle(24)
+                    gamma.SetMarkerColor(ROOT.kRed)
+                    gamma.SetLineColor(ROOT.kRed)
+                    gamma.SetTitle('photons')
+                    
+                    nh=fIn.Get('analysis_%s/nhf_%s_%s%s'%(algo,profvar,var,jetType)).ProfileX('nh_prof',binmin,binmax)
+                    nh.SetMarkerStyle(23)
+                    nh.SetMarkerColor(30)
+                    nh.SetLineColor(30)
+                    nh.SetTitle('neutral had.')
                 
-                c.Clear()
-                c.SetRightMargin(0.04)
-                ch.Draw('e1')
-                ch.GetYaxis().SetLabelSize(0.04)
-                ch.GetYaxis().SetTitleSize(0.04)
-                ch.GetYaxis().SetTitleOffset(1.4)
-                ch.GetYaxis().SetTitle(varMap[var])
-                ch.GetYaxis().SetRangeUser(ch2d.GetYaxis().GetXmin(),ch2d.GetYaxis().GetXmax())
-                gamma.Draw('e1same')
-                nh.Draw('e1same')
+                    c.Clear()
+                    c.SetRightMargin(0.04)
+                    ch.Draw('e1')
+                    ch.GetYaxis().SetLabelSize(0.04)
+                    ch.GetYaxis().SetTitleSize(0.04)
+                    ch.GetYaxis().SetTitleOffset(1.4)
+                    ch.GetYaxis().SetTitle(varMap[var])
+                    ch.GetYaxis().SetRangeUser(ch2d.GetYaxis().GetXmin(),ch2d.GetYaxis().GetXmax())
+                    gamma.Draw('e1same')
+                    nh.Draw('e1same')
+                    
+                    leg=c.BuildLegend(0.6,0.8,0.95,0.95)
+                    leg.SetFillStyle(0)
+                    leg.SetBorderSize(0)
+                    leg.SetTextFont(42)
+                    leg.SetTextSize(0.035)
 
-                leg=c.BuildLegend(0.6,0.8,0.95,0.95)
-                leg.SetFillStyle(0)
-                leg.SetBorderSize(0)
-                leg.SetTextFont(42)
-                leg.SetTextSize(0.035)
+                    jetTitle=algo
+                    if jetType!='' : jetTitle='unmatched %s'%algo
+                    MyPaveText('#bf{CMS} #it{simulation}    %s jets'%jetTitle)
+                    c.Modified()
+                    c.Update()
 
-                jetTitle=algo
-                if jetType!='' : jetTitle='unmatched %s'%algo
-                MyPaveText('#bf{CMS} #it{simulation}    %s jets'%jetTitle)
-                c.Modified()
-                c.Update()
-                c.SaveAs('%s/const%s_%s_%s_%s.png'%(outputDir,jetType,var,profvar,algo))
+                     
+                    if binmin!=0 or binmax!=-1:
+                        MyPaveText('[ %3.2f-%3.2f ]'%(xmin,xmax),0.2,0.85,0.4,0.9).SetTextSize(0.035)
+                    else:
+                        MyPaveText('[ inclusive ]',0.2,0.85,0.4,0.9).SetTextSize(0.035)
+
+                    c.SaveAs('%s/const%s_%s_%s_%d_%d_%s.png'%(outputDir,jetType,var,profvar,binmin,binmax,algo))
 
 
 """
@@ -145,8 +184,11 @@ def showResponseSummary(algo,fIn,outputDir,hasPU) :
     resGr={}
     for profvar in ['pt','eta']:
 
+        step=3
         varTitle="p_{T}"
-        if profvar=="eta" : varTitle="#eta"
+        if profvar=="eta" : 
+            varTitle="#eta"
+            step=1
 
         ptresp=fIn.Get('analysis_%s/ptresp_%s'%(algo,profvar))
 
@@ -156,19 +198,24 @@ def showResponseSummary(algo,fIn,outputDir,hasPU) :
         respGr[profvar].SetMarkerStyle(20)
         respGr[profvar].SetTitle(algo)
         resGr[profvar]=respGr[profvar].Clone('res_%s_%s'%(profvar,algo))
-        for xbin in xrange(1,ptresp.GetXaxis().GetNbins()):
-            x=ptresp.GetXaxis().GetBinCenter(xbin)
-            xerr=ptresp.GetXaxis().GetBinWidth(xbin)
+
+        for xbin in xrange(1,ptresp.GetXaxis().GetNbins(),step):
+
             np=len(profs)
-            profs.append( ptresp.ProjectionY('prof_%d'%xbin,xbin,xbin) )
+            xbinini=xbin
+            xbinfin=xbin+(step-1)
+            xmin,xmax=ptresp.GetXaxis().GetBinCenter(xbinini),ptresp.GetXaxis().GetBinCenter(xbinfin)
+            x=0.5*(xmin+xmax)
+            xerr=(xmax-xmin)*0.5
+            profs.append( ptresp.ProjectionY('prof_%d'%xbin,xbinini,xbinfin) )
 
             #require at least 20 jets for a gaussian fit
-            if profs[np].Integral()<20 :
+            if profs[np].Integral()<10 :
                 profs.pop()
                 continue
 
-            xmin=ptresp.GetXaxis().GetBinLowEdge(xbin)
-            xmax=ptresp.GetXaxis().GetBinUpEdge(xbin)
+            #xmin=ptresp.GetXaxis().GetBinLowEdge(xbin)
+            #xmax=ptresp.GetXaxis().GetBinUpEdge(xbin)
 
             fixExtremities(profs[np])
             profs[np].SetTitle('%3.1f < %s < %3.1f'%(xmin,varTitle,xmax))
@@ -183,10 +230,10 @@ def showResponseSummary(algo,fIn,outputDir,hasPU) :
             sigma, sigma_err = gaus.GetParameter(2), gaus.GetParError(2)
 
             respGr[profvar].SetPoint(np,x,mean)
-            respGr[profvar].SetPointError(np,xerr*0.5,mean_err)
+            respGr[profvar].SetPointError(np,xerr,mean_err)
 
             resGr[profvar].SetPoint(np,x,sigma/mean)
-            resGr[profvar].SetPointError(np,xerr*0.5,ROOT.TMath.Sqrt(ROOT.TMath.Power(sigma*mean_err,2)+ROOT.TMath.Power(sigma_err*mean,2))/(mean*mean))
+            resGr[profvar].SetPointError(np,xerr,ROOT.TMath.Sqrt(ROOT.TMath.Power(sigma*mean_err,2)+ROOT.TMath.Power(sigma_err*mean,2))/(mean*mean))
 
 
         ndiv=int(math.floor(ROOT.TMath.Sqrt(len(profs))))
