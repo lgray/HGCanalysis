@@ -7,11 +7,11 @@ if [ -z ${step} ]; then
     echo ""
     echo -e "\e[7mrunCalibrationSequence.sh\e[27m wraps up the steps for a basic calibration of HGCal simulation"
     echo "The step number must be provided as argument to run"
-    echo "   1  produce the relevant particle gun samples SIM-DIGI-RECO"
-    echo "   2  redigitize and mix pileup (optional) DIGI-RECO"
-    echo "   4  convert the EDM files to simple trees for calibration"
-    echo "   5  perform the calibration of the e.m. scale of the subdetectors"
-    echo "   6  perform the calibration of the hadronic sub-detectors"
+    echo "   sim        produce the relevant particle gun samples SIM-DIGI-RECO"
+    echo "   integ      check production integrity"
+    echo "   ntuple     convert the EDM files to simple trees for calibration"
+    echo "   emcalib    perform the calibration of the e.m. scale of the subdetectors"
+    echo "   pioncalib  perform the calibration of the hadronic sub-detectors"
     echo ""
     exit -1
 fi
@@ -20,7 +20,7 @@ fi
 #launch production
 energies=(10 20 40 50 75 100 125 175 250 400 500)
 pids=(211 22)
-if [ "${step}" -eq "1" ]; then
+if [ "$step" == "sim" ]; then
 
     echo "********************************************"
     echo "launching SIM production"
@@ -28,54 +28,53 @@ if [ "${step}" -eq "1" ]; then
 
     for pid in ${pids[@]}; do
 	for en in ${energies[@]}; do
-            python scripts/submitLocalHGCalProduction.py -q 1nw -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO-PU0 -p ${pid} -n 250 -e ${en}";
-	    #if [[ "${pid}" -eq "22" ]]; then
-	    #python scripts/submitLocalHGCalProduction.py -q 8nh -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO-PU0-EE_HEF_AIR -p ${pid} -n 250 -e ${en} -x -z";
-	    #fi
-	    #python scripts/submitLocalHGCalProduction.py -q 2nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO-PU0-EE_AIR -p ${pid} -n 250 -e ${en} -x";
+            python scripts/submitLocalHGCalProduction.py -q 1nw -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO-PU0 -p ${pid} -n 250 -e ${en} -f";
+	    python scripts/submitLocalHGCalProduction.py -q 8nh -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO-PU0-EE_HEF_AIR -p ${pid} -n 250 -e ${en} -x -z -f";
+	    python scripts/submitLocalHGCalProduction.py -q 2nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO-PU0-EE_AIR -p ${pid} -n 250 -e ${en} -x -f";
 	done
     done
 fi
 
-
-if [ "${step}" -eq "2" ]; then
+#integrity checks
+subprod=(RECO-PU0 RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR)
+if [ "$step" == "integ" ]; then
 
     echo "********************************************"
-    echo "launching DIGI production"
+    echo "checking production integrity"
     echo "********************************************"    
-    
-    pileup=(50 100 140)
+
     for pid in ${pids[@]}; do
-	inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}`);
-	nFiles=${#inputFiles[@]};
-	for pu in ${pileup[@]}; do
-	    python scripts/submitLocalHGCalProduction.py -q 2nd -n ${nFiles} -s digitizeAndMix.sh -o "-p ${pu} -o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/ReRECO_Pileup${pu} -t Single${pid}_${CMSSW_VERSION}/RECO -m MinBias_${CMSSW_VERSION}";
+	for prod in ${subprod[@]}; do
+	    python scripts/checkProductionIntegrity.py -d /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/${prod} &
 	done
     done
 fi
 
 #create trees
-if [ "${step}" -eq "3" ]; then
+if [ "${step}" -eq "ntuple" ]; then
 
     echo "********************************************"
-    echo "creating analysis trees"
+    echo "ntuplizing for analysis"
     echo "********************************************"    
 
-    pids=(22 211)
     for pid in ${pids[@]}; do
-	cmsRun test/runHGCSimHitsAnalyzer_cfg.py Single${pid}_${CMSSW_VERSION};
-	mv /tmp/`whoami`/Single${pid}_${CMSSW_VERSION}_SimHits_0.root ./
-	if [[ "${pid}" -eq "22" ]]; then
-	    cmsRun test/runHGCSimHitsAnalyzer_cfg.py Single${pid}_${CMSSW_VERSION}_EE_AIR;
-	    mv /tmp/`whoami`/Single${pid}_${CMSSW_VERSION}_EE_AIR_SimHits_0.root ./
-	    cmsRun test/runHGCSimHitsAnalyzer_cfg.py Single${pid}_${CMSSW_VERSION}_EE_HEF_AIR;
-	    mv /tmp/`whoami`/Single${pid}_${CMSSW_VERSION}_EE_HEF_AIR_SimHits_0.root ./
-	fi
+	for prod in ${prods[@]}; do
+	    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/$Single${pid}_${CMSSW_VERSION}/${prod} | awk '{print $5}'`);
+	    nFiles=${#inputFiles[@]};
+	    nJobs=$((nFiles/50));
+	    for i in `seq 0 ${nJobs}`; do
+		startFile=$((i*=50));
+		cmsRun test/runHGCSimHitsAnalyzer_cfg.py Single${pid}_${CMSSW_VERSION}/${prod};
+		hadd Single${pid}_${CMSSW_VERSION}_${prod}_SimHits.root /tmp/`whoami`/Single${pid}_${CMSSW_VERSION}_${prod}_SimHits_*.root;
+		rm /tmp/`whoami`/Single${pid}_${CMSSW_VERSION}_SimHits_*.root;
+		echo "******* Single${pid}_${CMSSW_VERSION}_${prod}_SimHits.root is ready for analysis ******"
+	    done
+	done
     done
 fi
 
-#EM calibration
-if [ "${step}" -eq "4" ]; then
+#e.m. calibration
+if [ "${step}" -eq "emcalib" ]; then
     
     echo "********************************************"
     echo "e.m. calibration"
