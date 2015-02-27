@@ -31,7 +31,7 @@ HGCJetAnalyzer::HGCJetAnalyzer( const edm::ParameterSet &iConfig )
       for(size_t j=0; j<sizeof(jetType)/sizeof(TString); j++)
 	{
 	  histMap_[comp[i]+"_pt_enfrac"+jetType[j] ] = fs->make<TH2F>(comp[i]+"_pt_enfrac"+jetType[j],  ";Transverse momentum [GeV];"+comp[i]+" fraction;Jets",           40, 0, 1000,  50,0,1);
-	  histMap_[comp[i]+"_pt_en"+jetType[j] ]     = fs->make<TH2F>(comp[i]+"_pt_en"+jetType[j],      ";Transverse momentum [GeV];"+comp[i]+" total energy [GeV];Jets", 40, 0, 1000,  100,0,100);
+	  histMap_[comp[i]+"_pt_en"+jetType[j] ]     = fs->make<TH2F>(comp[i]+"_pt_en"+jetType[j],      ";Transverse momentum [GeV];"+comp[i]+" total energy [GeV];Jets", 40, 0, 1000,  100,0,1000);
 	  histMap_[comp[i]+"_pt_inden"+jetType[j]]   = fs->make<TH2F>(comp[i]+"_pt_inden"+jetType[j],   ";Transverse momentum [GeV];"+comp[i]+" energy [GeV];Jets",       40, 0, 1000,  100,0,100);
 	  histMap_[comp[i]+"_pt_mult"+jetType[j]]    = fs->make<TH2F>(comp[i]+"_pt_mult"+jetType[j],    ";Transverse momentum [GeV];"+comp[i]+" multiplicity;Jets",       40, 0, 1000,  100,0,100);
 	  
@@ -107,7 +107,7 @@ void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
 	  if(dR>minDR) continue;
 	  float dPt=fabs(pt-genjet.pt());
 	  if(dPt>minDeltaPt) continue;
-	  minDR=dR;
+	  //minDR=dR; //don't update it: require the matching in this cone that minimizes the pT
 	  minDeltaPt=dPt;
 	  genpt=genjet.pt();
 	  geneta=fabs(genjet.eta());
