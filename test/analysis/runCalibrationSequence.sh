@@ -16,10 +16,11 @@ if [ -z ${step} ]; then
     exit -1
 fi
 
+energies=(10 20 40 50 75 100 125 175 250 400 500)
+pids=(211 22 130)
+prods=(RECO-PU0 RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR)
 
 #launch production
-energies=(10 20 40 50 75 100 125 175 250 400 500)
-pids=(211 22)
 if [ "$step" == "sim" ]; then
 
     echo "********************************************"
@@ -28,15 +29,22 @@ if [ "$step" == "sim" ]; then
 
     for pid in ${pids[@]}; do
 	for en in ${energies[@]}; do
+
             python scripts/submitLocalHGCalProduction.py -q 1nw -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO-PU0 -p ${pid} -n 250 -e ${en} -f";
+	    
+	    if [ "$pid" == "130" ]; then
+		continue
+	    fi
+
+	    #the following simulations will remove EE and EE+HEF sequentially
+	    python scripts/submitLocalHGCalProduction.py -q 2nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO-PU0-EE_AIR -p ${pid} -n 250 -e ${en} -x -f";	    
 	    python scripts/submitLocalHGCalProduction.py -q 8nh -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO-PU0-EE_HEF_AIR -p ${pid} -n 250 -e ${en} -x -z -f";
-	    python scripts/submitLocalHGCalProduction.py -q 2nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO-PU0-EE_AIR -p ${pid} -n 250 -e ${en} -x -f";
+
 	done
     done
 fi
 
 #integrity checks
-subprod=(RECO-PU0 RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR)
 if [ "$step" == "integ" ]; then
 
     echo "********************************************"
@@ -79,19 +87,17 @@ if [ "${step}" -eq "emcalib" ]; then
     echo "********************************************"
     echo "e.m. calibration"
     echo "********************************************"
-
-    #samples=("Single22_${CMSSW_VERSION}_SimHits_0" "Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0" "Single22_${CMSSW_VERSION}_EE_HEF_AIR_SimHits_0")       
-    #vars=("edep_sim" "edep_rec")
-
-    samples=("Single22_CMSSW_6_2_0_SLHC20_clus_SimHits_0")
-    vars=("edep_sim" "edep_rec" "edep_clus")
-
-    extraOpts=("" "--vetoTrackInt")
-    for sample in ${samples[@]}; do 
-	for var in ${vars[@]}; do
-	    for opts in "${extraOpts[@]}"; do
-		python test/analysis/runEMCalibration.py ${opts} -i ${sample}.root -v ${var};
-		outDir=${sample}/${var}${opts};
+    vars=("edep_sim" "edep_rec")
+    baseOpts="--vetoTrackInt --vetoHEBLeaks"
+    extraOpts=("" "--lambdaWeighting")
+    for prod in ${prods[@]}; do
+	sample=Single22_${CMSSW_VERSION}_${prod}_SimHits
+	echo "Launching calibration for ${sample}"
+	for opt in ${extraOpts[@]}; do
+	    for var in ${vars[@]}; do
+		echo "[${var}${opt}]"
+		python test/analysis/runEMCalibration.py ${opt} ${baseOpts} -i ${sample}.root -v ${var};
+		outDir=${sample}/${var}${opt};
 		mkdir -p ${outDir};
 		mv ${sample}/*.* ${outDir};
 		python test/analysis/runEMCalibration.py -w ${outDir}/workspace.root -c ${outDir}/calib_uncalib.root;

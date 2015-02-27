@@ -16,22 +16,32 @@ def adaptWorkspaceForEMCalibration(opt):
     #prepare workspace (if needed) and output
     if wsUrl is None :
 
-        #readout material overburden file
+        #init weighting scheme
         matFurl='%s/src/UserCode/HGCanalysis/data/HGCMaterialOverburden.root'%os.environ['CMSSW_BASE']
         matF=ROOT.TFile.Open(matFurl)
-        matParamBeforeHGCGr=matF.Get("x0Overburden")
+        if opt.lambdaWeighting:
+            matParamBeforeHGCGr=matF.Get("lambdaOverburden")
+            weightingScheme={
+                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.010, emCalibMap['EE']),
+                       ([2, 11], None,                0.036, emCalibMap['EE']),
+                       ([12,21], None,                0.043, emCalibMap['EE']),
+                       ([22,30], None,                0.056, emCalibMap['EE'])],
+                'HEF':[([31,31], None,                0.338, emCalibMap['HEF']),
+                       ([32,42], None,                0.273, emCalibMap['HEF'])],
+                'HEB':[([43,54], None,                0.475, emCalibMap['HEB'])]
+                }
+        else:
+            matParamBeforeHGCGr=matF.Get("x0Overburden")
+            weightingScheme={
+                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.08,  1.0),
+                       ([2, 11], None,                0.620, 1.0),
+                       ([12,21], None,                0.809, 1.0),
+                       ([22,30], None,                1.239, 1.0)]
+                }
         matF.Close()
 
-        #init weighting scheme
-        weightingScheme={
-            'EE': [([1, 1 ], matParamBeforeHGCGr, 0.08,  1.0),
-                   ([2, 11], None,                0.620, 1.0),
-                   ([12,21], None,                0.809, 1.0),
-                   ([22,30], None,                1.239, 1.0)]
-            }
-
         #prepare the workspace and get new url
-        wsUrl=prepareWorkspace(url=opt.input,weightingScheme=weightingScheme,vetoTrackInt=opt.vetoTrackInt,vetoHEBLeaks=False,treeVarName=opt.treeVarName)
+        wsUrl=prepareWorkspace(url=opt.input,weightingScheme=weightingScheme,vetoTrackInt=opt.vetoTrackInt,vetoHEBLeaks=opt.vetoHEBLeaks,treeVarName=opt.treeVarName)
         
     return wsUrl
 
@@ -316,6 +326,8 @@ def main():
     parser.add_option('-w',      '--ws' ,      dest='wsUrl',        help='Workspace file',                                 default=None)
     parser.add_option('-c',      '--calib' ,   dest='calibUrl',     help='Calibration file',                               default=None)
     parser.add_option('--vetoTrackInt',        dest='vetoTrackInt', help='flag if tracker interactions should be removed', default=False, action="store_true")
+    parser.add_option('--lambdaWeighting',     dest='lambdaWeighting', help='flag if layers should be weighted by lambda', default=False, action="store_true")
+    parser.add_option('--vetoHEBLeaks',        dest='vetoHEBLeaks',  help='flag if HEB leaks are allowed',                                  default=False, action='store_true')
     parser.add_option('-v',      '--var' ,     dest='treeVarName',  help='Variable to use as energy estimator',            default='edep_sim')
     (opt, args) = parser.parse_args()
 
