@@ -588,6 +588,11 @@ def runCalibrationStudy(opt):
             ehCombSlope, ehCombSlope_err = computeSubdetectorWeights(enRanges=enRanges,etaRanges=etaRanges,ws=ws,xaxis='EE',yaxis='HEF+HEB/%3.4f'%hefhebCombSlope,outDir=outDir)
     ws.factory('k_HEF[%f]'%(1.0/ehCombSlope))
     ws.var('k_HEB').setVal(ws.var('k_HEB').getVal()/ehCombSlope)
+
+    if opt.noComp:
+        ws.var('k_HEF').setVal(1.0)
+        ws.var('k_HEB').setVal(1.0)
+
     print 'Will use the following combination of sub-detectors %3.4f x EE + %3.4f x HEF + %3.4f x HEB'%(ws.var('k_EE').getVal(),ws.var('k_HEF').getVal(),ws.var('k_HEB').getVal())
  
     #read sw compensation weights
@@ -828,6 +833,7 @@ def main():
     parser.add_option('-i',      '--in' ,      dest='input',         help='Input file',                                                     default=None)
     parser.add_option('-w',      '--ws' ,      dest='wsUrl',         help='Workspace file',                                                 default=None)
     parser.add_option('--emCalib' ,            dest='emCalibUrl',    help='em calibration files (e.g. EE:calib_ee.root,HEF:calib_hef.root', default=None)
+    parser.add_option('--noComp' ,             dest='noComp',        help='no attempt to correct for compensation',                         default=False, action="store_true")
     parser.add_option('--calib' ,              dest='calibUrl',      help='pion calibration file',                                          default=None)
     parser.add_option('--compWeights' ,        dest='compWeights',   help='file with software compensation weights',                        default=None)
     parser.add_option('--vetoTrackInt',        dest='vetoTrackInt',  help='flag if tracker interactions should be removed',                 default=False, action="store_true")
