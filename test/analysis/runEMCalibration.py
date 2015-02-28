@@ -22,21 +22,24 @@ def adaptWorkspaceForEMCalibration(opt):
         if opt.lambdaWeighting:
             matParamBeforeHGCGr=matF.Get("lambdaOverburden")
             weightingScheme={
-                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.010, emCalibMap['EE']),
-                       ([2, 11], None,                0.036, emCalibMap['EE']),
-                       ([12,21], None,                0.043, emCalibMap['EE']),
-                       ([22,30], None,                0.056, emCalibMap['EE'])],
-                'HEF':[([31,31], None,                0.338, emCalibMap['HEF']),
-                       ([32,42], None,                0.273, emCalibMap['HEF'])],
-                'HEB':[([43,54], None,                0.475, emCalibMap['HEB'])]
+                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.010, 1.0),
+                       ([2, 11], None,                0.036, 1.0),
+                       ([12,21], None,                0.043, 1.0),
+                       ([22,30], None,                0.056, 1.0),
+                       ([31,31], None,                0.338, 1.0),
+                       ([32,42], None,                0.273, 1.0),
+                       ([43,54], None,                0.475, 1.0)]
                 }
         else:
             matParamBeforeHGCGr=matF.Get("x0Overburden")
             weightingScheme={
-                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.08,  1.0),
+                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.080, 1.0),
                        ([2, 11], None,                0.620, 1.0),
                        ([12,21], None,                0.809, 1.0),
-                       ([22,30], None,                1.239, 1.0)]
+                       ([22,30], None,                1.239, 1.0),
+                       ([31,31], None,                3.580, 1.0),
+                       ([32,42], None,                3.103, 1.0),
+                       ([43,54], None,                5.228, 1.0)]
                 }
         matF.Close()
 
@@ -124,7 +127,7 @@ def runCalibrationStudy(opt):
 
     #init phase space regions of interest
     etaRanges = [[1.5,1.6],[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75],[2.75,2.95]]
-    enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[149,151],[249,251]] 
+    enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[149,151],[249,251],[499,501]] 
 
     #readout calibration
     weightTitles={'simple':'Simple sum'}

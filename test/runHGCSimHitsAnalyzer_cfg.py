@@ -70,6 +70,6 @@ process.load('UserCode.HGCanalysis.hgcSimHitsAnalyzer_cfi')
 process.load('UserCode.HGCanalysis.hgcTrackerInteractionsFilter_cfi')
 
 #run it
-#process.p = cms.Path(process.analysis)
-process.p = cms.Path(process.analysis*process.trackerIntFilter)
+process.p = cms.Path(process.analysis)
+#process.p = cms.Path(process.analysis*process.trackerIntFilter)
 

@@ -17,8 +17,9 @@ if [ -z ${step} ]; then
 fi
 
 energies=(10 20 40 50 75 100 125 175 250 400 500)
-pids=(211 22 130)
+pids=(22 211 130)
 prods=(RECO-PU0 RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR)
+WHOAMI=`whoami`
 
 #launch production
 if [ "$step" == "sim" ]; then
@@ -52,14 +53,14 @@ if [ "$step" == "integ" ]; then
     echo "********************************************"    
 
     for pid in ${pids[@]}; do
-	for prod in ${subprod[@]}; do
+	for prod in ${prods[@]}; do
 	    python scripts/checkProductionIntegrity.py -d /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/${prod} &
 	done
     done
 fi
 
 #create trees
-if [ "${step}" -eq "ntuple" ]; then
+if [ "${step}" == "ntuple" ]; then
 
     echo "********************************************"
     echo "ntuplizing for analysis"
@@ -67,33 +68,44 @@ if [ "${step}" -eq "ntuple" ]; then
 
     for pid in ${pids[@]}; do
 	for prod in ${prods[@]}; do
-	    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/$Single${pid}_${CMSSW_VERSION}/${prod} | awk '{print $5}'`);
+	    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/${prod} | awk '{print $5}'`);
 	    nFiles=${#inputFiles[@]};
 	    nJobs=$((nFiles/50));
+	    echo "******* Starting with $Single${pid}_${CMSSW_VERSION}/${prod} ${nFiles} will be analyzed in ${nJobs} jobs"
 	    for i in `seq 0 ${nJobs}`; do
 		startFile=$((i*=50));
-		cmsRun test/runHGCSimHitsAnalyzer_cfg.py Single${pid}_${CMSSW_VERSION}/${prod};
-		hadd Single${pid}_${CMSSW_VERSION}_${prod}_SimHits.root /tmp/`whoami`/Single${pid}_${CMSSW_VERSION}_${prod}_SimHits_*.root;
-		rm /tmp/`whoami`/Single${pid}_${CMSSW_VERSION}_SimHits_*.root;
-		echo "******* Single${pid}_${CMSSW_VERSION}_${prod}_SimHits.root is ready for analysis ******"
+		cmsRun test/runHGCSimHitsAnalyzer_cfg.py Single${pid}_${CMSSW_VERSION}/${prod} ${startFile} 50 &
 	    done
+	    nrunning="`ps -u $WHOAMI | grep -ir cmsRun | wc -l`"
+	    while [ $nrunning -gt 0 ]; do
+		echo "(...waiting for $nrunning jobs to finish...)"
+		sleep 30;
+		nrunning="`ps -u $WHOAMI | grep -ir cmsRun | wc -l`"
+	    done
+	    echo "******* All jobs finished, calling hadd"
+	    hadd Single${pid}_${CMSSW_VERSION}_${prod}_SimHits.root /tmp/$WHOAMI/Single${pid}_${CMSSW_VERSION}_${prod}_SimHits_*.root;
+	    rm /tmp/$WHOAMI/Single${pid}_${CMSSW_VERSION}_SimHits_*.root;
+	    echo "******* Single${pid}_${CMSSW_VERSION}_${prod}_SimHits.root is ready for analysis ******"
 	done
     done
 fi
 
 #e.m. calibration
-if [ "${step}" -eq "emcalib" ]; then
+if [ "${step}" == "emcalib" ]; then
     
     echo "********************************************"
     echo "e.m. calibration"
     echo "********************************************"
     vars=("edep_sim" "edep_rec")
-    baseOpts="--vetoTrackInt --vetoHEBLeaks"
+    baseOpts="--vetoTrackInt"
     extraOpts=("" "--lambdaWeighting")
     for prod in ${prods[@]}; do
 	sample=Single22_${CMSSW_VERSION}_${prod}_SimHits
+	if [ ! -f ${sample}.root ]; then
+	    continue
+	fi
 	echo "Launching calibration for ${sample}"
-	for opt in ${extraOpts[@]}; do
+	for opt in "${extraOpts[@]}"; do
 	    for var in ${vars[@]}; do
 		echo "[${var}${opt}]"
 		python test/analysis/runEMCalibration.py ${opt} ${baseOpts} -i ${sample}.root -v ${var};
