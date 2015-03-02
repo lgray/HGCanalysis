@@ -141,13 +141,13 @@ def runCalibrationStudy(opt):
         print 'Reading out calibrations from %s'%opt.calibUrl
         for wType in weightTitles:
             calibMap[wType]=calibF.Get('%s_calib'%wType).Clone()
-            calibMapRes[wType]=calibF.Get('%s_calib_res'%wType).Clone()
+            calibMapRes[wType]=calibF.Get('calib_3_%s_res'%wType).Clone() #use the 2.0-2.25 eta range
         calibF.Close()
     except:
         print 'No calibration will be applied'
 
     #compensation as function of critical variables
-    phiCorrGr=computeCompensationWeights(enRanges,etaRanges,ws,outDir)
+    #phiCorrGr=computeCompensationWeights(enRanges,etaRanges,ws,outDir)
 
     #create dataset for calibration
     uncalibDataVars=ROOT.RooArgSet(ws.var('en'), ws.var('eta'), ws.var('phi'),ws.var('tailfrac_EE'))
@@ -178,18 +178,14 @@ def runCalibrationStudy(opt):
 
             ienVal=enEstimators[wType]
 
-            calib_offset, calib_slope = 0.0, 1.0
-            if wType in calibMap:
-                #calib_offset=calibMap[wType].GetParameter(1)
-                calib_slope=calibMap[wType].GetParameter(0)
-            
-            calib_residual = 0.0
-            if wType in calibMapRes:
-                calib_residual=calibMapRes[wType].Eval(ROOT.TMath.Abs(ws.var('eta').getVal()))
-
-
             #calibrated energy estimator
-            ienVal=((ienVal-calib_offset)/calib_slope)*(1-calib_residual)
+            if wType in calibMap:
+                ienVal=calibMap[wType].GetX(ienVal)
+
+            if wType in calibMapRes:
+                resCorr=calibMapRes[wType].Eval(ienVal)
+                ienVal*=(1-resCorr/100.)
+
             ws.var('%sEn'%wType).setVal(ienVal)
             newEntry.add(ws.var('%sEn'%wType))
 
@@ -288,10 +284,20 @@ def runCalibrationStudy(opt):
             resGr[wType].Add(etaSliceResGr[wType],'p')
 
     #derive calibration
-    calibModel=ROOT.TF1('calibmodel',"[0]*x+[1]",0,800)
+    calibModel=ROOT.TF1('calibmodel',"[0]*x",0,1000)
+    if opt.useSaturatedCalibModel:
+        print 'Saturated calib model will be used'
+        calibModel=ROOT.TF1('calibmodel','x<[4] ? [0]*x : [3]*((x-[1])/(x+[2])-([4]-[1])/([4]+[2]))+[0]*[4]',0,1000)
+        calibModel.FixParameter(4,80)
+    else:
+        print 'Using linear approximation'
     calibModel.SetLineWidth(1)
     for wType in weightTitles:
-        calibGr[wType].Fit(calibModel,'MER+')
+        if opt.useSaturatedCalibModel:
+            calibGr[wType].Fit(calibModel,'MER+','',0,1000)
+        else:
+            calibGr[wType].Fit(calibModel,'MER+','',0,100)
+        calibGr[wType].GetFunction(calibModel.GetName()).SetRange(0,1000)
         calibGr[wType].GetFunction(calibModel.GetName()).SetLineColor(calibGr[wType].GetListOfGraphs().At(0).GetLineColor())
 
     #show results
@@ -331,6 +337,7 @@ def main():
     parser.add_option('--vetoTrackInt',        dest='vetoTrackInt', help='flag if tracker interactions should be removed', default=False, action="store_true")
     parser.add_option('--lambdaWeighting',     dest='lambdaWeighting', help='flag if layers should be weighted by lambda', default=False, action="store_true")
     parser.add_option('--vetoHEBLeaks',        dest='vetoHEBLeaks',  help='flag if HEB leaks are allowed',                                  default=False, action='store_true')
+    parser.add_option('--useSaturatedCalibModel',  dest='useSaturatedCalibModel', help='use a calibration model which saturates at high energy', default=False, action='store_true')
     parser.add_option('-v',      '--var' ,     dest='treeVarName',  help='Variable to use as energy estimator',            default='edep_sim')
     (opt, args) = parser.parse_args()
 

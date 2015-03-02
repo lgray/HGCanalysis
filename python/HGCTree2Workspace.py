@@ -159,7 +159,7 @@ def showCalibrationCurves(calibGr,calibRanges,outDir,calibPostFix) :
             calibGr[wType].Draw('a')
             calibGr[wType].GetXaxis().SetTitleSize(0)
             calibGr[wType].GetXaxis().SetLabelSize(0)
-            calibGr[wType].GetYaxis().SetTitle('Reconstructed energy')
+            calibGr[wType].GetYaxis().SetTitle('Reconstructed energy [GeV]')
             calibGr[wType].GetYaxis().SetTitleOffset(0.9)
             calibGr[wType].GetYaxis().SetTitleSize(0.07)
             calibGr[wType].GetYaxis().SetLabelSize(0.05)
@@ -174,10 +174,14 @@ def showCalibrationCurves(calibGr,calibRanges,outDir,calibPostFix) :
         ffunc=calibGr[wType].GetListOfFunctions().At(0)
         ffunc.SetLineColor(lcol)
         ffunc.SetLineStyle(9)
-        calib_offset=ffunc.GetParameter(1)
-        calib_slope=ffunc.GetParameter(0)
-        MyPaveText('#it{%s} : %3.4f E_{rec} + %3.4f'%(calibGr[wType].GetTitle(),1./calib_slope,-calib_offset/calib_slope),
-                   0.15,0.95-igr*0.05,0.4,0.92-igr*0.05).SetTextColor(lcol)
+        if ffunc.GetNpar()==1:
+            MyPaveText('#it{%s} : %3.4f E_{rec} '%(calibGr[wType].GetTitle(),1./ffunc.GetParameter(0)),
+                       0.2,0.93-igr*0.05,0.4,0.90-igr*0.05)
+        else:
+            txt='#it{%s}\\ '%calibGr[wType].GetTitle()
+            for ip in xrange(0,ffunc.GetNpar()):
+                txt += '[%d]=%3.2f '%(ip,ffunc.GetParameter(ip))
+            MyPaveText(txt,0.2,0.93-igr*0.1,0.4,0.85-igr*0.1)
 
         #compute the residuals
         resCalibGr[wType]=ROOT.TMultiGraph()
@@ -191,10 +195,10 @@ def showCalibrationCurves(calibGr,calibRanges,outDir,calibPostFix) :
                 gr.GetPoint(ip,xval,yval)
                 xval_error=gr.GetErrorX(ip)
                 yval_error=gr.GetErrorY(ip)
-                xrec=(yval-calib_offset)/calib_slope
-                xrec_error=yval_error/calib_slope
-                newGr.SetPoint(ip,xval,100*(xrec/xval-1))
-                newGr.SetPointError(ip,xval_error,100*xrec_error/xval)
+                xCalib=ffunc.GetX(yval)
+                xCalib_err=ROOT.TMath.Max(ROOT.TMath.Abs(ffunc.GetX(yval+yval_error)-xCalib),ROOT.TMath.Abs(ffunc.GetX(yval-yval_error)-xCalib))
+                newGr.SetPoint(ip,xval,100*(xCalib/xval-1))
+                newGr.SetPointError(ip,0,100*xCalib_err/xval)
             resCalibGr[wType].Add(newGr,'p')
 
             #linear approximation to residuals

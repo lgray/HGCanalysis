@@ -26,6 +26,8 @@
 #include "TH1F.h"
 #include "TTree.h"
 #include "TString.h"
+#include "TMatrixDSym.h"
+#include "TMatrixDSymEigen.h"
 
 #include <memory>
 #include <string>
@@ -97,7 +99,8 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	      ctrledeps_[key][ilay]=0;
 	    }
 	    emeanPhi_[key][ilay]=0;       emeanEta_[key][ilay]=0;       emeanX_[key][ilay]=0;       emeanY_[key][ilay]=0;
-	    edepdR_[key][ilay]=0;         edepArea_[key][ilay]=0;        sihih_[key][ilay]=0;        sipip_[key][ilay]=0;        sipih_[key][ilay]=0;
+	    edepdR_[key][ilay]=0;         edepArea_[key][ilay]=0;       widthep1_[key][ilay]=0;     widthep2_[key][ilay]=0;
+	    width1_[key][ilay]=0;         width2_[key][ilay]=0;
 	  }
       }
   }
@@ -131,7 +134,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   std::map<TString, Float_t *> edeps_, weightedEdeps_, edeps3x3_, edeps5x5_, ctrledeps_;
   std::map<TString, Int_t *> nhits_, nhitsavg_, nhits5mip_, nhits10mip_, ctrlnhits_;
   std::map<TString, Float_t *> emeanX_, emeanY_, emeanPhi_,    emeanEta_;
-  std::map<TString, Float_t *> sihih_,        sipip_,        sipih_,        edepdR_,        edepArea_;
+  std::map<TString, Float_t *> width1_, width2_, widthep1_, widthep2_, edepdR_, edepArea_;
 
   //tree and summary ntuple
   TTree *t_;

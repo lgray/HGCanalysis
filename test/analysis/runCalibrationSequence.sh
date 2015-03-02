@@ -92,28 +92,40 @@ fi
 
 #e.m. calibration
 if [ "${step}" == "emcalib" ]; then
-    
+    prods=(RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR RECO-PU0)
     echo "********************************************"
     echo "e.m. calibration"
     echo "********************************************"
-    vars=("edep_sim" "edep_rec")
-    baseOpts="--vetoTrackInt"
+    vars=("edep_rec" "edep_sim")
     extraOpts=("" "--lambdaWeighting")
     for prod in ${prods[@]}; do
+	
 	sample=Single22_${CMSSW_VERSION}_${prod}_SimHits
+
 	if [ ! -f ${sample}.root ]; then
 	    continue
 	fi
+	
+	baseOpts="--vetoTrackInt"
+	
 	echo "Launching calibration for ${sample}"
 	for opt in "${extraOpts[@]}"; do
 	    for var in ${vars[@]}; do
 		echo "[${var}${opt}]"
-		python test/analysis/runEMCalibration.py ${opt} ${baseOpts} -i ${sample}.root -v ${var};
-		outDir=${sample}/${var}${opt};
+		outDir=${sample}/${var}${opt};		
+
+		if [[ ${prod} =~ .*EE_HEF_AIR.* && ${var} =~ .*rec.* ]]; then
+		    python test/analysis/runEMCalibration.py ${opt} ${baseOpts} -i ${sample}.root -v ${var} --useSaturatedCalibModel;
+		    #python test/analysis/runEMCalibration.py -w ${outDir}/workspace.root ${baseOpts} --useSaturatedCalibModel;
+		else
+		    python test/analysis/runEMCalibration.py ${opt} ${baseOpts} -i ${sample}.root -v ${var};
+		    #python test/analysis/runEMCalibration.py -w ${outDir}/workspace.root ${baseOpts};
+		fi
+
 		mkdir -p ${outDir};
 		mv ${sample}/*.* ${outDir};
-		python test/analysis/runEMCalibration.py -w ${outDir}/workspace.root -c ${outDir}/calib_uncalib.root;
-		rm core*;
+
+		python test/analysis/runEMCalibration.py -w ${outDir}/workspace.root -c ${outDir}/calib_uncalib.root ${baseOpts};
 	    done
 	done
     done

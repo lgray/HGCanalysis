@@ -174,14 +174,17 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       edepArea_[key]    = new Float_t[100];
       t_->Branch("edepArea_"+key,      edepArea_[key],    "edepArea_"+key+"[nlay]/F");
 
-      sihih_[key]    = new Float_t[100];
-      t_->Branch("sihih_"+key,     sihih_[key],    "sihih_"+key+"[nlay]/F");
+      widthep1_[key]    = new Float_t[100];
+      t_->Branch("widthep1_"+key,     widthep1_[key],    "widthep1_"+key+"[nlay]/F");
       
-      sipip_[key]    = new Float_t[100];
-      t_->Branch("sipip_"+key,     sipip_[key],    "sipip_"+key+"[nlay]/F");
+      widthep2_[key]    = new Float_t[100];
+      t_->Branch("widthep2_"+key,     widthep2_[key],    "widthep2_"+key+"[nlay]/F");
+
+      width1_[key]    = new Float_t[100];
+      t_->Branch("width1_"+key,     width1_[key],    "width1_"+key+"[nlay]/F");
       
-      sipih_[key]    = new Float_t[100];
-      t_->Branch("sipih_"+key,     sipih_[key],    "sipih_"+key+"[nlay]/F");
+      width2_[key]    = new Float_t[100];
+      t_->Branch("width2_"+key,     width2_[key],    "width2_"+key+"[nlay]/F");
 
       nClusters_[key]=0;
       t_->Branch("nClusters_"+key,      &(nClusters_[key]),        "nClusters_"+key+"/I");
@@ -663,6 +666,9 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  avgEPerHitHEB_[key] = nhitsHEB> 0 ? totalEnHEB/nhitsHEB : 0.;
 
 	  //loop once more over hits to determine distance to shower direction
+	  std::vector<float> sihih(nlay_,0), sipip(nlay_,0), sihip(nlay_,0);
+	  std::vector<float> sixix(nlay_,0), siyiy(nlay_,0), sixiy(nlay_,0);
+	  std::vector<float> en2(nlay_,0);
 	  for(std::map<uint32_t,float>::iterator detIt=stepIt->second.begin();
 	      detIt!=stepIt->second.end();
 	      detIt++)
@@ -709,9 +715,13 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      nhitsavg_[key][layerIdx] += (en>avgToUse);
 	      edepdR_[key][layerIdx]   += en*rho;        //en*rho;
 	      edepArea_[key][layerIdx] += cellSize;
-	      sihih_[key][layerIdx]    += en*pow(hitEta-emeanEta_[key][layerIdx],2);
-	      sipip_[key][layerIdx]    += en*pow(deltaPhi(hitPhi,emeanPhi_[key][layerIdx]),2);
-	      sipih_[key][layerIdx]    += en*(hitEta-emeanEta_[key][layerIdx])*(deltaPhi(hitPhi,emeanPhi_[key][layerIdx]));
+	      sihih[layerIdx]          += pow(en*(hitEta-emeanEta_[key][layerIdx]),2);
+	      sipip[layerIdx]          += pow(en*deltaPhi(hitPhi,emeanPhi_[key][layerIdx]),2);
+	      sihip[layerIdx]          += -en*en*(hitEta-emeanEta_[key][layerIdx])*(deltaPhi(hitPhi,emeanPhi_[key][layerIdx]));
+	      sixix[layerIdx]          += pow(en*(hitX-refX),2);
+	      siyiy[layerIdx]          += pow(en*(hitY-refY),2);
+	      sixiy[layerIdx]          += -en*en*(hitX-refX)*(hitY-refY);
+	      en2[layerIdx]            += pow(en,2);
 	    }
 	  
 	  //finalize by normalizing
@@ -724,10 +734,30 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      if(showerStart_[key]<0 && hitLayCtr==3) showerStart_[key]=ilay;
 	      edepdR_[key][ilay]   /= iTotalEn;
 
-	      sihih_[key][ilay]    /= iTotalEn; sihih_[key][ilay]=sqrt(sihih_[key][ilay]);
-	      sipip_[key][ilay]    /= iTotalEn; sipip_[key][ilay]=sqrt(sipip_[key][ilay]);
-	      sipih_[key][ilay]    /= iTotalEn; sipih_[key][ilay]=sqrt(fabs(sipih_[key][ilay]));
-	      
+	      if(en2[ilay])
+		{
+		  sihih[ilay] /= en2[ilay];    sipip[ilay] /= en2[ilay];   sihip[ilay] /= en2[ilay];
+		  double mvals[4]={sihih[ilay],sihip[ilay],sihip[ilay],sipip[ilay]};
+		  TMatrixDSym m(2,mvals);
+		  TMatrixDSymEigen me(m);
+		  TVectorD eigenval = me.GetEigenValues();
+		  widthep1_[key][ilay]=eigenval[0];
+		  widthep2_[key][ilay]=eigenval[1];
+
+		  sixix[ilay] /= en2[ilay];    siyiy[ilay] /= en2[ilay];   sixiy[ilay] /= en2[ilay];
+		  double mvalsxy[4]={sixix[ilay],sixiy[ilay],sixiy[ilay],siyiy[ilay]};
+		  TMatrixDSym mxy(2,mvalsxy);
+		  TMatrixDSymEigen mexy(mxy);
+		  TVectorD eigenvalxy = mexy.GetEigenValues();
+		  width1_[key][ilay]=eigenvalxy[0];
+		  width2_[key][ilay]=eigenvalxy[1];
+		}
+	      else
+		{
+		  widthep1_[key][ilay]=0; widthep2_[key][ilay]=0;
+		  width1_[key][ilay]=0;   width2_[key][ilay]=0;
+		}
+
 	      float corrOverburden(getLayerWeight(ilay,false));
 	      totalLength_[key] += corrOverburden;
 
