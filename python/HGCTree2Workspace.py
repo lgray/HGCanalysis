@@ -72,12 +72,15 @@ def prepareWorkspace(url,weightingScheme,treeVarName,vetoTrackInt,vetoHEBLeaks=F
                     etaDepWeight       = subDetRange[1].Eval(genEta)
                 geomCorrection         = 1. #/ROOT.TMath.TanH(genEta)
                 weight                 = subDetRange[2]
-                finalScale             = subDetRange[3]
+                scaleCorrections       = subDetRange[3]
 
                 #integrate layers applying corrections
                 totalEnTail=0
                 for ilay in xrange(integRange[0],integRange[1]+1):
-                    ien         = finalScale*(weight*geomCorrection+etaDepWeight)*(getattr(HGC,treeVarName))[ilay-1]
+                    ien         = (weight*geomCorrection+etaDepWeight)*(getattr(HGC,treeVarName))[ilay-1]
+                    if not (scaleCorrections is None):
+                        ien=scaleCorrections[0].GetX(ien)
+                        ien*=(1-scaleCorrections[1].Eval(ien)/100.)
                     totalEn    += ien
                     if ilay>integRange[1]-3: totalEnTail += ien
                     nhits      += (getattr(HGC,'nhits_%s'%(simStep)))[ilay-1]

@@ -22,24 +22,24 @@ def adaptWorkspaceForEMCalibration(opt):
         if opt.lambdaWeighting:
             matParamBeforeHGCGr=matF.Get("lambdaOverburden")
             weightingScheme={
-                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.010, 1.0),
-                       ([2, 11], None,                0.036, 1.0),
-                       ([12,21], None,                0.043, 1.0),
-                       ([22,30], None,                0.056, 1.0),
-                       ([31,31], None,                0.338, 1.0),
-                       ([32,42], None,                0.273, 1.0),
-                       ([43,54], None,                0.475, 1.0)]
+                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.010, None),
+                       ([2, 11], None,                0.036, None),
+                       ([12,21], None,                0.043, None),
+                       ([22,30], None,                0.056, None),
+                       ([31,31], None,                0.338, None),
+                       ([32,42], None,                0.273, None),
+                       ([43,54], None,                0.475, None)]
                 }
         else:
             matParamBeforeHGCGr=matF.Get("x0Overburden")
             weightingScheme={
-                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.080, 1.0),
-                       ([2, 11], None,                0.620, 1.0),
-                       ([12,21], None,                0.809, 1.0),
-                       ([22,30], None,                1.239, 1.0),
-                       ([31,31], None,                3.580, 1.0),
-                       ([32,42], None,                3.103, 1.0),
-                       ([43,54], None,                5.228, 1.0)]
+                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.080, None),
+                       ([2, 11], None,                0.620, None),
+                       ([12,21], None,                0.809, None),
+                       ([22,30], None,                1.239, None),
+                       ([31,31], None,                3.580, None),
+                       ([32,42], None,                3.103, None),
+                       ([43,54], None,                5.228, None)]
                 }
         matF.Close()
 

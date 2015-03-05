@@ -127,13 +127,21 @@ overlayTestBeam=True
 #	['~/www/pion/clus-nocomp/calib__calib_uncalib.root',   'simple', 'Pandora',              False]
 #	]
 
+#toPlot=[
+#	['~/www/pion/rec/calib__calib_uncalib.root',           'gc', 'RecHit with scaling + GC',  False],
+#	['~/www/pion/rec-nocomp/calib__calib_uncalib.root',    'gc', 'RecHit+GC',               False],
+#	['~/www/pion/clus/calib__calib_uncalib.root',          'gc', 'Pandora with scaling+GC', False],
+#	['~/www/pion/clus-nocomp/calib__calib_uncalib.root',   'gc', 'Pandora+GC',              False]
+#	]
+
 toPlot=[
-	['~/www/pion/rec/calib__calib_uncalib.root',           'gc', 'RecHit with scaling + GC',  False],
-	['~/www/pion/rec-nocomp/calib__calib_uncalib.root',    'gc', 'RecHit+GC',               False],
-	['~/www/pion/clus/calib__calib_uncalib.root',          'gc', 'Pandora with scaling+GC', False],
-	['~/www/pion/clus-nocomp/calib__calib_uncalib.root',   'gc', 'Pandora+GC',              False]
+	['~/www/pion/HGC/rec-nocomp/calib__calib_uncalib.root',           'simple', 'no #pi/e corr.',  False],
+	['~/www/pion/HGC/rec-nocomp/calib__calib_uncalib.root',           'gc', 'no #pi/e corr.+GC',  False],
+	['~/www/pion/HGC/rec/calib__calib_uncalib.root',    'simple', 'with #pi/e corr.',               False],
+	['~/www/pion/HGC/rec/calib__calib_uncalib.root',    'gc', 'with #pi/e corr.+GC',               False]
 	]
 
+ROOT.gROOT.SetBatch(True)
 
 
 ymin,ymax=0.05,0.5

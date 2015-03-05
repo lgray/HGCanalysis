@@ -16,7 +16,7 @@ if [ -z ${step} ]; then
     exit -1
 fi
 
-energies=(10 20 40 50 75 100 125 175 250 400 500)
+energies=(2 3 5 8 10 20 40 50 75 100 125 175 250 400 500)
 pids=(22 211 130)
 prods=(RECO-PU0 RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR)
 WHOAMI=`whoami`
@@ -65,16 +65,18 @@ if [ "${step}" == "ntuple" ]; then
     echo "********************************************"
     echo "ntuplizing for analysis"
     echo "********************************************"    
-
+    pids=(211 22)
+    prods=(RECO-PU0)
+    fileSplit=20
     for pid in ${pids[@]}; do
 	for prod in ${prods[@]}; do
 	    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/${prod} | awk '{print $5}'`);
 	    nFiles=${#inputFiles[@]};
-	    nJobs=$((nFiles/50));
+	    nJobs=$((nFiles/${fileSplit}));
 	    echo "******* Starting with $Single${pid}_${CMSSW_VERSION}/${prod} ${nFiles} will be analyzed in ${nJobs} jobs"
 	    for i in `seq 0 ${nJobs}`; do
-		startFile=$((i*=50));
-		cmsRun test/runHGCSimHitsAnalyzer_cfg.py Single${pid}_${CMSSW_VERSION}/${prod} ${startFile} 50 &
+		startFile=$((i*=${fileSplit}));
+		cmsRun test/runHGCSimHitsAnalyzer_cfg.py Single${pid}_${CMSSW_VERSION}/${prod} ${startFile} ${fileSplit} &
 	    done
 	    nrunning="`ps -u $WHOAMI | grep -ir cmsRun | wc -l`"
 	    while [ $nrunning -gt 0 ]; do
@@ -132,37 +134,59 @@ if [ "${step}" == "emcalib" ]; then
 fi
 
 #Pion calibration
-if [ "${step}" -eq "5" ]; then
+if [ "${step}" == "picalib" ]; then
 
+    #prods=(RECO-PU0-EE_AIR RECO-PU0)
+    #prods=(RECO-PU0-EE_AIR)
+    prods=(RECO-PU0-EE_AIR RECO-PU0)
     echo "********************************************"
     echo "pion calibration"
     echo "********************************************"
+    #vars=("edep_sim")
+    #vars=("edep_rec")
+    vars=("edep_rec" "edep_sim")
+    for prod in ${prods[@]}; do
+	
+	sample=Single211_${CMSSW_VERSION}_${prod}_SimHits
 
-    vars=("edep_sim" "edep_rec")
-    for var in ${vars[@]}; do
+	if [ ! -f ${sample}.root ]; then
+	    continue
+	fi
 
-        #HEF + HEB calibration
-	python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -i Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root --noEE -v ${var}
+	baseOpts="--vetoTrackInt"
+	
+	echo "Launching calibration for ${sample}"
+	for var in ${vars[@]}; do
 
-	python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -w Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/workspace_uncalib_pion.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/HEFHEB_comb.root --noEE --calib Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/calib_uncalib.root
+	    emEE=Single22_${CMSSW_VERSION}_RECO-PU0_SimHits/${var}--lambdaWeighting/calib_uncalib.root
+	    emHEF=Single22_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}--lambdaWeighting/calib_uncalib.root
+	    emHEB=Single22_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}--lambdaWeighting/calib_uncalib.root
 
-	mkdir -p Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}
-	mv Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/*.* Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}
+	    echo "[${var}]"
+	    outDir=${sample}/${var};	
 
-        #EE + HE(F+B) calibration
-	python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -i Single211_${CMSSW_VERSION}_SimHits_0.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}/HEFHEB_comb.root -v ${var}
-
-	python test/analysis/runPionCalibration.py --vetoTrackInt --vetoHEBLeaks -w Single211_${CMSSW_VERSION}_SimHits_0/workspace_uncalib_pion.root --emCalib EE:Single22_${CMSSW_VERSION}_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEF:Single22_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root,HEB:Single22_CMSSW_6_2_0_SLHC20_EE_HEF_AIR_SimHits_0/${var}--vetoTrackInt/calib_uncalib.root --hefhebComb Single211_${CMSSW_VERSION}_EE_AIR_SimHits_0/${var}/HEFHEB_comb.root --calib Single211_${CMSSW_VERSION}_SimHits_0/calib_uncalib.root
-
-	mkdir -p Single211_${CMSSW_VERSION}_SimHits_0/${var}
-	mv Single211_${CMSSW_VERSION}_SimHits_0/*.* Single211_${CMSSW_VERSION}_SimHits_0/${var}
+	    baseOpts="${baseOpts} --hefhebResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}/HEFHEB_response.root" # --noComp"
+	    if [[ ${prod} =~ .*EE_AIR.* ]]; then
+		baseOpts="${baseOpts} --noEE";
+		rm Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}/HEFHEB_response.root;
+	    fi
+	    baseOpts="${baseOpts}"
+	    python test/analysis/runPionCalibration.py -i ${sample}.root --emCalib EE:${emEE},HEF:${emHEF},HEB:${emHEB} -v ${var} ${baseOpts}
+	    mkdir -p ${outDir}
+	    mv ${sample}/*.* ${outDir};
+	    #python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
+	    baseOpts="${baseOpts} --ehResp ${outDir}/EEHEFHEB_response_corry.root"
+	    python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --calib ${outDir}/calib_uncalib.root;
+	done
     done
-
-    rm core.*
 fi
 
+##
+## the following is for test purpose only
+##
+
 #pion calibration
-if [ "${step}" -eq "7" ]; then
+if [ "${step}" == "testpicalib" ]; then
 
     echo "********************************************"
     echo "pion calibration with software compensation"
@@ -203,7 +227,7 @@ fi
 
 
 #e.m. calibration
-if [ "${step}" -eq "8" ]; then
+if [ "${step}" == "testemcalib" ]; then
 
     echo "********************************************"
     echo "e.m. final calibration"
