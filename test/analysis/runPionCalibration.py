@@ -49,8 +49,8 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,ws,outDir):
 
     #prepare the to derive the responses from the projections of the scatter plots
     all2DScatters={
-        xaxisName : ROOT.TH2F('hscatrecx',';%s energy/E(rec);E(rec)/E(gen);Events'%(xaxisName), 50,0,400,100,0,2.0),
-        yaxisName : ROOT.TH2F('hscatrecy',';%s energy/E(rec);E(rec)/E(gen);Events'%(yaxisName), 50,0,400,100,0,2.0)
+        xaxisName : ROOT.TH2F('hscatrecx',';%s energy;E(rec)/E(gen);Events'%(xaxisName), 50,0,400,100,0,2.0),
+        yaxisName : ROOT.TH2F('hscatrecy',';%s energy;E(rec)/E(gen);Events'%(yaxisName), 50,0,400,100,0,2.0)
         }
     incResolutionProfile={}
     responseProfiles={xaxisName:ROOT.TGraphErrors(),yaxisName:ROOT.TGraphErrors()}
@@ -70,6 +70,8 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,ws,outDir):
         incResolutionProfile[genEnKey]=ROOT.TH1F('hincprof%d'%(ien),';Total energy/E_{beam};Events',100,0,2.0)
         incResolutionProfile[genEnKey].SetDirectory(0)
         incResolutionProfile[genEnKey].Sumw2()
+        incResolutionProfile[genEnKey+'_diag']=incResolutionProfile[genEnKey].Clone('hincprof%d_diag'%(ien))
+        incResolutionProfile[genEnKey+'_diag'].SetDirectory(0)
 
         redData=ws.data('data').reduce('en>=%f && en<=%f && eta>=1.6 && eta<=2.8'%(genEn_min,genEn_max))
         if redData.numEntries()<10 : continue
@@ -91,27 +93,30 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,ws,outDir):
             xval=0
             for var,corrFunc in xaxis:
                 ienVal=entryVars.find('en_%s'%var).getVal()
-                if not (corrFunc is None) and ienVal>1:
-                    if var!='EE':
-                        ienVal /= corrFunc.Eval(ienVal)
-                    else:
-                        if ienVal/(ienVal+totalEnHEF+totalEnHEB)>0.95 :
-                            ienVal/=corrFunc.Eval(ienVal)
-                        else:
-                            ienVal/=corrFunc.Eval(1000)
+                if not (corrFunc is None) and ienVal>0:
+                    ienVal /= corrFunc.Eval(ROOT.TMath.Max(ienVal,10))
+                    #if var!='EE':
+                    #    ienVal /= corrFunc.Eval(ienVal)
+                    #else:                     
+                        #if ienVal/(ienVal+totalEnHEF+totalEnHEB)>0.95 :
+                        #    ienVal/=corrFunc.Eval(ienVal)
+                        #else:
+                        #    ienVal/=corrFunc.Eval(1000)
                 xval+=ienVal
 
             yval=0
             for var,corrFunc in yaxis:
                 ienVal=entryVars.find('en_%s'%var).getVal()
-                if not (corrFunc is None) and ienVal>1 : 
-                    if var != 'HEB': 
-                        ienVal /= corrFunc.Eval(ienVal)
-                    else:
-                        if ienVal/(ienVal+totalEnHEF)>0.95 :
-                            ienVal /= corrFunc.Eval(ienVal)
-                        else:
-                            ienVal /= corrFunc.Eval(1000)
+                if not (corrFunc is None) and ienVal>0 : 
+                    ienVal /= corrFunc.Eval(ROOT.TMath.Max(ienVal,10))
+                    #if var != 'HEB': 
+                    #    ienVal /= corrFunc.Eval(ienVal)
+                    #else:
+                    #    ienVal /= corrFunc.Eval(ROOT.TMath.Max(ienVal,10))
+                        #if ienVal/(ienVal+totalEnHEF)>0.95 :
+                        #    ienVal /= corrFunc.Eval(ienVal)
+                        #else:
+                        #    ienVal /= corrFunc.Eval(100)
                 yval+=ienVal
             if xval+yval<1 : continue   
             #if (xval+yval)/genEn_mean>2:
@@ -124,13 +129,15 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,ws,outDir):
             #if (xval+yval)/genEn_mean<0.05 : continue
             all2DScatters[genEnKey].Fill(xval/genEn_mean,yval/genEn_mean)
             incResolutionProfile[genEnKey].Fill((xval+yval)/genEn_mean)
+            if xval/genEn_mean>0.2 and yval/genEn_mean>0.2 :
+                incResolutionProfile[genEnKey+'_diag'].Fill((xval+yval)/genEn_mean)
             all2DScatters[yaxisName].Fill(yval,(xval+yval)/genEn_mean)
             all2DScatters[xaxisName].Fill(xval,(xval+yval)/genEn_mean)
-            if xval/genEn_mean<0.02 : 
+            if xval<1 : #/genEn_mean<0.02 : 
             #if xval/(xval+yval)<0.05 : 
                 yvaluesProfAt0.append(yval)
                 yrespValuesProfAt0.append(yval/genEn_mean)
-            if yval/genEn_mean<0.02 : 
+            if yval<1 : #/genEn_mean<0.02 : 
             #if yval/(xval+yval)<0.05 : 
                 xvaluesProfAt0.append(xval)
                 xrespValuesProfAt0.append(xval/genEn_mean)
@@ -194,7 +201,7 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,ws,outDir):
         title=key
         p=canvas.cd(2)
         nLegs=len(allLegs)
-        allLegs.append( ROOT.TLegend(0.5,0.7,0.9,0.94) )
+        allLegs.append( ROOT.TLegend(0.2,0.7,0.9,0.94) )
         allLegs[nLegs].SetFillStyle(0)
         allLegs[nLegs].SetBorderSize(0)
         allLegs[nLegs].SetTextFont(42)
@@ -219,24 +226,31 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,ws,outDir):
             title='Energy=%s GeV'%key
 
             #add the inclusive resolution profile
-            incResolutionProfile[key].Rebin()
-            incResolutionProfile[key].SetLineColor(ROOT.kGray)
-            incResolutionProfile[key].SetFillStyle(1001)
-            incResolutionProfile[key].SetFillColor(ROOT.kGray)
-            incResolutionProfile[key].SetMarkerColor(ROOT.kGray)
-            incResolutionProfile[key].SetLineWidth(1)
-            incResolutionProfile[key].Scale(1./incResolutionProfile[key].Integral())
-            fixExtremities(incResolutionProfile[key])
-            incResolutionProfile[key].Draw('hist')
-            incResolutionProfile[key].GetXaxis().SetTitle('E(rec)/E(gen)')
-            incResolutionProfile[key].GetYaxis().SetRangeUser(0,0.4)
-            incResolutionProfile[key].GetQuantiles(len(probSum), quantiles, probSum)
-            theMean    = quantiles[0]
-            theMeanErr = 1.253*incResolutionProfile[key].GetMeanError()
-            incResolutionProfile[key].SetTitle('<#pi/e>(comb) = %3.2f#pm%3.2f'%(theMean,theMeanErr))
-            allLegs[nLegs].AddEntry( incResolutionProfile[key],incResolutionProfile[key].GetTitle(),'p')
+            drawOpt='hist'
+            iprofCtr=0
+            for profKey in [key,key+'_diag']:
+                profTitle, color, fill = 'inc', ROOT.kGray, 1001
+                if iprofCtr==1: 
+                    profTitle, color, fill = 'inc:>0.2', 38, 3344
+                incResolutionProfile[profKey].Rebin()
+                incResolutionProfile[profKey].SetLineColor(color)
+                incResolutionProfile[profKey].SetFillStyle(fill)
+                incResolutionProfile[profKey].SetFillColor(color)
+                incResolutionProfile[profKey].SetMarkerColor(color)
+                incResolutionProfile[profKey].SetLineWidth(1)
+                incResolutionProfile[profKey].Scale(1./incResolutionProfile[profKey].Integral())
+                fixExtremities(incResolutionProfile[profKey])
+                incResolutionProfile[profKey].Draw(drawOpt)
+                incResolutionProfile[profKey].GetXaxis().SetTitle('E(rec)/E(gen)')
+                incResolutionProfile[profKey].GetYaxis().SetRangeUser(0,0.3)
+                incResolutionProfile[profKey].GetQuantiles(len(probSum), quantiles, probSum)
+                theMean    = quantiles[0]
+                theMeanErr = 1.253*incResolutionProfile[profKey].GetMeanError()
+                incResolutionProfile[profKey].SetTitle('<#pi/e>(%s) = %3.2f#pm%3.2f'%(profTitle,theMean,theMeanErr))
+                allLegs[nLegs].AddEntry( incResolutionProfile[profKey],incResolutionProfile[profKey].GetTitle(),'fp')
+                drawOpt='histsame'
+                iprofCtr+=1
 
-            drawOpt='histsame'
             for iaxis in xrange(0,2):
                 nProjs=len(allProjs)
                 if iaxis==1:
@@ -254,7 +268,6 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,ws,outDir):
                 allProjs[nProjs].SetMarkerColor(1+iaxis)
                 allProjs[nProjs].SetMarkerStyle(20+4*iaxis)
                 allProjs[nProjs].Draw(drawOpt)
-                drawOpt='histsame'
 
                 #use quantiles
                 allProjs[nProjs].GetQuantiles(len(probSum), quantiles, probSum)
@@ -736,19 +749,22 @@ def runCalibrationStudy(opt):
         e_HEB   = entryVars.find('en_HEB').getVal()
 
         if not (pioverE_HEF is None) and not opt.noComp: 
-            e_HEF /= pioverE_HEF.Eval(e_HEF)
+            #e_HEF /= pioverE_HEF.Eval(e_HEF)
+            e_HEF /= pioverE_HEF.Eval(ROOT.TMath.Max(e_HEF,10))
 
         if not (pioverE_EE is None) and not opt.noComp : 
-            if e_EE>1 and e_EE/(e_EE+e_HEF)>0.95:
-                e_EE /= pioverE_EE.Eval(e_EE)
-            else:
-                e_EE /= pioverE_EE.Eval(1000)
+            e_EE /= pioverE_EE.Eval(ROOT.TMath.Max(e_EE,10))
+            #if e_EE>1 and e_EE/(e_EE+e_HEF)>0.95:
+            #    e_EE /= pioverE_EE.Eval(e_EE)
+            #else:
+            #    e_EE /= pioverE_EE.Eval(1000)
 
         if not (pioverE_HEB is None) and not opt.noComp: 
-            if e_HEB>1 and e_HEB/(e_HEB+e_HEF)>0.95:
-                e_HEB /= pioverE_HEB.Eval(e_HEB)
-            else:
-                e_HEB /= pioverE_HEB.Eval(1000)
+            e_HEB /= pioverE_HEB.Eval(ROOT.TMath.Max(e_HEB,10)) 
+            #if e_HEB>1 and e_HEB/(e_HEB+e_HEF)>0.95:
+            #    e_HEB /= pioverE_HEB.Eval(e_HEB)
+            #else:
+            #    e_HEB /= pioverE_HEB.Eval(1000)
 
         e_tot   = e_EE + e_HEF + e_HEB
         enEstimators['simple']=e_tot

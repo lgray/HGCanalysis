@@ -138,13 +138,14 @@ if [ "${step}" == "picalib" ]; then
 
     #prods=(RECO-PU0-EE_AIR RECO-PU0)
     #prods=(RECO-PU0-EE_AIR)
-    prods=(RECO-PU0-EE_AIR RECO-PU0)
+    prods=(RECO-PU0)  
+    #prods=(RECO-PU0-EE_AIR RECO-PU0)
     echo "********************************************"
     echo "pion calibration"
     echo "********************************************"
     #vars=("edep_sim")
-    #vars=("edep_rec")
-    vars=("edep_rec" "edep_sim")
+    vars=("edep_rec")
+    #vars=("edep_rec" "edep_sim")
     for prod in ${prods[@]}; do
 	
 	sample=Single211_${CMSSW_VERSION}_${prod}_SimHits
@@ -171,10 +172,10 @@ if [ "${step}" == "picalib" ]; then
 		rm Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}/HEFHEB_response.root;
 	    fi
 	    baseOpts="${baseOpts}"
-	    python test/analysis/runPionCalibration.py -i ${sample}.root --emCalib EE:${emEE},HEF:${emHEF},HEB:${emHEB} -v ${var} ${baseOpts}
-	    mkdir -p ${outDir}
-	    mv ${sample}/*.* ${outDir};
-	    #python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
+	    #python test/analysis/runPionCalibration.py -i ${sample}.root --emCalib EE:${emEE},HEF:${emHEF},HEB:${emHEB} -v ${var} ${baseOpts}
+	    #mkdir -p ${outDir}
+	    #mv ${sample}/*.* ${outDir};
+	    python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
 	    baseOpts="${baseOpts} --ehResp ${outDir}/EEHEFHEB_response_corry.root"
 	    python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --calib ${outDir}/calib_uncalib.root;
 	done
