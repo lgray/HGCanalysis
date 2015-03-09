@@ -12,27 +12,69 @@ from UserCode.HGCanalysis.HGCTree2Workspace import *
 """
 creates an histogram and fits a gaussian 
 """
-def fitGaussianToPeak(data,hrange,nbins):
-    if len(data)<5: return 0,0
-    h=ROOT.TH1F('datah','',nbins,hrange[0],hrange[1])
-    for d in data: h.Fill(d)
-    maxBin=h.GetMaximumBin()
-    fitRangeMin=h.GetXaxis().GetBinCenter(maxBin-5)
-    fitRangeMax=h.GetXaxis().GetBinCenter(maxBin+5)
-    h.Fit('gaus','LMRQ+','',fitRangeMin,fitRangeMax)
-    meanX,meanXerr=h.GetFunction('gaus').GetParameter(1),h.GetFunction('gaus').GetParError(1)
-    h.Delete()
+def fitGaussianToPeak(data,hrange=None,nbins=None):
+    meanX,meanXerr=0,0
+    try:
+        data.InheritsFrom('TH1')
+        maxBin=data.GetMaximumBin()
+        fitRangeMin=data.GetXaxis().GetBinCenter(maxBin-7)
+        fitRangeMax=data.GetXaxis().GetBinCenter(maxBin+7)
+        data.Fit('gaus','LMRQ0+','',fitRangeMin,fitRangeMax)
+        meanX,meanXerr=data.GetFunction('gaus').GetParameter(1),data.GetFunction('gaus').GetParError(1)
+    except:
+        if len(data)<5: return 0,0
+        h=ROOT.TH1F('datah','',nbins,hrange[0],hrange[1])
+        for d in data: h.Fill(d)
+        maxBin=h.GetMaximumBin()
+        fitRangeMin=h.GetXaxis().GetBinCenter(maxBin-7)
+        fitRangeMax=h.GetXaxis().GetBinCenter(maxBin+7)
+        h.Fit('gaus','LMRQ0+','',fitRangeMin,fitRangeMax)
+        meanX,meanXerr=h.GetFunction('gaus').GetParameter(1),h.GetFunction('gaus').GetParError(1)
+        h.Delete()
+
     return meanX,meanXerr
+
+"""
+wraps the computation of pi/e
+"""
+def computePiOverE(x,xresp,gr):
+
+    #require minimum 5 events for pi/e...
+    if len(x)>5:
+
+        #response by mean or mode
+        mean,     meanErr     = numpy.mean(x),     numpy.std(x)/numpy.sqrt(len(x))
+        meanResp, meanRespErr = numpy.mean(xresp), numpy.std(xresp)/numpy.sqrt(len(xresp))
+        mode,     modeErr     = fitGaussianToPeak(data=x,     hrange=(0,800), nbins=50)
+        modeResp, modeRespErr = fitGaussianToPeak(data=xresp, hrange=(0,2),   nbins=50)
+    
+        np=gr.GetN()
+        if mean<5 or mode<=0 or modeResp<0.1:
+            gr.SetPoint(np,mean,meanResp)
+            gr.SetPointError(np,meanErr,meanRespErr)
+            return [mean,meanErr,meanResp,meanRespErr]
+        else:
+            gr.SetPoint(np,mode,modeResp)
+            gr.SetPointError(np,modeErr,modeRespErr)
+            return [mode,modeErr,modeResp,modeRespErr]
+
+    #nothing done
+    return []
 
 """
 draws the correlation for different sub-dets
 """
 def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,ws,outDir):
 
-    divx=len(etaRanges)/2
-    while True:
-        if divx*2 >= len(etaRanges) : break
-        divx+=1
+    #auxiliary, for plotting purposes
+    canvas   = ROOT.TCanvas('c','c',1000,500)
+    allLegs  = []
+    allProjs = []
+
+    #pi/e model to adjust
+    #responseFunc=ROOT.TF1('responseFunc','TMath::Min(TMath::Max([0]*(x-[1])/(x+[2])+[3],0.001),10.0)',0,1000)
+    #responseFunc=ROOT.TF1('responseFunc','TMath::Min(TMath::Max([0]*(x-[1])/(x+[2])*exp(-[3]*x)+[4],0.001),10.0)',0,1000)
+    responseFunc=ROOT.TF1('responseFunc','[0]*(1-exp(-[1]*x))/(1+exp(-[2]*x))*exp(-[3]*x)+[4]',0,1000)
 
     #determine the names for each axis
     xaxisName,hasCorrX='',False
@@ -49,42 +91,59 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,ws,outDir):
 
     #prepare the to derive the responses from the projections of the scatter plots
     all2DScatters={
-        xaxisName : ROOT.TH2F('hscatrecx',';%s energy;E(rec)/E(gen);Events'%(xaxisName), 50,0,400,100,0,2.0),
-        yaxisName : ROOT.TH2F('hscatrecy',';%s energy;E(rec)/E(gen);Events'%(yaxisName), 50,0,400,100,0,2.0)
+        xaxisName : ROOT.TH2F('hscatrecx',';%s energy;E(rec)/E(gen);Events'%(xaxisName), 50,0,400,100,0,2.5),
+        yaxisName : ROOT.TH2F('hscatrecy',';%s energy;E(rec)/E(gen);Events'%(yaxisName), 50,0,400,100,0,2.5)
         }
-    incResolutionProfile={}
-    responseProfiles={xaxisName:ROOT.TGraphErrors(),yaxisName:ROOT.TGraphErrors()}
     for key in all2DScatters:
         all2DScatters[key].SetDirectory(0)
         all2DScatters[key].Sumw2()
 
+    incResolutionScatter={}
+
+    responseProfiles={xaxisName:ROOT.TGraphErrors(),
+                      yaxisName:ROOT.TGraphErrors(),
+                      xaxisName+'_gen':ROOT.TGraphErrors(),
+                      yaxisName+'_gen':ROOT.TGraphErrors(),
+                      xaxisName+yaxisName+'_comb':ROOT.TGraphErrors(),
+                      xaxisName+yaxisName+'_combgen':ROOT.TGraphErrors(),
+                      xaxisName+yaxisName+'_combdiag':ROOT.TGraphErrors()}
+    for key in responseProfiles:
+        marker=20
+        if yaxisName in key: marker=24
+        if yaxisName in key and xaxisName in key : marker=22
+        responseProfiles[key].SetTitle(key)
+        responseProfiles[key].SetMarkerStyle(marker)
+        responseProfiles[key].SetFillStyle(0)
+        responseProfiles[key].SetName('%s_prof'%key)
+
+    #loop over available energies
     for ien in xrange(0,len(enRanges)):
         genEn_min=enRanges[ien][0]
         genEn_max=enRanges[ien][1]
         genEn_mean=0.5*(genEn_max+genEn_min)
 
         genEnKey='%3.0f'%genEn_mean
-        all2DScatters[genEnKey]=ROOT.TH2F('hprof%d'%(ien),';%s energy/E_{beam};%s energy/E_{beam};Events'%(xaxisName,yaxisName),100,0,2.0,100,0,2.0)
+        all2DScatters[genEnKey]=ROOT.TH2F('hprof%d'%(ien),';%s energy/E_{beam};%s energy/E_{beam};Events'%(xaxisName,yaxisName),100,0,2.5,100,0,2.5)
         all2DScatters[genEnKey].SetDirectory(0)
         all2DScatters[genEnKey].Sumw2()
-        incResolutionProfile[genEnKey]=ROOT.TH1F('hincprof%d'%(ien),';Total energy/E_{beam};Events',100,0,2.0)
-        incResolutionProfile[genEnKey].SetDirectory(0)
-        incResolutionProfile[genEnKey].Sumw2()
-        incResolutionProfile[genEnKey+'_diag']=incResolutionProfile[genEnKey].Clone('hincprof%d_diag'%(ien))
-        incResolutionProfile[genEnKey+'_diag'].SetDirectory(0)
+        incResolutionScatter[genEnKey]=ROOT.TH1F('hincprof%d'%(ien),';Total energy/E_{beam};Events',100,0,2.5)
+        incResolutionScatter[genEnKey].SetDirectory(0)
+        incResolutionScatter[genEnKey].Sumw2()
+        incResolutionScatter[genEnKey+'_diag']=incResolutionScatter[genEnKey].Clone('hincprof%d_diag'%(ien))
+        incResolutionScatter[genEnKey+'_diag'].SetDirectory(0)
 
         redData=ws.data('data').reduce('en>=%f && en<=%f && eta>=1.6 && eta<=2.8'%(genEn_min,genEn_max))
         if redData.numEntries()<10 : continue
 
-        xvaluesProfAt0,     yvaluesProfAt0     = [], []
-        xrespValuesProfAt0, yrespValuesProfAt0 = [], []
+        xvaluesAtY0,     yvaluesAtX0      = [], []
+        xrespvaluesAtY0, yrespvaluesAtX0  = [], []
+        xyvalues,        xyrespvalues     = [], []
+        xydiagvalues,    xydiagrespvalues = [], []
+
         for ientry in xrange(0,redData.numEntries()):
 
             entryVars=redData.get(ientry)
             
-            #ienEE=entryVars.find('en_EE').getVal()
-            #if xaxisName=='HEF' and ienEE>0: continue
-
             #raw estimate
             totalEnHEF=entryVars.find('en_HEF').getVal()
             totalEnHEB=entryVars.find('en_HEB').getVal()
@@ -93,97 +152,65 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,ws,outDir):
             xval=0
             for var,corrFunc in xaxis:
                 ienVal=entryVars.find('en_%s'%var).getVal()
-                if not (corrFunc is None) and ienVal>0:
-                    ienVal /= corrFunc.Eval(ROOT.TMath.Max(ienVal,10))
-                    #if var!='EE':
-                    #    ienVal /= corrFunc.Eval(ienVal)
-                    #else:                     
-                        #if ienVal/(ienVal+totalEnHEF+totalEnHEB)>0.95 :
-                        #    ienVal/=corrFunc.Eval(ienVal)
-                        #else:
-                        #    ienVal/=corrFunc.Eval(1000)
+                if ienVal<0.1 : continue
+                if not (corrFunc is None) :
+                    ienVal /= corrFunc.Eval(ienVal)
                 xval+=ienVal
 
             yval=0
             for var,corrFunc in yaxis:
                 ienVal=entryVars.find('en_%s'%var).getVal()
-                if not (corrFunc is None) and ienVal>0 : 
-                    ienVal /= corrFunc.Eval(ROOT.TMath.Max(ienVal,10))
-                    #if var != 'HEB': 
-                    #    ienVal /= corrFunc.Eval(ienVal)
-                    #else:
-                    #    ienVal /= corrFunc.Eval(ROOT.TMath.Max(ienVal,10))
-                        #if ienVal/(ienVal+totalEnHEF)>0.95 :
-                        #    ienVal /= corrFunc.Eval(ienVal)
-                        #else:
-                        #    ienVal /= corrFunc.Eval(100)
+                if ienVal<0.1 : continue
+                if not (corrFunc is None):
+                    ienVal /= corrFunc.Eval(ienVal)
                 yval+=ienVal
-            if xval+yval<1 : continue   
-            #if (xval+yval)/genEn_mean>2:
-            #    print genEn_mean,
-           #     print entryVars.find('en_EE').getVal(),1, #xaxis[0][1].Eval(entryVars.find('en_EE').getVal()),
-           #     print entryVars.find('en_HEF').getVal(),yaxis[0][1].Eval(entryVars.find('en_HEF').getVal()),
-            #    print entryVars.find('en_HEB').getVal(),yaxis[1][1].Eval(entryVars.find('en_HEB').getVal()),
-            #    print xval+yval
-                
-            #if (xval+yval)/genEn_mean<0.05 : continue
-            all2DScatters[genEnKey].Fill(xval/genEn_mean,yval/genEn_mean)
-            incResolutionProfile[genEnKey].Fill((xval+yval)/genEn_mean)
-            if xval/genEn_mean>0.2 and yval/genEn_mean>0.2 :
-                incResolutionProfile[genEnKey+'_diag'].Fill((xval+yval)/genEn_mean)
-            all2DScatters[yaxisName].Fill(yval,(xval+yval)/genEn_mean)
-            all2DScatters[xaxisName].Fill(xval,(xval+yval)/genEn_mean)
-            if xval<1 : #/genEn_mean<0.02 : 
-            #if xval/(xval+yval)<0.05 : 
-                yvaluesProfAt0.append(yval)
-                yrespValuesProfAt0.append(yval/genEn_mean)
-            if yval<1 : #/genEn_mean<0.02 : 
-            #if yval/(xval+yval)<0.05 : 
-                xvaluesProfAt0.append(xval)
-                xrespValuesProfAt0.append(xval/genEn_mean)
-        
-        if len(xvaluesProfAt0)>5:
-            #response by mode
-            meanX, meanXerr = fitGaussianToPeak(data=xvaluesProfAt0,     hrange=(0,800), nbins=50)
-            meanY, meanYerr = fitGaussianToPeak(data=xrespValuesProfAt0, hrange=(0,2),   nbins=50)
-            #response by median
-            if meanX<0:
-                meanX, meanXerr = numpy.mean(xvaluesProfAt0),     numpy.std(xvaluesProfAt0)/numpy.sqrt(len(xvaluesProfAt0))
-                meanY, meanYerr = numpy.mean(xrespValuesProfAt0), numpy.std(xrespValuesProfAt0)/numpy.sqrt(len(xrespValuesProfAt0))
-            np=responseProfiles[xaxisName].GetN()
-            responseProfiles[xaxisName].SetPoint(np,meanX,meanY)
-            responseProfiles[xaxisName].SetPointError(np,meanXerr,meanYerr)
-            
-        if len(yvaluesProfAt0)>5:
-            #response by mode
-            meanX, meanXerr = fitGaussianToPeak(data=yvaluesProfAt0,     hrange=(0,800), nbins=50)
-            meanY, meanYerr = fitGaussianToPeak(data=yrespValuesProfAt0, hrange=(0,2),   nbins=50)
-            #response by median
-            #if yaxisName!='HEB':
-            if meanX<0 or meanXerr/meanX>0.2:
-                meanX, meanXerr = numpy.mean(yvaluesProfAt0),     numpy.std(yvaluesProfAt0)/numpy.sqrt(len(yvaluesProfAt0))
-                meanY, meanYerr = numpy.mean(yrespValuesProfAt0), numpy.std(yrespValuesProfAt0)/numpy.sqrt(len(yrespValuesProfAt0))
-            np=responseProfiles[yaxisName].GetN()
-            responseProfiles[yaxisName].SetPoint(np,meanX,meanY)
-            responseProfiles[yaxisName].SetPointError(np,meanXerr,meanYerr)
+            if xval+yval<0.1 : continue   
 
-    #response profiles
-    responseProfiles[xaxisName+'gen']=ROOT.TGraphErrors()
-    responseProfiles[yaxisName+'gen']=ROOT.TGraphErrors()
-    for key in responseProfiles:
-        responseProfiles[key].SetName('%s_prof'%key)
-        responseProfiles[key].SetMarkerStyle(20)
 
-    #project and show
-    canvas = ROOT.TCanvas('c','c',1000,500)
-    allLegs=[]
-    allProjs=[]
-    probSum = array.array('d',[0.5])
-    quantiles = array.array('d',[0.0]*len(probSum))
-    responseFunc=ROOT.TF1('responseFunc','TMath::Min(TMath::Max([0]*(x-[1])/(x+[2])+[3],0.001),10.0)',0,1000)
-    for key in all2DScatters:
+            xresp, yresp, combresp =xval/genEn_mean, yval/genEn_mean, (xval+yval)/genEn_mean
+
+            all2DScatters[genEnKey].Fill(xresp,yresp)
+            all2DScatters[yaxisName].Fill(yval,combresp)
+            all2DScatters[xaxisName].Fill(xval,combresp)
+
+            incResolutionScatter[genEnKey].Fill(combresp)
+            xyvalues.append(xval+yval)
+            xyrespvalues.append(combresp)
+
+            if xresp/combresp>0.2 or yresp/combresp>0.2 :  
+                incResolutionScatter[genEnKey+'_diag'].Fill(combresp)
+                xydiagvalues.append(xval+yval)
+                xydiagrespvalues.append(combresp)
+
+            if xval<1 and yval>0.1:
+                yvaluesAtX0.append(yval)
+                yrespvaluesAtX0.append(yresp)
+
+            if yval<1 and xval>0.1:
+                xvaluesAtY0.append(xval)
+                xrespvaluesAtY0.append(xresp)
         
-        #initiate new canvas
+        #pi/e 
+        xPiOverE    = computePiOverE(x=xvaluesAtY0,  xresp=xrespvaluesAtY0,  gr=responseProfiles[xaxisName])
+        if len(xPiOverE)==4:
+            np=responseProfiles[xaxisName+'_gen'].GetN()
+            responseProfiles[xaxisName+'_gen'].SetPoint(np,genEn_mean,xPiOverE[2])
+            responseProfiles[xaxisName+'_gen'].SetPointError(np,0,xPiOverE[3])
+        yPiOverE    = computePiOverE(x=yvaluesAtX0,  xresp=yrespvaluesAtX0,  gr=responseProfiles[yaxisName])
+        if len(yPiOverE)==4:
+            np=responseProfiles[yaxisName+'_gen'].GetN()
+            responseProfiles[yaxisName+'_gen'].SetPoint(np,genEn_mean,yPiOverE[2])
+            responseProfiles[yaxisName+'_gen'].SetPointError(np,0,yPiOverE[3])
+        combPiOverE = computePiOverE(x=xyvalues,     xresp=xyrespvalues,     gr=responseProfiles[xaxisName+yaxisName+'_comb'])
+        if len(combPiOverE)==4:
+            np=responseProfiles[xaxisName+yaxisName+'_combgen'].GetN()
+            responseProfiles[xaxisName+yaxisName+'_combgen'].SetPoint(np,genEn_mean,combPiOverE[2])
+            responseProfiles[xaxisName+yaxisName+'_combgen'].SetPointError(np,0,combPiOverE[3])
+        combdiagPiOverE = computePiOverE(x=xydiagvalues, xresp=xydiagrespvalues, gr=responseProfiles[xaxisName+yaxisName+'_combdiag'])
+       
+        #
+        # SHOW ENERGY SLICE
+        #
         canvas.Clear()
         canvas.Divide(2,1)            
 
@@ -191,120 +218,176 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,ws,outDir):
         p=canvas.cd(1)
         p.SetLogz()
         p.SetRightMargin(0.1)
-        all2DScatters[key].Draw('colz')
-        all2DScatters[key].GetZaxis().SetTitleOffset(-0.5)            
+        all2DScatters[genEnKey].Draw('colz')
+        all2DScatters[genEnKey].GetZaxis().SetTitleOffset(-0.5)            
         line=ROOT.TLine(0,1,1,0)
         line.SetLineStyle(7)
         line.Draw('same')
 
-        #profile
-        title=key
+        #projections
         p=canvas.cd(2)
         nLegs=len(allLegs)
         allLegs.append( ROOT.TLegend(0.2,0.7,0.9,0.94) )
         allLegs[nLegs].SetFillStyle(0)
         allLegs[nLegs].SetBorderSize(0)
         allLegs[nLegs].SetTextFont(42)
-        allLegs[nLegs].SetTextSize(0.035)
-        if key in [xaxisName,yaxisName]:
-            responseProfiles[key].Draw('ap')
-            responseProfiles[key].GetYaxis().SetRangeUser(0.5,1.2)
-            responseProfiles[key].GetYaxis().SetTitle('E(%s)/E(gen)'%key)
-            responseProfiles[key].GetYaxis().SetTitle('E(%s) [GeV]'%key)
-            responseFunc.SetParameter(0,0.9)
-            responseFunc.SetParameter(1,0)
-            responseFunc.SetParLimits(1,0,100)
-            responseFunc.SetParameter(2,0)
-            responseFunc.SetParLimits(2,0,100)
-            responseFunc.SetParameter(3,0.1)
-            if key=='HEB':
-                responseProfiles[key].Fit(responseFunc,'MRQ+','',0,150)
-                responseProfiles[key].GetFunction(responseFunc.GetName()).SetRange(0,1000)
+        allLegs[nLegs].SetTextSize(0.035)        
+        drawOpt='hist'
+        for profKey in [genEnKey,genEnKey+'_diag']:
+            totalFound=incResolutionScatter[profKey].Integral()
+            if totalFound<0: continue
+            profTitle, color, fill = 'inc', ROOT.kGray, 1001
+            if 'diag' in profKey : profTitle, color, fill = 'inc, >0.2E_{rec}', 38, 3344
+            incResolutionScatter[profKey].Rebin()
+            incResolutionScatter[profKey].SetLineColor(color)
+            incResolutionScatter[profKey].SetFillStyle(fill)
+            incResolutionScatter[profKey].SetFillColor(color)
+            incResolutionScatter[profKey].SetMarkerColor(color)
+            incResolutionScatter[profKey].SetLineWidth(1)
+            incResolutionScatter[profKey].Scale(1./totalFound)
+            fixExtremities(incResolutionScatter[profKey])            
+            incResolutionScatter[profKey].GetXaxis().SetTitle('E(rec)/E(gen)')
+            incResolutionScatter[profKey].GetYaxis().SetRangeUser(0,0.3)
+            title='<#pi/e>(%s) = '%profTitle
+            if 'diag' in profKey :
+                if len(combdiagPiOverE)==4 : title += '%3.2f'%combdiagPiOverE[2]
+                else                       : title += 'n/a'
             else:
-                responseProfiles[key].Fit(responseFunc,'MRQ+','')
-        else:
-            title='Energy=%s GeV'%key
+                if len(combPiOverE)==4     : title += '%3.2f'%combPiOverE[2]
+                else                       : title += 'n/a'
+            incResolutionScatter[profKey].SetTitle(title)
+            incResolutionScatter[profKey].Draw(drawOpt)
+            allLegs[nLegs].AddEntry( incResolutionScatter[profKey],title,'fp')
+            drawOpt='histsame'
 
-            #add the inclusive resolution profile
-            drawOpt='hist'
-            iprofCtr=0
-            for profKey in [key,key+'_diag']:
-                profTitle, color, fill = 'inc', ROOT.kGray, 1001
-                if iprofCtr==1: 
-                    profTitle, color, fill = 'inc:>0.2', 38, 3344
-                incResolutionProfile[profKey].Rebin()
-                incResolutionProfile[profKey].SetLineColor(color)
-                incResolutionProfile[profKey].SetFillStyle(fill)
-                incResolutionProfile[profKey].SetFillColor(color)
-                incResolutionProfile[profKey].SetMarkerColor(color)
-                incResolutionProfile[profKey].SetLineWidth(1)
-                incResolutionProfile[profKey].Scale(1./incResolutionProfile[profKey].Integral())
-                fixExtremities(incResolutionProfile[profKey])
-                incResolutionProfile[profKey].Draw(drawOpt)
-                incResolutionProfile[profKey].GetXaxis().SetTitle('E(rec)/E(gen)')
-                incResolutionProfile[profKey].GetYaxis().SetRangeUser(0,0.3)
-                incResolutionProfile[profKey].GetQuantiles(len(probSum), quantiles, probSum)
-                theMean    = quantiles[0]
-                theMeanErr = 1.253*incResolutionProfile[profKey].GetMeanError()
-                incResolutionProfile[profKey].SetTitle('<#pi/e>(%s) = %3.2f#pm%3.2f'%(profTitle,theMean,theMeanErr))
-                allLegs[nLegs].AddEntry( incResolutionProfile[profKey],incResolutionProfile[profKey].GetTitle(),'fp')
-                drawOpt='histsame'
-                iprofCtr+=1
+        for iaxis in xrange(0,2):
+            nProjs=len(allProjs)
+            title=''
+            if iaxis==1:
+                if len(xaxisName)==0 : continue
+                allProjs.append( all2DScatters[genEnKey].ProjectionX('projx_%d'%nProjs,1,1) )
+                allProjs[nProjs].SetTitle( xaxisName )
+                title='<#pi/e>(%s) = '%xaxisName
+                if len(xPiOverE)==4 : title += '%3.2f'%xPiOverE[2]
+                else                : title += 'n/a'
+            else:
+                if len(yaxisName)==0 : continue
+                allProjs.append( all2DScatters[genEnKey].ProjectionY('projy_%d'%nProjs,1,1) )
+                allProjs[nProjs].SetTitle( yaxisName )
+                title='<#pi/e>(%s) = '%yaxisName
+                if len(yPiOverE)==4 : title += '%3.2f'%yPiOverE[2]
+                else                : title += 'n/a'
 
-            for iaxis in xrange(0,2):
-                nProjs=len(allProjs)
-                if iaxis==1:
-                    allProjs.append( all2DScatters[key].ProjectionX('projx_%d'%nProjs,1,1) )
-                    allProjs[nProjs].SetTitle( xaxisName )
-                else:
-                    allProjs.append( all2DScatters[key].ProjectionY('projy_%d'%nProjs,1,1) )
-                    allProjs[nProjs].SetTitle( yaxisName )
-                
-                totalEvts=allProjs[nProjs].Integral()
-                if totalEvts<1: continue
-                allProjs[nProjs].Scale(1./totalEvts)
-                allProjs[nProjs].Rebin()
-                allProjs[nProjs].SetLineColor(1+iaxis)
-                allProjs[nProjs].SetMarkerColor(1+iaxis)
-                allProjs[nProjs].SetMarkerStyle(20+4*iaxis)
-                allProjs[nProjs].Draw(drawOpt)
+            totalEvts=allProjs[nProjs].Integral()
+            if totalEvts<1: continue
+            allProjs[nProjs].Scale(1./totalEvts)
+            fixExtremities(allProjs[nProjs])
+            allProjs[nProjs].Rebin()
+            allProjs[nProjs].SetLineColor(1+iaxis)
+            allProjs[nProjs].SetMarkerColor(1+iaxis)
+            allProjs[nProjs].SetMarkerStyle(20+4*iaxis)
+            allProjs[nProjs].SetTitle(title)
+            allProjs[nProjs].SetDirectory(0)
+            allProjs[nProjs].Draw(drawOpt)
+            allLegs[nLegs].AddEntry( allProjs[nProjs],title,'p')
+            drawOpt='histsame'
 
-                #use quantiles
-                allProjs[nProjs].GetQuantiles(len(probSum), quantiles, probSum)
-                theMean    = quantiles[0]
-                theMeanErr = 1.253*allProjs[nProjs].GetMeanError()
-
-                #fill the corresponding response profile
-                profKey=xaxisName+'gen'
-                if iaxis==1: profKey=yaxisName+'gen'
-                np=responseProfiles[profKey].GetN()                
-                responseProfiles[profKey].SetPoint(np,float(key),theMeanErr)
-                responseProfiles[profKey].SetPointError(np,0,theMeanErr)
-                allProjs[nProjs].SetTitle('<#pi/e>(%s) = %3.2f#pm%3.2f'%(allProjs[nProjs].GetTitle(),theMean,theMeanErr))
-                allLegs[nLegs].AddEntry( allProjs[nProjs],allProjs[nProjs].GetTitle(),'p')
-
-            #all done
-            allLegs[nLegs].Draw()
-            
+        #all done
+        allLegs[nLegs].Draw()    
+        line1d=ROOT.TLine(1,0,1,0.3)
+        line1d.SetLineStyle(7)
+        line1d.Draw('same')
+    
         p=canvas.cd(1)
-        MyPaveText('#bf{CMS} #it{simulation}   %s'%title)
+        MyPaveText('#bf{CMS} #it{simulation}  Energy=%s GeV'%genEnKey)
         canvas.Modified()
         canvas.Update()
-        canvas.SaveAs('%s/profile_%s%s.png'%(outDir,key,postfix))
+        canvas.SaveAs('%s/profile_%s%s.png'%(outDir,genEnKey,postfix))
 
-    toReturn=[responseProfiles[xaxisName].GetFunction('responseFunc').Clone('%s_responseFunc'%xaxisName),
-              responseProfiles[yaxisName].GetFunction('responseFunc').Clone('%s_responseFunc'%yaxisName)]
 
+    #final pi/e for x/y-axis separate
+    canvas.Clear()
+    canvas.SetWindowSize(500,500)
+    canvas.SetCanvasSize(500,500)
+    drawOpt='ap'
+    nLegs=len(allLegs)
+    allLegs.append( ROOT.TLegend(0.2,0.85,0.9,0.94) )
+    allLegs[nLegs].SetFillStyle(0)
+    allLegs[nLegs].SetBorderSize(0)
+    allLegs[nLegs].SetTextFont(42)
+    allLegs[nLegs].SetTextSize(0.035)   
+    canvas.SetLogx()
+    responseCtr=0
+    for key in [xaxisName,yaxisName]:
+        if responseProfiles[key].GetN()==0: continue
+        responseProfiles[key].Draw(drawOpt)
+        drawOpt='p'
+        responseProfiles[key].GetYaxis().SetRangeUser(0.6,1.2)
+        responseProfiles[key].GetYaxis().SetTitle('#pi/e mean or mode')
+        responseProfiles[key].GetXaxis().SetTitle('E(rec) mean or mode [GeV]')
+        allLegs[nLegs].AddEntry(responseProfiles[key],responseProfiles[key].GetTitle(),'p')
+        #responseFunc.SetParameter(0,0.95)
+        #responseFunc.SetParameter(1,0)
+        #responseFunc.SetParLimits(1,0,100)
+        #responseFunc.SetParameter(2,0)
+        #responseFunc.SetParLimits(2,0,100)
+        #responseFunc.SetParameter(3,0.001)
+        #responseFunc.SetParLimits(3,-1,1)
+        #responseFunc.SetParameter(4,1)
+        if key=='HEB':
+            responseFunc.SetParameter(0,1.0)
+            responseFunc.SetParLimits(0,0,2)
+            responseFunc.SetParameter(1,0.6)
+            responseFunc.SetParLimits(1,0,10)
+            responseFunc.SetParameter(2,0.12)
+            responseFunc.SetParLimits(2,0,10)
+            responseFunc.SetParameter(3,0.0002)
+            responseFunc.SetParLimits(3,0,0.01)
+            responseFunc.SetParameter(4,0)
+            responseFunc.SetParLimits(4,0,2)
+            responseProfiles[key].Fit(responseFunc,'MRQ+','',0,500)
+            responseProfiles[key].GetFunction(responseFunc.GetName()).SetRange(0,1000)
+        else:
+            responseFunc.SetParameter(0,1.0)
+            responseFunc.SetParLimits(0,0,2)
+            responseFunc.SetParameter(1,0.6)
+            responseFunc.SetParLimits(1,0,10)
+            responseFunc.SetParameter(2,0.12)
+            responseFunc.SetParLimits(2,0,10)
+            responseFunc.SetParameter(3,0.0002)
+            responseFunc.SetParLimits(3,0,0.01)
+            responseFunc.SetParameter(4,0)
+            responseFunc.SetParLimits(4,0,2)
+            responseProfiles[key].Fit(responseFunc,'MR+','')
+        responseProfiles[key].GetFunction(responseFunc.GetName()).SetLineStyle(responseCtr+1)
+        responseCtr+=1
+
+    allLegs[nLegs].SetNColumns(2)
+    allLegs[nLegs].Draw()
+    MyPaveText('#bf{CMS} #it{simulation}')
+    canvas.Modified()
+    canvas.Update()
+    canvas.SaveAs('%s/piovereprofiles%s.png'%(outDir,postfix))
+          
     #save response parameterisations
     fOut=ROOT.TFile.Open('%s/%s%s_response%s.root'%(outDir,xaxisName,yaxisName,postfix),'RECREATE')
-    responseProfiles[xaxisName].Write()
-    toReturn[0].Clone('%s_responseFunc'%xaxisName).Write()
-    responseProfiles[yaxisName].Write()
-    toReturn[1].Clone('%s_responseFunc'%yaxisName).Write()
+    toReturn=[]
+    try:
+        toReturn.append( responseProfiles[xaxisName].GetFunction('responseFunc').Clone('%s_responseFunc'%xaxisName) )
+        responseProfiles[xaxisName].Write()
+        toReturn[0].Clone('%s_responseFunc'%xaxisName).Write()
+    except:
+        pass
+    try:
+        toReturn.append( responseProfiles[yaxisName].GetFunction('responseFunc').Clone('%s_responseFunc'%yaxisName) )
+        responseProfiles[yaxisName].Write()
+        toReturn[1].Clone('%s_responseFunc'%yaxisName).Write()
+    except:
+        pass
     print 'pi/e written for %s, %s in %s'%(xaxisName,yaxisName,fOut.GetName())
     fOut.Close()
 
-    #
+    #all done here
     return toReturn
 
 
@@ -595,7 +678,9 @@ def adaptWorkspaceForPionCalibration(opt,outDir):
                 subDet,url=iurl.split(':')
                 print 'Replacing default energy scale in %s with calibration from %s'%(subDet,url)
                 calibF=ROOT.TFile.Open(url)
-                emCalibMap[subDet]=(calibF.Get('simple_calib'),calibF.Get('calib_3_simple_res'))
+                #emCalibMap[subDet]=(calibF.Get('simple_calib'),calibF.Get('calib_3_simple_res'))
+                #don't apply residuals! dangerous for low energy!!! 
+                emCalibMap[subDet]=(calibF.Get('simple_calib'),None)
                 calibF.Close()
 
         #readout material overburden file
@@ -648,34 +733,45 @@ def runCalibrationStudy(opt):
     
     #init phase space regions of interest
     etaRanges = [[1.55,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.7],[2.7,2.9]]
-    enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[124,126],[174,176],[249,251],[399,401]]
+    enRanges  = [[1.8,2.2],[2.8,3.2],[4.5,5.5],[7.5,8.5],[9,11],[19,21],[39,41],[49,51],[74,76],[99,101],[124,126],[174,176],[249,251],[399,401],[499,501]]
 
     pioverE_EE, pioverE_HEF, pioverE_HEB = None, None,None
-    comb_EE_H,  comb_HEF_HEB = None,None
 
-    #determine how to combine HEF and HEB
+    #get pi/e for HEB
     try:
-        hefhebFin=ROOT.TFile.Open(opt.hefhebRespUrl)
-        pioverE_HEB  = hefhebFin.Get('HEB_responseFunc')
-        pioverE_HEF  = hefhebFin.Get('HEF_responseFunc')
-        #comb_HEF_HEB = hefhebFin.Get('HEF_HEB_responseFunc')
-        print 'Readout pi/e responses for HEF and HEB from %s'%hefhebFin.GetName()
-        if opt.noEE :
-            computeSubdetectorResponse(enRanges=enRanges,           etaRanges=etaRanges,
-                                       xaxis=[('HEF',pioverE_HEF)], yaxis=[('HEB',pioverE_HEB)],
-                                       ws=ws,                       outDir=outDir)
-        hefhebFin.Close()
+        hebFin=ROOT.TFile.Open(opt.hebRespUrl)
+        pioverE_HEB  = hebFin.Get('HEB_responseFunc')
+        print 'Readout pi/e response for HEB from %s'%hebFin.GetName()
+        if opt.noEE and opt.noHEF:
+            computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,xaxis=[('HEB',pioverE_HEB)],yaxis=[],ws=ws,outDir=outDir)
+        hebFin.Close()
     except:
-        if opt.noEE:
-            print 'Will compute pi/e response for HEF and HEB sub-detectors'
-            pioverE_HEB, pioverE_HEF = computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,
-                                                                  xaxis=[('HEF',None)],yaxis=[('HEB',None)],
-                                                                  ws=ws,outDir=outDir)
+        if opt.noEE and opt.noHEF:
+            print 'Will compute pi/e response for HEB sub-detector'
+            pioverE_HEB = computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,xaxis=[('HEB',pioverE_HEB)],yaxis=[],ws=ws,outDir=outDir)[0]
 
-    #determine EE response
+    #get pi/e for HEF
+    if opt.noHEF==False:
+        try:
+            hefhebFin=ROOT.TFile.Open(opt.hefRespUrl)       
+            pioverE_HEF  = hefhebFin.Get('HEF_responseFunc')
+            print 'Readout pi/e responses for HEF from %s'%hefhebFin.GetName()
+            if opt.noEE :
+                computeSubdetectorResponse(enRanges=enRanges,           etaRanges=etaRanges,
+                                           xaxis=[('HEF',pioverE_HEF)], yaxis=[('HEB',pioverE_HEB)],
+                                           ws=ws,                       outDir=outDir)
+            hefhebFin.Close()
+        except:
+            if opt.noEE :
+                print 'Will compute pi/e response for HEF  sub-detector'
+                pioverE_HEF,_ = computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,
+                                                           xaxis=[('HEF',None)],yaxis=[('HEB',None)],
+                                                           ws=ws,outDir=outDir)
+
+    #get pi/e for EE
     if opt.noEE==False:
         try:
-            ehFin=ROOT.TFile.Open(opt.ehRespUrl)
+            ehFin=ROOT.TFile.Open(opt.eeRespUrl)
             pioverE_EE = ehFin.Get('EE_responseFunc')
             print 'Readout pi/e response for EE from %s'%ehFin.GetName()
             computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,
@@ -684,12 +780,10 @@ def runCalibrationStudy(opt):
             ehFin.Close()
         except:
             print 'Will compute pi/e for EE'
-            pioverE_EE, pioverE_HEFHEB =computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,
-                                                                   xaxis=[('EE',None)],yaxis=[('HEF',pioverE_HEF),('HEB',pioverE_HEB)],
-                                                                   ws=ws,outDir=outDir)
+            pioverE_EE,_ =computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,
+                                                     xaxis=[('EE',None)],yaxis=[('HEF',pioverE_HEF),('HEB',pioverE_HEB)],
+                                                     ws=ws,outDir=outDir)
 
-    #print 'Will use the following combination of sub-detectors %3.4f x EE + %3.4f x HEF + %3.4f x HEB'%(ws.var('k_EE').getVal(),ws.var('k_HEF').getVal(),ws.var('k_HEB').getVal())
- 
     #read sw compensation weights
     #    swCompParams=[]
     #    if opt.compWeights is None:
@@ -701,6 +795,12 @@ def runCalibrationStudy(opt):
     #        swCompParams.append( swF.Get('rho_swweights_%d'%ip).GetFunction('rho_evfunc_%d'%ip) )
     #        #swCompParams.append( swF.Get('rho_swweights_%d'%ip) )
     #    swF.Close()
+
+
+    #nothing else to be done
+    if opt.noResCalib==True : 
+        print 'Bailing out, no residual calibration needs to be run'
+        return
     
     #read calibrations from file, if available
     weightTitles={'simple':'Simple sum ','gc':'Global compensation'} #,'lc':'Local compensation'}
@@ -735,36 +835,21 @@ def runCalibrationStudy(opt):
             ws.var(baseVar).setVal( entryVars.find(baseVar).getVal() )
             newEntry.add( ws.var(baseVar) )
 
-        #iEtaRange=-1
-        #for etaRange in etaRanges:
-        #    iEtaRange+=1
-        #    if ws.var('eta')<etaRange[0] or ws.var('eta')>etaRange[1]: continue 
-        #    break
-
         enEstimators={}
 
         #simple sum
         e_EE    = entryVars.find('en_EE').getVal()
+        if opt.noEE : e_EE=0
         e_HEF   = entryVars.find('en_HEF').getVal()
+        if opt.noHEF : e_HEF=0
         e_HEB   = entryVars.find('en_HEB').getVal()
 
-        if not (pioverE_HEF is None) and not opt.noComp: 
-            #e_HEF /= pioverE_HEF.Eval(e_HEF)
-            e_HEF /= pioverE_HEF.Eval(ROOT.TMath.Max(e_HEF,10))
-
-        if not (pioverE_EE is None) and not opt.noComp : 
-            e_EE /= pioverE_EE.Eval(ROOT.TMath.Max(e_EE,10))
-            #if e_EE>1 and e_EE/(e_EE+e_HEF)>0.95:
-            #    e_EE /= pioverE_EE.Eval(e_EE)
-            #else:
-            #    e_EE /= pioverE_EE.Eval(1000)
-
-        if not (pioverE_HEB is None) and not opt.noComp: 
-            e_HEB /= pioverE_HEB.Eval(ROOT.TMath.Max(e_HEB,10)) 
-            #if e_HEB>1 and e_HEB/(e_HEB+e_HEF)>0.95:
-            #    e_HEB /= pioverE_HEB.Eval(e_HEB)
-            #else:
-            #    e_HEB /= pioverE_HEB.Eval(1000)
+        if not (pioverE_HEB is None) and not opt.noComp and e_HEB>0.1: 
+            e_HEB /= pioverE_HEB.Eval(e_HEB) 
+        if not (pioverE_HEF is None) and not opt.noComp and e_HEF>0.1: 
+            e_HEF /= pioverE_HEF.Eval(e_HEF)
+        if not (pioverE_EE is None) and not opt.noComp and e_EE>0.1: 
+            e_EE /= pioverE_EE.Eval(e_EE)
 
         e_tot   = e_EE + e_HEF + e_HEB
         enEstimators['simple']=e_tot
@@ -772,7 +857,7 @@ def runCalibrationStudy(opt):
         #global compensation weights
         c_EE    = entryVars.find('c_EE').getVal()
         c_HEF   = entryVars.find('c_HEF').getVal()
-        #c_HEB   = entryVars.find('c_HEB').getVal()
+        c_HEB   = entryVars.find('c_HEB').getVal()
         e_c_tot = e_EE + c_HEF*e_HEF + e_HEB
         enEstimators['gc']=e_c_tot
 
@@ -903,10 +988,11 @@ def runCalibrationStudy(opt):
             resGr[wType].Add(etaSliceResGr[wType],'p')
 
     #derive calibration
-    calibModel=ROOT.TF1('calibmodel',"[0]*x",0,800)
+    calibModel=ROOT.TF1('calibmodel',"[0]*x",0,1000)
     calibModel.SetLineWidth(1)
     for wType in weightTitles :
-        calibGr[wType].Fit(calibModel,'MER+')
+        calibGr[wType].Fit(calibModel,'MER+','',5,1000)
+        calibGr[wType].GetFunction(calibModel.GetName()).SetRange(0,1000)
         calibGr[wType].GetFunction(calibModel.GetName()).SetLineColor(calibGr[wType].GetListOfGraphs().At(0).GetLineColor())
 
     #show results
@@ -945,9 +1031,12 @@ def main():
     parser.add_option('--compWeights' ,        dest='compWeights',   help='file with software compensation weights',                        default=None)
     parser.add_option('--vetoTrackInt',        dest='vetoTrackInt',  help='flag if tracker interactions should be removed',                 default=False, action="store_true")
     parser.add_option('--vetoHEBLeaks',        dest='vetoHEBLeaks',  help='flag if HEB leaks are allowed',                                  default=False, action='store_true')
+    parser.add_option('--noResCalib',          dest='noResCalib',    help='Don\'t run calibration fits in E/eta slices',                    default=False, action='store_true')
     parser.add_option('--noEE',                dest='noEE',          help='Assign weight 0 to EE',                                          default=False, action='store_true')
-    parser.add_option('--hefhebResp',          dest='hefhebRespUrl', help='Location of the parameterization for HEB and HEF pi/e',          default=None)
-    parser.add_option('--ehResp',              dest='ehRespUrl',     help='Location of the parameterization for EE+HE(F+B) pi/e',    default=None)
+    parser.add_option('--noHEF',               dest='noHEF',         help='Assign weight 0 to HEF',                                         default=False, action='store_true')
+    parser.add_option('--hebResp',             dest='hebRespUrl',    help='Location of the parameterization for HEB pi/e',                  default=None)
+    parser.add_option('--hefResp',             dest='hefRespUrl',    help='Location of the parameterization for HEF and HEF pi/e',         default=None)
+    parser.add_option('--eeResp',              dest='eeRespUrl',     help='Location of the parameterization for EE pi/e',                   default=None)
     parser.add_option('-v',      '--var' ,     dest='treeVarName',   help='Variable to use as energy estimator',                            default='edep_rec')
     (opt, args) = parser.parse_args()
 

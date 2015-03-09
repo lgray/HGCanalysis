@@ -66,8 +66,8 @@ if [ "${step}" == "ntuple" ]; then
     echo "ntuplizing for analysis"
     echo "********************************************"    
     pids=(211 22)
-    prods=(RECO-PU0)
-    fileSplit=20
+    #prods=(RECO-PU0)
+    fileSplit=50
     for pid in ${pids[@]}; do
 	for prod in ${prods[@]}; do
 	    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/${prod} | awk '{print $5}'`);
@@ -85,8 +85,8 @@ if [ "${step}" == "ntuple" ]; then
 		nrunning="`ps -u $WHOAMI | grep -ir cmsRun | wc -l`"
 	    done
 	    echo "******* All jobs finished, calling hadd"
-	    hadd Single${pid}_${CMSSW_VERSION}_${prod}_SimHits.root /tmp/$WHOAMI/Single${pid}_${CMSSW_VERSION}_${prod}_SimHits_*.root;
-	    rm /tmp/$WHOAMI/Single${pid}_${CMSSW_VERSION}_SimHits_*.root;
+	    hadd /tmp/$WHOAMI/Single${pid}_${CMSSW_VERSION}_${prod}_SimHits.root /tmp/$WHOAMI/Single${pid}_${CMSSW_VERSION}_${prod}_SimHits_*.root > /tmp/$WHOAMI/Single${pid}_${CMSSW_VERSION}_${prod}_SimHits.log; 
+	    #rm /tmp/$WHOAMI/Single${pid}_${CMSSW_VERSION}_SimHits_*.root;
 	    echo "******* Single${pid}_${CMSSW_VERSION}_${prod}_SimHits.root is ready for analysis ******"
 	done
     done
@@ -136,16 +136,16 @@ fi
 #Pion calibration
 if [ "${step}" == "picalib" ]; then
 
-    #prods=(RECO-PU0-EE_AIR RECO-PU0)
-    #prods=(RECO-PU0-EE_AIR)
-    prods=(RECO-PU0)  
+    prods=(RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR RECO-PU0)
+    #prods=(RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR)
+    #prods=(RECO-PU0)  
     #prods=(RECO-PU0-EE_AIR RECO-PU0)
     echo "********************************************"
     echo "pion calibration"
     echo "********************************************"
     #vars=("edep_sim")
-    vars=("edep_rec")
-    #vars=("edep_rec" "edep_sim")
+    #vars=("edep_rec")
+    vars=("edep_rec" "edep_sim")
     for prod in ${prods[@]}; do
 	
 	sample=Single211_${CMSSW_VERSION}_${prod}_SimHits
@@ -154,8 +154,6 @@ if [ "${step}" == "picalib" ]; then
 	    continue
 	fi
 
-	baseOpts="--vetoTrackInt"
-	
 	echo "Launching calibration for ${sample}"
 	for var in ${vars[@]}; do
 
@@ -166,18 +164,28 @@ if [ "${step}" == "picalib" ]; then
 	    echo "[${var}]"
 	    outDir=${sample}/${var};	
 
-	    baseOpts="${baseOpts} --hefhebResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}/HEFHEB_response.root" # --noComp"
-	    if [[ ${prod} =~ .*EE_AIR.* ]]; then
-		baseOpts="${baseOpts} --noEE";
-		rm Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}/HEFHEB_response.root;
+	    if [[ ${prod} =~ .*EE_HEF_AIR.* ]]; then
+		baseOpts="--vetoTrackInt --noEE --noHEF";
+	    elif [[ ${prod} =~ .*EE_AIR.* ]]; then
+		baseOpts="--vetoTrackInt --noEE --hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root";
+	    else
+		baseOpts="--vetoTrackInt        --hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root --hefResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}/HEFHEB_response.root" 
 	    fi
+	    
+
 	    baseOpts="${baseOpts}"
-	    #python test/analysis/runPionCalibration.py -i ${sample}.root --emCalib EE:${emEE},HEF:${emHEF},HEB:${emHEB} -v ${var} ${baseOpts}
-	    #mkdir -p ${outDir}
-	    #mv ${sample}/*.* ${outDir};
-	    python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
-	    baseOpts="${baseOpts} --ehResp ${outDir}/EEHEFHEB_response_corry.root"
-	    python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --calib ${outDir}/calib_uncalib.root;
+	    python test/analysis/runPionCalibration.py -i ${sample}.root --emCalib EE:${emEE},HEF:${emHEF},HEB:${emHEB} -v ${var} ${baseOpts}
+	    mkdir -p ${outDir}
+	    mv ${sample}/*.* ${outDir};
+	    #python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
+	    if [[ ! ${prod} =~ .*AIR.* ]]; then
+		baseOpts="${baseOpts} --eeResp ${outDir}/EEHEFHEB_response_corry.root"
+		python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts};  #--calib ${outDir}/calib_uncalib.root
+	    else
+		baseOpts="${baseOpts} --hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root --hefResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}/HEFHEB_response.root --noResCalib"
+		python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts};
+	    fi
+
 	done
     done
 fi

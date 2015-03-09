@@ -127,8 +127,7 @@ def runCalibrationStudy(opt):
 
     #init phase space regions of interest
     etaRanges = [[1.5,1.6],[1.6,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.75],[2.75,2.95]]
-    enRanges  = [[9,11],[19,21],[39,41],[49,51],[74,75],[99,101],[149,151],[249,251],[499,501]] 
-
+    enRanges  = [[1.8,2.2],[2.8,3.2],[4.5,5.5],[7.5,8.5],[9,11],[19,21],[39,41],[49,51],[74,76],[99,101],[124,126],[174,176],[249,251],[399,401],[499,501]]
     #readout calibration
     weightTitles={'simple':'Simple sum'}
     calibPostFix='uncalib'
@@ -275,7 +274,7 @@ def runCalibrationStudy(opt):
                 showCalibrationFitResults( theVar=ws.var(vName),
                                            theData=redData,
                                            thePDF=ws.pdf('resol_%s'%fitName),
-                                           theLabel='#it{Energy=%d GeV, %3.1f<#eta<%3.1f}\\#mu=%3.2f#pm%3.2f\\#sigma=%3.2f#pm%3.2f'%(genEn_mean,genEta_min,genEta_max,meanFit,meanFit_error,sigmaFit,sigmaFit_error),
+                                           theLabel='#it{Energy=%3.0f GeV, %3.1f<#eta<%3.1f}\\#mu=%3.2f#pm%3.2f\\#sigma=%3.2f#pm%3.2f'%(genEn_mean,genEta_min,genEta_max,meanFit,meanFit_error,sigmaFit,sigmaFit_error),
                                            fitName=fitName,
                                            outDir=outDir)
 
@@ -294,9 +293,9 @@ def runCalibrationStudy(opt):
     calibModel.SetLineWidth(1)
     for wType in weightTitles:
         if opt.useSaturatedCalibModel:
-            calibGr[wType].Fit(calibModel,'MER+','',0,1000)
+            calibGr[wType].Fit(calibModel,'MER+','',5,1000)
         else:
-            calibGr[wType].Fit(calibModel,'MER+','',0,100)
+            calibGr[wType].Fit(calibModel,'MER+','',5,100)
         calibGr[wType].GetFunction(calibModel.GetName()).SetRange(0,1000)
         calibGr[wType].GetFunction(calibModel.GetName()).SetLineColor(calibGr[wType].GetListOfGraphs().At(0).GetLineColor())
 

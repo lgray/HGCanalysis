@@ -79,8 +79,12 @@ def prepareWorkspace(url,weightingScheme,treeVarName,vetoTrackInt,vetoHEBLeaks=F
                 for ilay in xrange(integRange[0],integRange[1]+1):
                     ien         = (weight*geomCorrection+etaDepWeight)*(getattr(HGC,treeVarName))[ilay-1]
                     if not (scaleCorrections is None):
-                        ien=scaleCorrections[0].GetX(ien)
-                        ien*=(1-scaleCorrections[1].Eval(ien)/100.)
+                        if not (scaleCorrections[0] is None):
+                            ien=scaleCorrections[0].GetX(ien)
+                            #think twice if you really want to pass residuals
+                            if not (scaleCorrections[1] is None):
+                                ien*=(1-scaleCorrections[1].Eval(ien)/100.)
+
                     totalEn    += ien
                     if ilay>integRange[1]-3: totalEnTail += ien
                     nhits      += (getattr(HGC,'nhits_%s'%(simStep)))[ilay-1]
