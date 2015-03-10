@@ -33,12 +33,12 @@ def showResults(gr,grecalhb,ymin,ymax,ytitle,tag):
 		grframe.GetXaxis().SetRangeUser(5,300)
 
 		np=len(allLegends)
-		allLegends.append(ROOT.TLegend(0.25,0.7,0.9,0.94))
+		allLegends.append(ROOT.TLegend(0.3,0.7,0.9,0.94))
 		allLegends[np].SetFillStyle(1001)
 		allLegends[np].SetFillColor(0)
 		allLegends[np].SetTextFont(42)
 		allLegends[np].SetBorderSize(0)
-		allLegends[np].SetTextSize(0.03)
+		allLegends[np].SetTextSize(0.028)
 
 		if grecalhb is None:
 			print 'Nothing to overlay'
@@ -135,10 +135,10 @@ overlayTestBeam=True
 #	]
 
 toPlot=[
-	['~/www/pion/HGC/rec-nocomp/calib__calib_uncalib.root',           'simple', 'no #pi/e corr.',  False],
-	['~/www/pion/HGC/rec-nocomp/calib__calib_uncalib.root',           'gc', 'no #pi/e corr.+GC',  False],
-	['~/www/pion/HGC/rec/calib__calib_uncalib.root',    'simple', 'with #pi/e corr.',               False],
-	['~/www/pion/HGC/rec/calib__calib_uncalib.root',    'gc', 'with #pi/e corr.+GC',               False]
+	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec-TrivialComb/calib__calib_uncalib.root',  'simple', 'no #pi/e corr.',        False],
+	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec-IndComb/calib__calib_uncalib.root',      'simple', 'ind. #pi/e corr.',      False],
+	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec/calib__calib_uncalib.root',              'simple', 'Si/Sil #pi/e corr.',    False],
+	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec/calib__calib_uncalib.root',              'gc',     'Si/Sil #pi/e corr.+GC', False]
 	]
 
 ROOT.gROOT.SetBatch(True)

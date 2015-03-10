@@ -326,38 +326,24 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,ws,outDir):
         responseProfiles[key].GetYaxis().SetTitle('#pi/e mean or mode')
         responseProfiles[key].GetXaxis().SetTitle('E(rec) mean or mode [GeV]')
         allLegs[nLegs].AddEntry(responseProfiles[key],responseProfiles[key].GetTitle(),'p')
-        #responseFunc.SetParameter(0,0.95)
-        #responseFunc.SetParameter(1,0)
-        #responseFunc.SetParLimits(1,0,100)
-        #responseFunc.SetParameter(2,0)
-        #responseFunc.SetParLimits(2,0,100)
-        #responseFunc.SetParameter(3,0.001)
-        #responseFunc.SetParLimits(3,-1,1)
-        #responseFunc.SetParameter(4,1)
+        responseFunc.SetParameter(0,1.0)
+        responseFunc.SetParLimits(0,0,2)
+        responseFunc.SetParameter(1,0.6)
+        responseFunc.SetParLimits(1,0,10)
+        responseFunc.SetParameter(2,0.12)
+        responseFunc.SetParLimits(2,0,10)
+        responseFunc.SetParameter(3,0.0002)
+        responseFunc.SetParLimits(3,0,0.01)
+        responseFunc.SetParameter(4,0)
+        responseFunc.SetParLimits(4,0,2)
         if key=='HEB':
-            responseFunc.SetParameter(0,1.0)
-            responseFunc.SetParLimits(0,0,2)
-            responseFunc.SetParameter(1,0.6)
-            responseFunc.SetParLimits(1,0,10)
-            responseFunc.SetParameter(2,0.12)
-            responseFunc.SetParLimits(2,0,10)
-            responseFunc.SetParameter(3,0.0002)
-            responseFunc.SetParLimits(3,0,0.01)
-            responseFunc.SetParameter(4,0)
-            responseFunc.SetParLimits(4,0,2)
             responseProfiles[key].Fit(responseFunc,'MRQ+','',0,500)
             responseProfiles[key].GetFunction(responseFunc.GetName()).SetRange(0,1000)
+        elif key=='EE':
+            responseFunc.FixParameter(3,0)
+            responseProfiles[key].Fit(responseFunc,'MRQ+','',0,100)
+            responseProfiles[key].GetFunction(responseFunc.GetName()).SetRange(0,1000)
         else:
-            responseFunc.SetParameter(0,1.0)
-            responseFunc.SetParLimits(0,0,2)
-            responseFunc.SetParameter(1,0.6)
-            responseFunc.SetParLimits(1,0,10)
-            responseFunc.SetParameter(2,0.12)
-            responseFunc.SetParLimits(2,0,10)
-            responseFunc.SetParameter(3,0.0002)
-            responseFunc.SetParLimits(3,0,0.01)
-            responseFunc.SetParameter(4,0)
-            responseFunc.SetParLimits(4,0,2)
             responseProfiles[key].Fit(responseFunc,'MR+','')
         responseProfiles[key].GetFunction(responseFunc.GetName()).SetLineStyle(responseCtr+1)
         responseCtr+=1
@@ -750,39 +736,58 @@ def runCalibrationStudy(opt):
             print 'Will compute pi/e response for HEB sub-detector'
             pioverE_HEB = computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,xaxis=[('HEB',pioverE_HEB)],yaxis=[],ws=ws,outDir=outDir)[0]
 
-    #get pi/e for HEF
-    if opt.noHEF==False:
+    #full Si combination
+    if opt.combineSi==True:
         try:
-            hefhebFin=ROOT.TFile.Open(opt.hefRespUrl)       
-            pioverE_HEF  = hefhebFin.Get('HEF_responseFunc')
-            print 'Readout pi/e responses for HEF from %s'%hefhebFin.GetName()
-            if opt.noEE :
-                computeSubdetectorResponse(enRanges=enRanges,           etaRanges=etaRanges,
-                                           xaxis=[('HEF',pioverE_HEF)], yaxis=[('HEB',pioverE_HEB)],
-                                           ws=ws,                       outDir=outDir)
-            hefhebFin.Close()
-        except:
-            if opt.noEE :
-                print 'Will compute pi/e response for HEF  sub-detector'
-                pioverE_HEF,_ = computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,
-                                                           xaxis=[('HEF',None)],yaxis=[('HEB',None)],
-                                                           ws=ws,outDir=outDir)
-
-    #get pi/e for EE
-    if opt.noEE==False:
-        try:
-            ehFin=ROOT.TFile.Open(opt.eeRespUrl)
-            pioverE_EE = ehFin.Get('EE_responseFunc')
-            print 'Readout pi/e response for EE from %s'%ehFin.GetName()
+            eehefFin=ROOT.TFile.Open(opt.eeRespUrl)
+            pioverE_EE  = eehefFin.Get('EEHEF_responseFunc')
+            pioverE_HEF = pioverE_EE
+            print 'Readout pi/e response for EE+HEF from %s'%eehefFin.GetName()
             computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,
-                                       xaxis=[('EE',pioverE_EE)],yaxis=[('HEF',pioverE_HEF),('HEB',pioverE_HEB)],
+                                       xaxis=[('EE',pioverE_EE),('HEF',pioverE_HEF)],yaxis=[('HEB',pioverE_HEB)],
                                        ws=ws,outDir=outDir)
-            ehFin.Close()
+            eehefFin.Close()
         except:
-            print 'Will compute pi/e for EE'
+            print 'Will compute pi/e for EE+HEF'
             pioverE_EE,_ =computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,
-                                                     xaxis=[('EE',None)],yaxis=[('HEF',pioverE_HEF),('HEB',pioverE_HEB)],
+                                                     xaxis=[('EE',None),('HEF',None)],yaxis=[('HEB',pioverE_HEB)],
                                                      ws=ws,outDir=outDir)
+            pioverE_HEF=pioverE_EE
+
+    #get pi/e for HEF
+    else:
+        if opt.noHEF==False:
+            try:
+                hefhebFin=ROOT.TFile.Open(opt.hefRespUrl)       
+                pioverE_HEF  = hefhebFin.Get('HEF_responseFunc')
+                print 'Readout pi/e responses for HEF from %s'%hefhebFin.GetName()
+                if opt.noEE :
+                    computeSubdetectorResponse(enRanges=enRanges,           etaRanges=etaRanges,
+                                               xaxis=[('HEF',pioverE_HEF)], yaxis=[('HEB',pioverE_HEB)],
+                                               ws=ws,                       outDir=outDir)
+                    hefhebFin.Close()
+            except:
+                if opt.noEE :
+                    print 'Will compute pi/e response for HEF  sub-detector'
+                    pioverE_HEF,_ = computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,
+                                                               xaxis=[('HEF',None)],yaxis=[('HEB',pioverE_HEB)],
+                                                               ws=ws,outDir=outDir)
+
+        #get pi/e for EE
+        if opt.noEE==False:
+            try:
+                ehFin=ROOT.TFile.Open(opt.eeRespUrl)
+                pioverE_EE = ehFin.Get('EE_responseFunc')
+                print 'Readout pi/e response for EE from %s'%ehFin.GetName()
+                computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,
+                                           xaxis=[('EE',pioverE_EE)],yaxis=[('HEF',pioverE_HEF),('HEB',pioverE_HEB)],
+                                           ws=ws,outDir=outDir)
+                ehFin.Close()
+            except:
+                print 'Will compute pi/e for EE'
+                pioverE_EE,_ =computeSubdetectorResponse(enRanges=enRanges,etaRanges=etaRanges,
+                                                         xaxis=[('EE',None)],yaxis=[('HEF',pioverE_HEF),('HEB',pioverE_HEB)],
+                                                         ws=ws,outDir=outDir)
 
     #read sw compensation weights
     #    swCompParams=[]
@@ -852,13 +857,15 @@ def runCalibrationStudy(opt):
             e_EE /= pioverE_EE.Eval(e_EE)
 
         e_tot   = e_EE + e_HEF + e_HEB
+        if e_tot==0: continue
         enEstimators['simple']=e_tot
 
         #global compensation weights
         c_EE    = entryVars.find('c_EE').getVal()
         c_HEF   = entryVars.find('c_HEF').getVal()
         c_HEB   = entryVars.find('c_HEB').getVal()
-        e_c_tot = e_EE + c_HEF*e_HEF + e_HEB
+        e_c_tot = e_tot
+        if e_HEF/e_tot>0.1 : e_c_tot = e_EE + c_HEF*e_HEF + e_HEB
         enEstimators['gc']=e_c_tot
 
         #software compensation weight
@@ -1034,8 +1041,9 @@ def main():
     parser.add_option('--noResCalib',          dest='noResCalib',    help='Don\'t run calibration fits in E/eta slices',                    default=False, action='store_true')
     parser.add_option('--noEE',                dest='noEE',          help='Assign weight 0 to EE',                                          default=False, action='store_true')
     parser.add_option('--noHEF',               dest='noHEF',         help='Assign weight 0 to HEF',                                         default=False, action='store_true')
+    parser.add_option('--combineSi',           dest='combineSi',     help='Combine Si detectors',                                           default=False, action='store_true')
     parser.add_option('--hebResp',             dest='hebRespUrl',    help='Location of the parameterization for HEB pi/e',                  default=None)
-    parser.add_option('--hefResp',             dest='hefRespUrl',    help='Location of the parameterization for HEF and HEF pi/e',         default=None)
+    parser.add_option('--hefResp',             dest='hefRespUrl',    help='Location of the parameterization for HEF and HEF pi/e',          default=None)
     parser.add_option('--eeResp',              dest='eeRespUrl',     help='Location of the parameterization for EE pi/e',                   default=None)
     parser.add_option('-v',      '--var' ,     dest='treeVarName',   help='Variable to use as energy estimator',                            default='edep_rec')
     (opt, args) = parser.parse_args()

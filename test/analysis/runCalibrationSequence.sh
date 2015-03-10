@@ -11,7 +11,8 @@ if [ -z ${step} ]; then
     echo "   integ      check production integrity"
     echo "   ntuple     convert the EDM files to simple trees for calibration"
     echo "   emcalib    perform the calibration of the e.m. scale of the subdetectors"
-    echo "   pioncalib  perform the calibration of the hadronic sub-detectors"
+    echo "   picalib    perform the calibration of the hadronic sub-detectors"
+    echo "   wrapup     wraps up the results for PF"
     echo ""
     exit -1
 fi
@@ -136,16 +137,16 @@ fi
 #Pion calibration
 if [ "${step}" == "picalib" ]; then
 
-    prods=(RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR RECO-PU0)
+    #prods=(RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR RECO-PU0)
     #prods=(RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR)
-    #prods=(RECO-PU0)  
+    prods=(RECO-PU0)  
     #prods=(RECO-PU0-EE_AIR RECO-PU0)
     echo "********************************************"
     echo "pion calibration"
     echo "********************************************"
     #vars=("edep_sim")
-    #vars=("edep_rec")
-    vars=("edep_rec" "edep_sim")
+    vars=("edep_rec")
+    #vars=("edep_rec" "edep_sim")
     for prod in ${prods[@]}; do
 	
 	sample=Single211_${CMSSW_VERSION}_${prod}_SimHits
@@ -169,19 +170,40 @@ if [ "${step}" == "picalib" ]; then
 	    elif [[ ${prod} =~ .*EE_AIR.* ]]; then
 		baseOpts="--vetoTrackInt --noEE --hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root";
 	    else
-		baseOpts="--vetoTrackInt        --hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root --hefResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}/HEFHEB_response.root" 
+		baseOpts="--vetoTrackInt"
 	    fi
-	    
 
-	    baseOpts="${baseOpts}"
-	    python test/analysis/runPionCalibration.py -i ${sample}.root --emCalib EE:${emEE},HEF:${emHEF},HEB:${emHEB} -v ${var} ${baseOpts}
-	    mkdir -p ${outDir}
-	    mv ${sample}/*.* ${outDir};
-	    #python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
+	    #python test/analysis/runPionCalibration.py -i ${sample}.root --emCalib EE:${emEE},HEF:${emHEF},HEB:${emHEB} -v ${var} ${baseOpts}
+	    #mkdir -p ${outDir}
+	    #mv ${sample}/*.* ${outDir};
+
 	    if [[ ! ${prod} =~ .*AIR.* ]]; then
-		baseOpts="${baseOpts} --eeResp ${outDir}/EEHEFHEB_response_corry.root"
-		python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts};  #--calib ${outDir}/calib_uncalib.root
+
+		#use separate combination
+		#baseOpts="--hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root --hefResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}/HEFHEB_response.root --eeResp ${outDir}/EEHEFHEB_response_corry.root"
+		#python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
+		#python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --calib ${outDir}/calib_uncalib.root;
+		#mkdir -p ${sample}/${var}-IndComb
+		#mv ${outDir}/*.png ${sample}/${var}-IndComb
+		#mv ${outDir}/calib*.root ${sample}/${var}-IndComb
+		#mv ${outDir}/*response*.root ${sample}/${var}-IndComb
+		
+		#trivial combination
+		#baseOpts="--noComp"
+		#python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
+		#python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --calib ${outDir}/calib_uncalib.root;
+		#mkdir -p ${sample}/${var}-TrivialComb
+		#mv ${outDir}/*.png ${sample}/${var}-TrivialComb
+		#mv ${outDir}/calib*.root ${sample}/${var}-TrivialComb
+		#mv ${outDir}/*response*.root ${sample}/${var}-TrivialComb
+
+		#combine Si detectors
+		baseOpts="--hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root --combineSi"
+		python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
+		baseOpts="--hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root  --eeResp ${outDir}/EEHEFHEB_response_corry.root --combineSi"
+		python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --calib ${outDir}/calib_uncalib.root;
 	    else
+		python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
 		baseOpts="${baseOpts} --hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root --hefResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}/HEFHEB_response.root --noResCalib"
 		python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts};
 	    fi
@@ -189,6 +211,16 @@ if [ "${step}" == "picalib" ]; then
 	done
     done
 fi
+
+
+if [ "${step}" == "wrapup" ]; then
+
+    echo "********************************************"
+    echo "Wrapping up all information for PF          "
+    echo "********************************************"
+    python test/analysis/wrapUpCalibrationForPF.py;
+fi
+
 
 ##
 ## the following is for test purpose only
