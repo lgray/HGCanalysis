@@ -24,6 +24,7 @@ def prepareWorkspace(url,weightingScheme,treeVarName,vetoTrackInt,vetoHEBLeaks=F
         dsVars.add( ws.factory('tailfrac_%s[0,0,99999999]'%key) )
         dsVars.add( ws.factory('c_%s[0,0,99999999]'%key) )
         dsVars.add( ws.factory('rho_%s[0,0,99999999]'%key) )
+        dsVars.add( ws.factory('mip_%s[0,0,2]'%key) )
     getattr(ws,'import')( ROOT.RooDataSet('data','data',dsVars) )
 
     #read all to a RooDataSet
@@ -76,8 +77,11 @@ def prepareWorkspace(url,weightingScheme,treeVarName,vetoTrackInt,vetoHEBLeaks=F
 
                 #integrate layers applying corrections
                 totalEnTail=0
+                mipLike=True
                 for ilay in xrange(integRange[0],integRange[1]+1):
-                    ien         = (weight*geomCorrection+etaDepWeight)*(getattr(HGC,treeVarName))[ilay-1]
+                    edepInMIP   = (getattr(HGC,treeVarName))[ilay-1]
+                    ien         = (weight*geomCorrection+etaDepWeight)*edepInMIP
+                    if edepInMIP>1.5: mipLike=False
                     if not (scaleCorrections is None):
                         if not (scaleCorrections[0] is None):
                             ien=scaleCorrections[0].GetX(ien)
@@ -94,6 +98,9 @@ def prepareWorkspace(url,weightingScheme,treeVarName,vetoTrackInt,vetoHEBLeaks=F
             #add to the set of variables the values computed for this subdetector
             ws.var('en_%s'%subDet).setVal(totalEn)
             newEntry.add(ws.var('en_%s'%subDet))
+
+            ws.var('mip_%s'%subDet).setVal(int(mipLike))
+            newEntry.add(ws.var('mip_%s'%subDet))
 
             tailfrac=0
             if totalEn>0: tailfrac=totalEnTail/totalEn
@@ -182,10 +189,10 @@ def showCalibrationCurves(calibGr,calibRanges,outDir,calibPostFix) :
         ffunc.SetLineColor(lcol)
         ffunc.SetLineStyle(9)
         if ffunc.GetNpar()==1:
-            MyPaveText('#it{%s} : %3.4f E_{rec} '%(calibGr[wType].GetTitle(),1./ffunc.GetParameter(0)),
+            MyPaveText('#color[%d]{#it{%s}} : %3.4f E_{rec} '%(lcol,calibGr[wType].GetTitle(),1./ffunc.GetParameter(0)),
                        0.2,0.93-igr*0.05,0.4,0.90-igr*0.05)
         else:
-            txt='#it{%s}\\ '%calibGr[wType].GetTitle()
+            txt='#color[%d]{#it{%s}}\\ '%(lcol,calibGr[wType].GetTitle())
             for ip in xrange(0,ffunc.GetNpar()):
                 txt += '[%d]=%3.2f '%(ip,ffunc.GetParameter(ip))
             MyPaveText(txt,0.2,0.93-igr*0.1,0.4,0.85-igr*0.1)
@@ -340,11 +347,11 @@ def showResolutionCurves(resGr,outDir,calibPostFix,model=0) :
         sigmaConst    = ffunc.GetParameter(1)
         sigmaConstErr = ffunc.GetParError(1)
         if model==0 :
-            pt.append( MyPaveText('#it{%s} :  %3.4f#scale[0.8]{/#sqrt{E}} #oplus %3.4f'%(resGr[wType].GetTitle(),sigmaStoch,sigmaConst),
+            pt.append( MyPaveText('#color[%d]{#it{%s}} :  %3.4f#scale[0.8]{/#sqrt{E}} #oplus %3.4f'%(lcol,resGr[wType].GetTitle(),sigmaStoch,sigmaConst),
                                   0.2,0.93-igr*0.05,0.4,0.90-igr*0.05) )
         else :
             sigmaNoise = ffunc.GetParameter(2)
-            pt.append( MyPaveText('#it{%s} :  %3.4f#scale[0.8]{/#sqrt{E}} #oplus %3.4f#scale[0.8]{/E} #oplus %3.4f'%(resGr[wType].GetTitle(),sigmaStoch,sigmaNoise,sigmaConst),
+            pt.append( MyPaveText('#color[%d]{#it{%s}} :  %3.4f#scale[0.8]{/#sqrt{E}} #oplus %3.4f#scale[0.8]{/E} #oplus %3.4f'%(lcol,resGr[wType].GetTitle(),sigmaStoch,sigmaNoise,sigmaConst),
                                   0.2,0.93-igr*0.05,0.4,0.90-igr*0.05) )
         pt[igr-1].SetTextColor(lcol)
         pt[igr-1].SetTextSize(0.03)

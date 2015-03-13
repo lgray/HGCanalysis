@@ -26,11 +26,13 @@
 #pragma link C++ function getEffSigma;
 #pragma link C++ class ROIInfo;
 #pragma link C++ class std::vector<ROIInfo>;
-#pragma link C++ getLambdaForHGCLayer;
+#pragma link C++ function getLambdaForHGCLayer;
 #pragma link C++ class HGCROISummary;
 #pragma link C++ function initHGCROITree;
 #pragma link C++ function attachHGCROITree;
-
+#pragma link C++ struct CircleParams_t;
+#pragma link C++ function fitCircleTo;
+#pragma link C++ function circle_fcn;
 
 #endif
 

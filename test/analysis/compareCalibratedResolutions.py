@@ -136,9 +136,8 @@ overlayTestBeam=True
 
 toPlot=[
 	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec-TrivialComb/calib__calib_uncalib.root',  'simple', 'no #pi/e corr.',        False],
-	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec-IndComb/calib__calib_uncalib.root',      'simple', 'ind. #pi/e corr.',      False],
-	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec/calib__calib_uncalib.root',              'simple', 'Si/Sil #pi/e corr.',    False],
-	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec/calib__calib_uncalib.root',              'gc',     'Si/Sil #pi/e corr.+GC', False]
+	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec-IndComb/calib__calib_uncalib.root',      'simple', '#pi/e corr.',      False],
+	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec-IndComb/calib__calib_uncalib.root',      'gc',     '#pi/e corr.+GC', True]
 	]
 
 ROOT.gROOT.SetBatch(True)

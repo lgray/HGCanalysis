@@ -14,30 +14,50 @@ for pid in pids:
 	for prod in prods:
 
 		#baseline e-scale and residual pi/e
-		theDirs=['edep_rec']
-		if pid==22 : theDirs.append('edep_rec--lambdaWeighting')
-		for theDir in theDirs:
+		theDir='edep_rec'
+		if pid==22 : 
+			theDir='edep_rec--lambdaWeighting'
+			key='e_em'
+			if prod.find('-EE_HEF_AIR')>=0  : key += '_BH'
+			elif prod.find('-EE_AIR')>=0    : key += '_FH'
+			else                            : key += '_EE'
+
 			fIn=ROOT.TFile.Open('%s/src/UserCode/HGCanalysis/Single%d_%s_%s_SimHits/%s/calib_uncalib.root'%(CMSSW_BASE,pid,CMSSW_VERSION,prod,theDir))
-			key='e'
-			if theDir.find('lambda')<0  and key=='e' : key='e_em'
-			if pid==211                              : key  = 'pi'
-			if prod.find('-EE_HEF_AIR')>=0           : key += '_BH'
-			elif prod.find('-EE_AIR')>=0             : key += '_FH'
-			else                                     : key += '_EE'
-			calibs[key]=fIn.Get('simple_calib').Clone(key)
+			func=fIn.Get('simple_calib')
+			calibs[key]=()
+			calibs[key]=calibs[key]+(func.GetExpFormula(),)
+			for ip in xrange(0,func.GetNpar()):calibs[key]=calibs[key]+(func.GetParameter(ip),)
 			fIn.Close()
 
 		#pi/e
-		if pid!=211: continue
-		if prod.find('-EE_AIR')>=0 : continue
-		piOverEfile, piovereGr,key = 'EEHEFHEB_response_corry.root','EEHEF_responseFunc','pioe_Si'
-		if prod.find('-EE_HEF_AIR')>=0 : piOverEfile, piovereGr,key = 'HEB_response.root','HEB_responseFunc','pioe_Sci'
-		fIn=ROOT.TFile.Open('%s/src/UserCode/HGCanalysis/Single%d_%s_%s_SimHits/edep_rec/%s'%(CMSSW_BASE,pid,CMSSW_VERSION,prod,piOverEfile))
-		calibs[key]=fIn.Get(piovereGr).Clone(key)
-		fIn.Close()
+		else:
+			if prod=='RECO-PU0' : theDir='edep_rec-IndComb'
+			piOverEfile, piovereGr,key = 'EEHEFHEB_response_corrx_corry.root','EE_responseFunc','pioe_EE'
+			if prod.find('-EE_AIR')>=0     : piOverEfile, piovereGr,key = 'HEFHEB_response_corry.root','HEF_responseFunc','pioe_HEF'
+			if prod.find('-EE_HEF_AIR')>=0 : piOverEfile, piovereGr,key = 'HEB_response.root','HEB_responseFunc','pioe_HEB'
+			fIn=ROOT.TFile.Open('%s/src/UserCode/HGCanalysis/Single%d_%s_%s_SimHits/%s/%s'%(CMSSW_BASE,pid,CMSSW_VERSION,prod,theDir,piOverEfile))
+			func=fIn.Get(piovereGr).Clone(key)
+			calibs[key]=()
+			calibs[key]=calibs[key]+(func.GetExpFormula(),)
+			for ip in xrange(0,func.GetNpar()):calibs[key]=calibs[key]+(func.GetParameter(ip),)
+			if prod=='RECO-PU0':
+				for i in xrange(0,3):
+					func=fIn.Get('resEvolFunc_%d'%i)
+					key='pioe_bananaParam_%d'%i
+					calibs[key]=(func.GetExpFormula(),)
+					for ip in xrange(0,func.GetNpar()):calibs[key]=calibs[key]+(func.GetParameter(ip),)
+			fIn.Close()
 
-#dump to file
-fOut=ROOT.TFile.Open('HGCRecHitCalib_%s.root'%calibHash,'RECREATE')
-for key in calibs : calibs[key].Write()
-fOut.Close()
-print 'Energy scale functions written to : %s'%fOut.GetName()
+#dump xml snippet 
+print '******* XML snippet for Pandora ********'
+print '<CMSGlobalHadronCompensation>'
+print '\t<MipEnergyThreshold>10.0</MipEnergyThreshold>'
+for key in calibs :
+	print '\t<!-- %s function: '%key,calibs[key][0],' -->'
+	print '\t<%s>'%key,
+	for i in xrange(1,len(calibs[key])): 
+		print calibs[key][i],
+		if i<len(calibs[key])-1 : print ',',
+	print '</%s>'%key
+print '</CMSGlobalHadronCompensation>'
+
