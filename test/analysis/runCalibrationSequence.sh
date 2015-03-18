@@ -166,11 +166,11 @@ if [ "${step}" == "picalib" ]; then
 	    outDir=${sample}/${var};	
 
 	    if [[ ${prod} =~ .*EE_HEF_AIR.* ]]; then
-		baseOpts="--vetoTrackInt --noEE --noHEF";
+		baseOpts="--vetoTrackInt --noEE --noHEF --byMode";
 	    elif [[ ${prod} =~ .*EE_AIR.* ]]; then
-		baseOpts="--vetoTrackInt --noEE --hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root";
+		baseOpts="--vetoTrackInt --noEE --hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root --byMode";
 	    else
-		baseOpts="--vetoTrackInt"
+		baseOpts="--vetoTrackInt --byMode"
 	    fi
 	    
 	    #python test/analysis/runPionCalibration.py -i ${sample}.root --emCalib EE:${emEE},HEF:${emHEF},HEB:${emHEB} -v ${var} ${baseOpts}
@@ -180,25 +180,25 @@ if [ "${step}" == "picalib" ]; then
 	    if [[ ! ${prod} =~ .*AIR.* ]]; then
 
 		#use separate combination
-		#baseOpts="--hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root --hefResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}/HEFHEB_response_corry.root"
-		#python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --noResCalib
-		#baseOpts="${baseOpts} --eeResp ${outDir}/EEHEFHEB_response_corry.root"
-		#python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --noResCalib
-		#baseOpts="${baseOpts} --banana ${outDir}/EEHEFHEB_response_corrx_corry.root"
-		#python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
-		#mkdir -p ${sample}/${var}-IndComb
-		#mv ${outDir}/*.png ${sample}/${var}-IndComb
-		#mv ${outDir}/calib*.root ${sample}/${var}-IndComb
-		#mv ${outDir}/*response*.root ${sample}/${var}-IndComb
+		baseOpts="--hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root --hefResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}/HEFHEB_response_corry.root"
+		python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --noResCalib
+		baseOpts="${baseOpts} --eeResp ${outDir}/EEHEFHEB_response_corry.root"
+		python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --noResCalib
+		baseOpts="${baseOpts} --banana ${outDir}/EEHEFHEB_response_corrx_corry.root"
+		python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
+		mkdir -p ${sample}/${var}-IndComb
+		mv ${outDir}/*.png ${sample}/${var}-IndComb
+		mv ${outDir}/calib*.root ${sample}/${var}-IndComb
+		mv ${outDir}/*response*.root ${sample}/${var}-IndComb
 		
 		#trivial combination
-		baseOpts="--noComp"
-		python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
-		python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --calib ${outDir}/calib_uncalib.root;
-		mkdir -p ${sample}/${var}-TrivialComb
-		mv ${outDir}/*.png ${sample}/${var}-TrivialComb
-		mv ${outDir}/calib*.root ${sample}/${var}-TrivialComb
-		mv ${outDir}/*response*.root ${sample}/${var}-TrivialComb
+		#baseOpts="--noComp"
+		#python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts}
+		#python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --calib ${outDir}/calib_uncalib.root;
+		#mkdir -p ${sample}/${var}-TrivialComb
+		#mv ${outDir}/*.png ${sample}/${var}-TrivialComb
+		#mv ${outDir}/calib*.root ${sample}/${var}-TrivialComb
+		#mv ${outDir}/*response*.root ${sample}/${var}-TrivialComb
 
 		#combine Si detectors
 		#baseOpts="--hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root --combineSi"
