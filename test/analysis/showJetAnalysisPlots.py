@@ -7,6 +7,8 @@ import optparse
 import os
 from UserCode.HGCanalysis.PlotUtils import *
 
+ALLPLOTS=[]
+
 """
 """
 def showEfficiencyMap(algo,fIn,outputDir,hasPU) :
@@ -142,7 +144,13 @@ def showConstituentsProfiles(algo,fIn,outputDir) :
                     nh.SetMarkerColor(30)
                     nh.SetLineColor(30)
                     nh.SetTitle('neutral had.')
-                
+
+                    plotTag='const%s_%s_%s%s_%s'%(jetType,var,profvar,binCat,algo)
+
+                    iplot=len(ALLPLOTS)
+                    ALLPLOTS.append((plotTag,[ch.Clone(),gamma.Clone(),nh.Clone()]))
+                    for plot in ALLPLOTS[iplot][1]: plot.SetDirectory(0)
+
                     c.Clear()
                     c.SetRightMargin(0.04)
                     ch.Draw('e1')
@@ -303,7 +311,9 @@ def showResponseSummary(algo,fIn,outputDir,hasPU) :
                 else:
                     gr.Draw('p')
                 igr+=1
-                    
+            plotTag='jetresponseevol_%s_%d_%s.png'%(profvar,grctr,algo)
+            ALLPLOTS.append((plotTag,grColl))
+
             leg.Draw()
             MyPaveText('#bf{CMS} #it{simulation}    %s jets'%algo)
             c.Modified()
@@ -349,6 +359,18 @@ def main():
         showEfficiencyMap(algo,fIn,outputDir,hasPU)
         showConstituentsProfiles(algo,fIn,outputDir)
         showResponseSummary(algo,fIn,outputDir,hasPU)
+    fIn.Close()
+
+
+    fOut=ROOT.TFile('%s/plots.root'%outputDir,'RECREATE')
+    for plotTag,plotColl in ALLPLOTS:
+        fOut.cd()
+        fOut.mkdir(plotTag)
+        fOut.cd(plotTag)
+        for plot in plotColl: plot.Write()
+    fOut.Close()
+
+    
 
     
 if __name__ == "__main__":
