@@ -26,9 +26,10 @@ def fitGaussianToPeak(data,hrange=None,nbins=None):
     try:
         data.InheritsFrom('TH1')
         maxBin=data.GetMaximumBin()
-        fitRangeMin=data.GetXaxis().GetBinCenter(maxBin-7)
-        fitRangeMax=data.GetXaxis().GetBinCenter(maxBin+7)
-        data.Fit('gaus','LMRQ0+','',fitRangeMin,fitRangeMax)
+        #fitRangeMin=data.GetXaxis().GetBinCenter(maxBin-7)
+        #fitRangeMax=data.GetXaxis().GetBinCenter(maxBin+7)
+        #data.Fit('gaus','LMRQ0+','',fitRangeMin,fitRangeMax)
+        data.Fit('gaus','LMRQ0+','')
         meanX,meanXerr=data.GetFunction('gaus').GetParameter(1),data.GetFunction('gaus').GetParError(1)
     except:
         if len(data)<5: return 0,0
@@ -68,8 +69,9 @@ def computePiOverE(x,xresp,gr,byMode):
 
     #require minimum 3 events for pi/e by mode...
     if byMode and len(x)>3:
-        mode,     modeErr     = fitGaussianToPeak(data=x,     hrange=(0,800), nbins=50)
+        mode,     modeErr     = fitGaussianToPeak(data=x,     hrange=(0,800), nbins=400)
         modeResp, modeRespErr = fitGaussianToPeak(data=xresp, hrange=(0,2),   nbins=50)
+        np=gr.GetN()
         gr.SetPoint(np,mode,modeResp)
         gr.SetPointError(np,modeErr,modeRespErr)
         return [mode,modeErr,modeResp,modeRespErr]
@@ -499,6 +501,8 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
     frame.Draw('ap')
     frame.GetXaxis().SetRangeUser(0.5,800)
     frame.GetYaxis().SetRangeUser(0.1,1.5)
+    frame.GetXaxis().SetTitle('<E(reco)> [GeV]')
+    frame.GetYaxis().SetTitle('<#pi/e>')
 
     ibaseCtr=0
     for var,corrFunc in xaxis:
@@ -1091,62 +1095,73 @@ def runCalibrationStudy(opt):
         rawe_HEB   = entryVars.find('en_HEB').getVal()
         rawe_Total = rawe_EE+rawe_HEF+rawe_HEB
 
+        #global compensation weights
+        c_EE    = entryVars.find('c_EE').getVal()
+        c_HEF   = entryVars.find('c_HEF').getVal()
+        c_HEB   = entryVars.find('c_HEB').getVal()
+
         #corrected energies
         e_EE, e_HEF, e_HEB = 0, 0, 0
         if not (pioverE_HEB is None) and not opt.noComp : e_HEB = rawe_HEB/pioverE_HEB.Eval(rawe_Total) 
         if not (pioverE_HEF is None) and not opt.noComp : e_HEF = rawe_HEF/pioverE_HEF.Eval(rawe_Total)
         if not (pioverE_EE is None) and not opt.noComp  : e_EE  = rawe_EE/pioverE_EE.Eval(rawe_Total)
-        e_tot   = e_EE + e_HEF + e_HEB
-        #print rawe_EE,rawe_HEF,rawe_HEB,rawe_Total, e_EE,e_HEF,e_HEB,e_tot
+        e_tot      = e_EE + e_HEF + e_HEB
+        e_comp_tot = e_EE + c_HEF*e_HEF + e_HEB
+
         #residual energy sharing correction
-        e_simple_tot = e_tot
         if not (banana is None):
             if opt.noHEF is False:
                 yval_over_xyval_m_mip = -1
-                e_front, e_back = 0, 0
+                e_front,      e_back = 0, 0
+                e_comp_front, e_comp_back = 0, 0
                 if opt.noEE:
-                    e_front = e_HEF
-                    e_back  = e_HEB
+                    e_front, e_comp_front = e_HEF, c_HEF*e_HEF
+                    e_back,  e_comp_back  = e_HEB, e_HEB
                     mipEm   = 0
-                    if not(pioverE_HEF is None) : mipEm += mipEm/pioverE_HEF.Eval(mipEm)
+                    if not(pioverE_HEF is None) : mipEm += INTEGMIPEM['HEF']/pioverE_HEF.Eval(INTEGMIPEM['HEF'])
                     else                        : mipEm += INTEGMIPEM['HEF']
                 elif opt.combineSi:
-                    e_front = e_EE+e_HEF
-                    e_back  = e_HEB
+                    e_front, e_comp_front = e_EE+e_HEF, e_EE+c_HEF*e_HEF
+                    e_back, e_comp_back   = e_HEB,      e_HEB
                     mipEm   = 0
-                    if not(pioverE_HEF is None) : mipEm += INTEGMIPEM['HEF']/pioverE_HEF.Eval(mipEm)
+                    if not(pioverE_HEF is None) : mipEm += INTEGMIPEM['HEF']/pioverE_HEF.Eval(INTEGMIPEM['HEF'])
                     else                        : mipEm += INTEGMIPEM['HEF']
-                    if not(pioverE_EE is None)  : mipEm += INTEGMIPEM['EE']/pioverE_EE.Eval(mipEm)
+                    if not(pioverE_EE is None)  : mipEm += INTEGMIPEM['EE']/pioverE_EE.Eval(INTEGMIPEM['EE'])
                     else                        : mipEm += INTEGMIPEM['EE']
                 else:
-                    e_front = e_EE
-                    e_back  = e_HEB+e_HEF
+                    e_front, e_comp_front = e_EE, e_EE
+                    e_back, e_comp_back   = e_HEB+e_HEF, e_HEB+c_HEF*e_HEF
                     mipEm   = 0
-                    if not(pioverE_EE is None)  : mipEm += INTEGMIPEM['EE']/pioverE_EE.Eval(mipEm)
+                    if not(pioverE_EE is None)  : mipEm += INTEGMIPEM['EE']/pioverE_EE.Eval(INTEGMIPEM['EE'])
                     else                        : mipEm += INTEGMIPEM['EE']
+
+                #do the banana
                 xyval_m_mip = ROOT.TMath.Max(e_front-mipEm,0.)+e_back
                 if e_back==0     : yval_over_xyval_m_mip=0
                 if xyval_m_mip>0 : yval_over_xyval_m_mip=e_front/xyval_m_mip
-
-                #do the banana
                 p0=banana[0].Eval(e_tot)
                 p1=banana[1].Eval(e_tot)
                 p2=banana[2].Eval(e_tot)
                 resCorrection  = p0
                 resCorrection += p1*yval_over_xyval_m_mip
                 resCorrection += p2*yval_over_xyval_m_mip*yval_over_xyval_m_mip
-                if resCorrection>0: e_simple_tot = e_tot/resCorrection
+                if resCorrection>0: e_tot /=resCorrection
 
-        if e_tot==0: continue
-        enEstimators['simple']=e_simple_tot
+                #do the banana
+                xyval_m_mip = ROOT.TMath.Max(e_comp_front-mipEm,0.)+e_comp_back
+                if e_comp_back==0     : yval_over_xyval_m_mip=0
+                if xyval_m_mip>0      : yval_over_xyval_m_mip=e_comp_front/xyval_m_mip
+                p0=banana[0].Eval(e_comp_tot)
+                p1=banana[1].Eval(e_comp_tot)
+                p2=banana[2].Eval(e_comp_tot)
+                resCorrection  = p0
+                resCorrection += p1*yval_over_xyval_m_mip
+                resCorrection += p2*yval_over_xyval_m_mip*yval_over_xyval_m_mip
+                if resCorrection>0: e_comp_tot /=resCorrection
 
-        #global compensation weights
-        c_EE    = entryVars.find('c_EE').getVal()
-        c_HEF   = entryVars.find('c_HEF').getVal()
-        c_HEB   = entryVars.find('c_HEB').getVal()
-        e_c_tot = e_simple_tot
-        if e_HEF/e_tot>0.1 : e_c_tot = ((e_EE + c_HEF*e_HEF + e_HEB)/e_tot)*e_simple_tot
-        enEstimators['gc']=e_c_tot
+        if e_tot<=0: continue
+        enEstimators['simple'] = e_tot
+        enEstimators['gc']     = e_comp_tot
 
         #software compensation weight
         #        e_rho_tot = e_tot
