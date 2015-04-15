@@ -1,5 +1,7 @@
 #include "UserCode/HGCanalysis/plugins/HGCJetAnalyzer.h"
 
+#include "DataFormats/Math/interface/deltaR.h"
+
 #include <iostream>
 
 using namespace std;

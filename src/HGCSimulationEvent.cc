@@ -32,6 +32,10 @@ void initHGCSimulationEventTree(TTree *t,HGCSimEvent_t &simEvt)
   t->Branch("hit_z",      simEvt.hit_z,      "hit_z[nhits]/F");
   t->Branch("hit_eta",    simEvt.hit_eta,    "hit_eta[nhits]/F");
   t->Branch("hit_phi",    simEvt.hit_phi,    "hit_phi[nhits]/F");
+
+  t->Branch("hit_time",          simEvt.hit_time,    "hit_time[nhits]/F");
+  t->Branch("hit_time_dcorr",    simEvt.hit_time_dcorr,    "hit_time_dcorr[nhits]/F");
+  t->Branch("hit_time_ewgt",     &simEvt.hit_time_ewgt,    "hit_time_ewgt/F");
 }
 
 //

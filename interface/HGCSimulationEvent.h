@@ -28,6 +28,9 @@ struct  HGCSimEvent_t
   Float_t hit_x[MAXHGCHITSPEREVENT],hit_y[MAXHGCHITSPEREVENT],hit_z[MAXHGCHITSPEREVENT];
   Float_t hit_eta[MAXHGCHITSPEREVENT],hit_phi[MAXHGCHITSPEREVENT];
   Float_t hit_edep[MAXHGCHITSPEREVENT],hit_wgt[MAXHGCHITSPEREVENT],hit_wgt_t[MAXHGCHITSPEREVENT];
+  //timing info
+  Float_t hit_time[MAXHGCHITSPEREVENT], hit_time_dcorr[MAXHGCHITSPEREVENT];
+  Float_t hit_time_ewgt;
   
   HGCSimEvent_t()
   {
