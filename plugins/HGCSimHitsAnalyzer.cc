@@ -629,7 +629,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  int nhitsEE(0), nhitsHEF(0), nhitsHEB(0);
 	  float totalEn(0), totalEnTDC(0),totalX0WgtEn(0), totalLambdaWgtEn(0),totalEnEE(0),totalEnHEF(0),totalEnHEB(0);
           
-          constexpr float tdc_reso = 0.080f;
+          //constexpr float tdc_reso = 0.080f;
 
 	  for(std::map<uint32_t,std::pair<float,float> >::iterator detIt=stepIt->second.begin();
 	      detIt!=stepIt->second.end();
