@@ -20,7 +20,8 @@ PHYSLIST="QGSP_FTFP_BERT_EML"
 TKFILTER=""
 SIMONLY=""
 PU=0
-while getopts "hp:e:n:c:o:w:j:g:t:l:xzfsa:" opt; do
+BEAMSPOT="HLLHC"
+while getopts "hp:e:n:c:o:w:j:g:t:l:xzfsa:b:" opt; do
     case "$opt" in
     h)
         echo ""
@@ -43,6 +44,7 @@ while getopts "hp:e:n:c:o:w:j:g:t:l:xzfsa:" opt; do
 	echo "     -f      filter events interacting before HGC"
 	echo "     -s      sim only"
 	echo "     -a      average pileup"
+	echo "     -b      beamspot HLLHC - default / HLLHC_Fix / HLLHCCrabKissing"
 	echo "     -h      help"
         echo ""
 	exit 0
@@ -77,6 +79,8 @@ while getopts "hp:e:n:c:o:w:j:g:t:l:xzfsa:" opt; do
 	;;
     f)  TKFILTER="True"
 	;;
+    b)  BEAMSPOT=$OPTARG
+	;;
     esac
 done
 
@@ -109,7 +113,7 @@ if [ -z ${SIMONLY} ]; then
     cmsDriver.py ${CFI} -n ${NEVENTS} \
 	--python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
 	-s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW,RAW2DIGI,L1Reco,RECO --datatier GEN-SIM-DIGI-RECO --eventcontent FEVTDEBUGHLT \
-	--conditions auto:upgradePLS3 --beamspot HLLHC --magField 38T_PostLS1 \
+	--conditions auto:upgradePLS3 --beamspot ${BEAMSPOT} --magField 38T_PostLS1 \
 	--customise ${CUSTOM} \
 	--geometry ${GEOMETRY} \
 	--no_exec 
@@ -117,7 +121,7 @@ else
     cmsDriver.py ${CFI} -n ${NEVENTS} \
 	--python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
 	-s GEN,SIM --datatier GEN-SIM --eventcontent FEVTDEBUGHLT \
-	--conditions auto:upgradePLS3 --beamspot HLLHC --magField 38T_PostLS1 \
+	--conditions auto:upgradePLS3 --beamspot ${BEAMSPOT} --magField 38T_PostLS1 \
 	--customise  ${CUSTOM} \
 	--geometry ${GEOMETRY} \
 	--no_exec   

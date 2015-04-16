@@ -19,27 +19,117 @@ def adaptWorkspaceForEMCalibration(opt):
         #init weighting scheme
         matFurl='%s/src/UserCode/HGCanalysis/data/HGCMaterialOverburden.root'%os.environ['CMSSW_BASE']
         matF=ROOT.TFile.Open(matFurl)
-        if opt.lambdaWeighting:
-            matParamBeforeHGCGr=matF.Get("lambdaOverburden")
+        if opt.weighting=='lambda':
+            #matParamBeforeHGCGr=matF.Get("lambdaOverburden")
+            matParamBeforeHGCGr=None
             weightingScheme={
-                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.010, None),
-                       ([2, 11], None,                0.036, None),
-                       ([12,21], None,                0.043, None),
-                       ([22,30], None,                0.056, None),
-                       ([31,31], None,                0.338, None),
-                       ([32,42], None,                0.273, None),
-                       ([43,54], None,                0.475, None)]
+                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.0136, None),
+                       ([2, 2],  None,                0.0461, None),
+                       ([3, 3],  None,                0.0448, None),
+                       ([4, 4],  None,                0.0241, None),
+                       ([5, 5],  None,                0.0448, None),
+                       ([6, 6],  None,                0.0241, None),
+                       ([7, 7],  None,                0.0448, None),
+                       ([8, 8],  None,                0.0241, None),
+                       ([9, 9],  None,                0.0448, None),
+                       ([10, 10],  None,              0.0241, None),
+                       ([11, 11],  None,              0.0448, None),
+                       ([12,12], None,                0.0347, None),
+                       ([13,13], None,                0.0511, None),
+                       ([14,14], None,                0.0347, None),
+                       ([15,15], None,                0.0511, None),
+                       ([16,16], None,                0.0347, None),
+                       ([17,17], None,                0.0511, None),
+                       ([18,18], None,                0.0347, None),
+                       ([19,19], None,                0.0511, None),
+                       ([20,20], None,                0.0347, None),
+                       ([21,21], None,                0.0511, None),
+                       ([22,22], None,                0.0488, None),
+                       ([23,23], None,                0.0642, None),
+                       ([24,24], None,                0.0488, None),
+                       ([25,25], None,                0.0642, None),
+                       ([26,26], None,                0.0488, None),
+                       ([27,27], None,                0.0642, None),
+                       ([28,28], None,                0.0488, None),
+                       ([29,29], None,                0.0642, None),
+                       ([30,30], None,                0.0488, None),
+                       ([31,31], None,                0.3377, None),
+                       ([32,42], None,                0.2727, None),
+                       ([43,54], None,                0.4760, None)]
+                }
+        elif opt.weighting=='dedx':
+            weightingScheme={
+                'EE': [([1, 1 ], None,                2.372, None),
+                       ([2, 2],  None,                9.541, None),
+                       ([3, 3],  None,                8.816, None),
+                       ([4, 4],  None,                5.125, None),
+                       ([5, 5],  None,                8.816, None),
+                       ([6, 6],  None,                5.125, None),
+                       ([7, 7],  None,                8.816, None),
+                       ([8, 8],  None,                5.125, None),
+                       ([9, 9],  None,                8.816, None),
+                       ([10, 10],  None,              5.125, None),
+                       ([11, 11],  None,              8.816, None),
+                       ([12,12], None,                7.445, None),
+                       ([13,13], None,                10.217, None),
+                       ([14,14], None,                7.445, None),
+                       ([15,15], None,                10.217, None),
+                       ([16,16], None,                7.445, None),
+                       ([17,17], None,                10.217, None),
+                       ([18,18], None,                7.445, None),
+                       ([19,19], None,                10.217, None),
+                       ([20,20], None,                7.445, None),
+                       ([21,21], None,                10.217, None),
+                       ([22,22], None,                10.539, None),
+                       ([23,23], None,                13.148, None),
+                       ([24,24], None,                10.539, None),
+                       ([25,25], None,                13.148, None),
+                       ([26,26], None,                10.539, None),
+                       ([27,27], None,                13.148, None),
+                       ([28,28], None,                10.539, None),
+                       ([29,29], None,                13.148, None),
+                       ([30,30], None,                10.539, None),
+                       ([31,31], None,                65.001, None),
+                       ([32,42], None,                52.954, None),
+                       ([43,54], None,                92.196, None)]
                 }
         else:
-            matParamBeforeHGCGr=matF.Get("x0Overburden")
+            #matParamBeforeHGCGr=matF.Get("x0Overburden")
+            matParamBeforeHGCGr=None
             weightingScheme={
-                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.080, None),
-                       ([2, 11], None,                0.620, None),
-                       ([12,21], None,                0.809, None),
-                       ([22,30], None,                1.239, None),
-                       ([31,31], None,                3.580, None),
-                       ([32,42], None,                3.103, None),
-                       ([43,54], None,                5.228, None)]
+                'EE': [([1, 1 ], matParamBeforeHGCGr, 0.0798, None),
+                       ([2, 2],  None,                0.9214, None),
+                       ([3, 3],  None,                0.5960, None),
+                       ([4, 4],  None,                0.5691, None),
+                       ([5, 5],  None,                0.5960, None),
+                       ([6, 6],  None,                0.5691, None),
+                       ([7, 7],  None,                0.5960, None),
+                       ([8, 8],  None,                0.5691, None),
+                       ([9, 9],  None,                0.5960, None),
+                       ([10, 10],  None,              0.5691, None),
+                       ([11, 11],  None,              0.5960, None),
+                       ([12,12], None,                0.8687, None),
+                       ([13,13], None,                0.7920, None),
+                       ([14,14], None,                0.8687, None),
+                       ([15,15], None,                0.7920, None),
+                       ([16,16], None,                0.8687, None),
+                       ([17,17], None,                0.7920, None),
+                       ([18,18], None,                0.8687, None),
+                       ([19,19], None,                0.7920, None),
+                       ([20,20], None,                0.8687, None),
+                       ([21,21], None,                0.7920, None),
+                       ([22,22], None,                1.2683, None),
+                       ([23,23], None,                1.2019, None),
+                       ([24,24], None,                1.2683, None),
+                       ([25,25], None,                1.2019, None),
+                       ([26,26], None,                1.2683, None),
+                       ([27,27], None,                1.2019, None),
+                       ([28,28], None,                1.2683, None),
+                       ([29,29], None,                1.2019, None),
+                       ([30,30], None,                1.2683, None),
+                       ([31,31], None,                3.5803, None),
+                       ([32,42], None,                3.1029, None),
+                       ([43,54], None,                5.2279, None)]
                 }
         matF.Close()
 
@@ -286,8 +376,12 @@ def runCalibrationStudy(opt):
     calibModel=ROOT.TF1('calibmodel',"[0]*x",0,1000)
     if opt.useSaturatedCalibModel:
         print 'Saturated calib model will be used'
-        calibModel=ROOT.TF1('calibmodel','x<[4] ? [0]*x : [3]*((x-[1])/(x+[2])-([4]-[1])/([4]+[2]))+[0]*[4]',0,1000)
-        calibModel.FixParameter(4,80)
+        if opt.weighting=='dedx': 
+            calibModel=ROOT.TF1('calibmodel','x<[2] ? [0]*x : [1]*TMath::Log(x/[2])+[0]*[2]',0,1000)
+            calibModel.FixParameter(2,100)
+        else:
+            calibModel=ROOT.TF1('calibmodel','x<[4] ? [0]*x : [3]*((x-[1])/(x+[2])-([4]-[1])/([4]+[2]))+[0]*[4]',0,1000)
+            calibModel.FixParameter(4,80)
     else:
         print 'Using linear approximation'
     calibModel.SetLineWidth(1)
@@ -330,12 +424,12 @@ def main():
     
     usage = 'usage: %prog [options]'
     parser = optparse.OptionParser(usage)
-    parser.add_option('-i',      '--in' ,      dest='input',        help='Input file',                                     default=None)
-    parser.add_option('-w',      '--ws' ,      dest='wsUrl',        help='Workspace file',                                 default=None)
-    parser.add_option('-c',      '--calib' ,   dest='calibUrl',     help='Calibration file',                               default=None)
-    parser.add_option('--vetoTrackInt',        dest='vetoTrackInt', help='flag if tracker interactions should be removed', default=False, action="store_true")
-    parser.add_option('--lambdaWeighting',     dest='lambdaWeighting', help='flag if layers should be weighted by lambda', default=False, action="store_true")
-    parser.add_option('--vetoHEBLeaks',        dest='vetoHEBLeaks',  help='flag if HEB leaks are allowed',                                  default=False, action='store_true')
+    parser.add_option('-i',      '--in' ,      dest='input',         help='Input file',                                     default=None)
+    parser.add_option('-w',      '--ws' ,      dest='wsUrl',         help='Workspace file',                                 default=None)
+    parser.add_option('-c',      '--calib' ,   dest='calibUrl',      help='Calibration file',                               default=None)
+    parser.add_option('--vetoTrackInt',        dest='vetoTrackInt',  help='flag if tracker interactions should be removed', default=False, action="store_true")
+    parser.add_option('--weighting',           dest='weighting',     help='em,lambda,dedx based weights',                   default='em')
+    parser.add_option('--vetoHEBLeaks',        dest='vetoHEBLeaks',  help='flag if HEB leaks are allowed',                  default=False, action='store_true')
     parser.add_option('--useSaturatedCalibModel',  dest='useSaturatedCalibModel', help='use a calibration model which saturates at high energy', default=False, action='store_true')
     parser.add_option('-v',      '--var' ,     dest='treeVarName',  help='Variable to use as energy estimator',            default='edep_sim')
     (opt, args) = parser.parse_args()

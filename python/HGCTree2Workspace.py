@@ -44,7 +44,8 @@ def prepareWorkspace(url,weightingScheme,treeVarName,vetoTrackInt,vetoHEBLeaks=F
         #check the amount of energy deposited in the back HEB
         if vetoHEBLeaks:
             sumBackHEB=0
-            for ilayer in [51,52,53]:
+            #for ilayer in [51,52,53]:
+            for ilayer in [53]:
                 sumBackHEB+=(getattr(HGC,treeVarName))[ilayer-1]
             if sumBackHEB>3: continue
 
@@ -62,8 +63,9 @@ def prepareWorkspace(url,weightingScheme,treeVarName,vetoTrackInt,vetoHEBLeaks=F
 
         #get the relevant energy deposits and add new row
         for subDet,subDetScheme in weightingScheme.iteritems():
-            
+
             totalEn, totalEnTail, nhits, nhits10mip, nhitsavg = 0, 0, 0, 0, 0
+            scaleCorrections = None
             for subDetRange in subDetScheme:
 
                 #decode corrections to apply to this sub-detector range
@@ -75,51 +77,51 @@ def prepareWorkspace(url,weightingScheme,treeVarName,vetoTrackInt,vetoHEBLeaks=F
                 weight                 = subDetRange[2]
                 scaleCorrections       = subDetRange[3]
 
-                #integrate layers applying corrections
+                #integrate layers
                 totalEnTail=0
                 mipLike=True
                 for ilay in xrange(integRange[0],integRange[1]+1):
                     edepInMIP   = (getattr(HGC,treeVarName))[ilay-1]
                     ien         = (weight*geomCorrection+etaDepWeight)*edepInMIP
                     if edepInMIP>1.5: mipLike=False
-                    if not (scaleCorrections is None):
-                        if not (scaleCorrections[0] is None):
-                            ien=scaleCorrections[0].GetX(ien)
-                            #think twice if you really want to pass residuals
-                            if not (scaleCorrections[1] is None):
-                                ien*=(1-scaleCorrections[1].Eval(ien)/100.)
-
                     totalEn    += ien
                     if ilay>integRange[1]-3: totalEnTail += ien
                     nhits      += (getattr(HGC,'nhits_%s'%(simStep)))[ilay-1]
                     nhits10mip += (getattr(HGC,'nhits10mip_%s'%(simStep)))[ilay-1]
                     nhitsavg   += (getattr(HGC,'nhitsavg_%s'%(simStep)))[ilay-1]
-                        
+
+            #apply corrections for sub-detector
+            if not (scaleCorrections is None):
+                if not (scaleCorrections[0] is None):
+                    totalEn=totalEn/scaleCorrections[0].GetParameter(0)
+                    #totalEn=scaleCorrections[0].GetX(totalEn)                            
+                    #think twice if you really want to pass residuals
+                    if not (scaleCorrections[1] is None):
+                        totalEn*=(1-scaleCorrections[1].Eval(totalEn)/100.)
+
             #add to the set of variables the values computed for this subdetector
             ws.var('en_%s'%subDet).setVal(totalEn)
             newEntry.add(ws.var('en_%s'%subDet))
-
             ws.var('mip_%s'%subDet).setVal(int(mipLike))
             newEntry.add(ws.var('mip_%s'%subDet))
 
             tailfrac=0
-            if totalEn>0: tailfrac=totalEnTail/totalEn
+            if totalEn>0 : tailfrac=totalEnTail/totalEn
             ws.var('tailfrac_%s'%subDet).setVal(tailfrac)
             newEntry.add(ws.var('tailfrac_%s'%subDet))
 
             cfrac = 0
-            if nhits>1:
-                cfrac = float(nhits-nhits10mip)/float(nhits-nhitsavg)
+            if nhits>1 : cfrac = float(nhits-nhits10mip)/float(nhits-nhitsavg)
             ws.var('c_%s'%subDet).setVal(cfrac)
             newEntry.add(ws.var('c_%s'%subDet))
 
             rho = 0
             volume=getattr(HGC,'totalVolume%s_%s'%(subDet,simStep))
-            if volume>0:
-                rho   = totalEn/volume
+            if volume>0 : rho = totalEn/volume
             ws.var('rho_%s'%subDet).setVal(rho)
             newEntry.add(ws.var('rho_%s'%subDet))
 
+        #add new entry
         ws.data('data').add( newEntry )
 
     fin.Close()
@@ -312,6 +314,7 @@ def showResolutionCurves(resGr,outDir,calibPostFix,model=0) :
 
     canvas=ROOT.TCanvas('c','c',500,500)
     canvas.cd()
+    canvas.SetLogx()
     leg=ROOT.TLegend(0.75,0.5,0.9,0.95)
     leg.SetFillStyle(0)
     leg.SetBorderSize(0)

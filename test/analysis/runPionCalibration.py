@@ -9,8 +9,148 @@ import commands
 from UserCode.HGCanalysis.PlotUtils import *
 from UserCode.HGCanalysis.HGCTree2Workspace import *
 
-#peak energy for a MIP integrated overall layers (after re-scaling to e.m.)
-INTEGMIPEM={'EE':0.423,'HEF':0.662,'HEB':1.332}
+INTEGMIPEM=None
+WEIGHTINGSCHEME=None
+
+"""
+Starts weighting scheme
+"""
+def initWeightingScheme(opt) :
+    #electromagnetic energy scale of each section    
+    emCalibMap={'EE':None,'HEF':None,'HEB':None}
+    if opt.emCalibUrl :
+        for iurl in opt.emCalibUrl.split(','):
+            subDet,url=iurl.split(':')
+            print 'Replacing default energy scale in %s with calibration from %s'%(subDet,url)
+            calibF=ROOT.TFile.Open(url)
+            #emCalibMap[subDet]=(calibF.Get('simple_calib'),calibF.Get('calib_3_simple_res'))
+            #don't apply residuals! dangerous for low energy!!! 
+            emCalibMap[subDet]=(calibF.Get('simple_calib'),None)
+            calibF.Close()
+
+    #readout material overburden file
+    matParamBeforeHGCMap={}
+    matFurl='%s/src/UserCode/HGCanalysis/data/HGCMaterialOverburden.root'%os.environ['CMSSW_BASE']
+    matF=ROOT.TFile.Open(matFurl)
+    matParamBeforeHGCGr=matF.Get("lambdaOverburden")
+    matParamBeforeHGCGr=None
+    matF.Close()
+    if not( matParamBeforeHGCGr is None) : print 'Material overburden has been read from %s'%matFurl
+
+    global INTEGMIPEM
+    global WEIGHTINGSCHEME
+
+    if opt.weighting=='lambda':
+        INTEGMIPEM={'EE':0.447,'HEF':0.661,'HEB':1.326}
+        WEIGHTINGSCHEME={
+            'EE': [([1, 1 ], matParamBeforeHGCGr, 0.0136, emCalibMap['EE']),
+                   ([2, 2],  None,                0.0461, emCalibMap['EE']),
+                   ([3, 3],  None,                0.0448, emCalibMap['EE']),
+                   ([4, 4],  None,                0.0241, emCalibMap['EE']),
+                   ([5, 5],  None,                0.0448, emCalibMap['EE']),
+                   ([6, 6],  None,                0.0241, emCalibMap['EE']),
+                   ([7, 7],  None,                0.0448, emCalibMap['EE']),
+                   ([8, 8],  None,                0.0241, emCalibMap['EE']),
+                   ([9, 9],  None,                0.0448, emCalibMap['EE']),
+                   ([10, 10],  None,              0.0241, emCalibMap['EE']),
+                   ([11, 11],  None,              0.0448, emCalibMap['EE']),
+                   ([12,12], None,                0.0347, emCalibMap['EE']),
+                   ([13,13], None,                0.0511, emCalibMap['EE']),
+                   ([14,14], None,                0.0347, emCalibMap['EE']),
+                   ([15,15], None,                0.0511, emCalibMap['EE']),
+                   ([16,16], None,                0.0347, emCalibMap['EE']),
+                   ([17,17], None,                0.0511, emCalibMap['EE']),
+                   ([18,18], None,                0.0347, emCalibMap['EE']),
+                   ([19,19], None,                0.0511, emCalibMap['EE']),
+                   ([20,20], None,                0.0347, emCalibMap['EE']),
+                   ([21,21], None,                0.0511, emCalibMap['EE']),
+                   ([22,22], None,                0.0488, emCalibMap['EE']),
+                   ([23,23], None,                0.0642, emCalibMap['EE']),
+                   ([24,24], None,                0.0488, emCalibMap['EE']),
+                   ([25,25], None,                0.0642, emCalibMap['EE']),
+                   ([26,26], None,                0.0488, emCalibMap['EE']),
+                   ([27,27], None,                0.0642, emCalibMap['EE']),
+                   ([28,28], None,                0.0488, emCalibMap['EE']),
+                   ([29,29], None,                0.0642, emCalibMap['EE']),
+                   ([30,30], None,                0.0488, emCalibMap['EE'])],
+            'HEF':[([31,31], None,                0.3377, emCalibMap['HEF']),
+                   ([32,42], None,                0.2727, emCalibMap['HEF'])],
+            'HEB':[([43,54], None,                0.4760, emCalibMap['HEB'])]
+            }
+    elif opt.weighting=='dedx':
+        INTEGMIPEM={'EE':0.722,'HEF':0.661,'HEB':1.322}
+        WEIGHTINGSCHEME={
+            'EE': [([1, 1 ], None,                2.372,  emCalibMap['EE']),
+                   ([2, 2],  None,                9.541,  emCalibMap['EE']),
+                   ([3, 3],  None,                8.816,  emCalibMap['EE']),
+                   ([4, 4],  None,                5.125,  emCalibMap['EE']),
+                   ([5, 5],  None,                8.816,  emCalibMap['EE']),
+                   ([6, 6],  None,                5.125,  emCalibMap['EE']),
+                   ([7, 7],  None,                8.816,  emCalibMap['EE']),
+                   ([8, 8],  None,                5.125,  emCalibMap['EE']),
+                   ([9, 9],  None,                8.816,  emCalibMap['EE']),
+                   ([10, 10],  None,              5.125,  emCalibMap['EE']),
+                   ([11, 11],  None,              8.816,  emCalibMap['EE']),
+                   ([12,12], None,                7.445,  emCalibMap['EE']),
+                   ([13,13], None,                10.217, emCalibMap['EE']),
+                   ([14,14], None,                7.445,  emCalibMap['EE']),
+                   ([15,15], None,                10.217, emCalibMap['EE']),
+                   ([16,16], None,                7.445,  emCalibMap['EE']),
+                   ([17,17], None,                10.217, emCalibMap['EE']),
+                   ([18,18], None,                7.445,  emCalibMap['EE']),
+                   ([19,19], None,                10.217, emCalibMap['EE']),
+                   ([20,20], None,                7.445,  emCalibMap['EE']),
+                   ([21,21], None,                10.217, emCalibMap['EE']),
+                   ([22,22], None,                10.539, emCalibMap['EE']),
+                   ([23,23], None,                13.148, emCalibMap['EE']),
+                   ([24,24], None,                10.539, emCalibMap['EE']),
+                   ([25,25], None,                13.148, emCalibMap['EE']),
+                   ([26,26], None,                10.539, emCalibMap['EE']),
+                   ([27,27], None,                13.148, emCalibMap['EE']),
+                   ([28,28], None,                10.539, emCalibMap['EE']),
+                   ([29,29], None,                13.148, emCalibMap['EE']),
+                   ([30,30], None,                10.539, emCalibMap['EE'])],
+            'HEF':[([31,31], None,                65.001, emCalibMap['HEF']),
+                   ([32,42], None,                52.954, emCalibMap['HEF'])],
+            'HEB':[([43,54], None,                92.196, emCalibMap['HEB'])]
+            }
+    else:  
+        INTEGMIPEM={'EE':0.466,'HEF':0.665,'HEB':1.326}      
+        WEIGHTINGSCHEME={
+            'EE': [([1, 1 ], matParamBeforeHGCGr, 0.0798, emCalibMap['EE']),
+                   ([2, 2],  None,                0.9214, emCalibMap['EE']),
+                   ([3, 3],  None,                0.5960, emCalibMap['EE']),
+                   ([4, 4],  None,                0.5691, emCalibMap['EE']),
+                   ([5, 5],  None,                0.5960, emCalibMap['EE']),
+                   ([6, 6],  None,                0.5691, emCalibMap['EE']),
+                   ([7, 7],  None,                0.5960, emCalibMap['EE']),
+                   ([8, 8],  None,                0.5691, emCalibMap['EE']),
+                   ([9, 9],  None,                0.5960, emCalibMap['EE']),
+                   ([10, 10],  None,              0.5691, emCalibMap['EE']),
+                   ([11, 11],  None,              0.5960, emCalibMap['EE']),
+                   ([12,12], None,                0.8687, emCalibMap['EE']),
+                   ([13,13], None,                0.7920, emCalibMap['EE']),
+                   ([14,14], None,                0.8687, emCalibMap['EE']),
+                   ([15,15], None,                0.7920, emCalibMap['EE']),
+                   ([16,16], None,                0.8687, emCalibMap['EE']),
+                   ([17,17], None,                0.7920, emCalibMap['EE']),
+                   ([18,18], None,                0.8687, emCalibMap['EE']),
+                   ([19,19], None,                0.7920, emCalibMap['EE']),
+                   ([20,20], None,                0.8687, emCalibMap['EE']),
+                   ([21,21], None,                0.7920, emCalibMap['EE']),
+                   ([22,22], None,                1.2683, emCalibMap['EE']),
+                   ([23,23], None,                1.2019, emCalibMap['EE']),
+                   ([24,24], None,                1.2683, emCalibMap['EE']),
+                   ([25,25], None,                1.2019, emCalibMap['EE']),
+                   ([26,26], None,                1.2683, emCalibMap['EE']),
+                   ([27,27], None,                1.2019, emCalibMap['EE']),
+                   ([28,28], None,                1.2683, emCalibMap['EE']),
+                   ([29,29], None,                1.2019, emCalibMap['EE']),
+                   ([30,30], None,                1.2683, emCalibMap['EE'])],
+            'HEF':[([31,31], None,               3.5803, emCalibMap['HEF']),
+                   ([32,42], None,                3.1029, emCalibMap['HEF'])],
+            'HEB':[([43,54], None,               5.2279, emCalibMap['HEB'])]
+            }
 
 """
 """
@@ -30,17 +170,26 @@ def fitGaussianToPeak(data,hrange=None,nbins=None):
         #fitRangeMax=data.GetXaxis().GetBinCenter(maxBin+7)
         #data.Fit('gaus','LMRQ0+','',fitRangeMin,fitRangeMax)
         data.Fit('gaus','LMRQ0+','')
-        meanX,meanXerr=data.GetFunction('gaus').GetParameter(1),data.GetFunction('gaus').GetParError(1)
+        meanX,meanXerr=data.GetFunction('gaus').GetParameter(1),data.GetFunction('gaus').GetParError(1)      
     except:
         if len(data)<5: return 0,0
         h=ROOT.TH1F('datah','',nbins,hrange[0],hrange[1])
         for d in data: h.Fill(d)
+        #spec=ROOT.TSpectrum()
+        #spec.Search(h,1,"nobackground goff")
+        #maxBin=h.GetXaxis().FindBin(spec.GetPositionX()[0])
         maxBin=h.GetMaximumBin()
+        if maxBin>h.GetXaxis().GetNbins()-3: maxBin=h.GetXaxis().FindBin(h.GetMean())
         fitRangeMin=h.GetXaxis().GetBinCenter(maxBin-7)
-        fitRangeMax=h.GetXaxis().GetBinCenter(maxBin+7)
-        h.Fit('gaus','LMRQ0+','',fitRangeMin,fitRangeMax)
-        meanX,meanXerr=h.GetFunction('gaus').GetParameter(1),h.GetFunction('gaus').GetParError(1)
+        fitRangeMax=h.GetXaxis().GetBinCenter(maxBin+7)       
+        gaus=ROOT.TF1('gaus','gaus',hrange[0],hrange[1])
+        gaus.SetParLimits(1,hrange[0],hrange[1])
+        h.Fit(gaus,'LMRQ+','',fitRangeMin,fitRangeMax)
+        meanX,meanXerr=h.GetFunction('gaus').GetParameter(1),h.GetFunction('gaus').GetParError(1)       
+       # h.SaveAs('/tmp/psilva/temp.root')
+       # raw_input('...')
         h.Delete()
+        gaus.Delete()
 
     return meanX,meanXerr
 
@@ -68,16 +217,16 @@ wraps the computation of pi/e
 def computePiOverE(x,xresp,gr,byMode):
 
     #require minimum 3 events for pi/e by mode...
+    median,     medianErr     = getMedianFor(x=x)
+    medianResp, medianRespErr = getMedianFor(x=xresp)
     if byMode and len(x)>3:
-        mode,     modeErr     = fitGaussianToPeak(data=x,     hrange=(0,800), nbins=400)
-        modeResp, modeRespErr = fitGaussianToPeak(data=xresp, hrange=(0,2),   nbins=50)
+        mode,     modeErr     = fitGaussianToPeak(data=x,     hrange=(0,2*median),     nbins=400)
+        modeResp, modeRespErr = fitGaussianToPeak(data=xresp, hrange=(0,2), nbins=50)
         np=gr.GetN()
         gr.SetPoint(np,mode,modeResp)
         gr.SetPointError(np,modeErr,modeRespErr)
         return [mode,modeErr,modeResp,modeRespErr]
     elif not byMode and len(x)>0:
-        median,     medianErr     = getMedianFor(x=x)
-        medianResp, medianRespErr = getMedianFor(x=xresp)
         np=gr.GetN()
         gr.SetPoint(np,median,medianResp)
         gr.SetPointError(np,medianErr,medianRespErr)
@@ -92,7 +241,7 @@ draws the correlation for different sub-dets
 def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,byMode):
 
     #auxiliary, for plotting purposes
-    canvas   = ROOT.TCanvas('c','c',1500,500)
+    canvas   = ROOT.TCanvas('c','c',1000,1000)
     allLegs  = []
     allProjs = []
 
@@ -220,9 +369,6 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
             yval_over_xyval_m_mip=-1
             if yval==0: yval_over_xyval_m_mip=0
             if xyval_m_mip>0:yval_over_xyval_m_mip=yval/xyval_m_mip
-            #if yval_over_xyval_m_mip<0 or yval_over_xyval_m_mip>1:
-            #    print genEn_mean,xyvalRaw,xyVal,xval,yval,'->',yval_over_xyval_m_mip,'?'
-            #    continue
 
             #Si vs Silicone banana correction
             if not (banana is None):
@@ -284,9 +430,9 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
             responseProfiles[xaxisName+'_gen'].SetPointError(np,0,xPiOverE[3])
             fracCoord, fracCoordErr = getMedianFor(x=yfracvaluesAtY0)
             if byMode:
-                fracCoord,fracCoordErr= fitGaussianToPeak(data=yfracvaluesAtY0,hrange=(0,1),nbins=50)
+                fracCoord,fracCoordErr= fitGaussianToPeak(data=yfracvaluesAtY0,hrange=(0,1),nbins=20)
             piovereArcGr.SetPoint(0,xPiOverE[2],fracCoord)
-            piovereArcGr.SetPointError(0,xPiOverE[3],fracCoordErr)
+            piovereArcGr.SetPointError(0,xPiOverE[3],0)
 
         yPiOverE    = computePiOverE(x=yvaluesAtX0,  xresp=yrespvaluesAtX0,  gr=responseProfiles[yaxisName],byMode=byMode)
         if len(yPiOverE)==4:
@@ -295,9 +441,9 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
             responseProfiles[yaxisName+'_gen'].SetPointError(np,0,yPiOverE[3])
             fracCoord, fracCoordErr = getMedianFor(x=yfracvaluesAtX0)
             if byMode:
-                fracCoord,fracCoordErr= fitGaussianToPeak(data=yfracvaluesAtX0,hrange=(0,1),nbins=50)
+                fracCoord,fracCoordErr= fitGaussianToPeak(data=yfracvaluesAtX0,hrange=(0,1),nbins=20)
             piovereArcGr.SetPoint(1,yPiOverE[2],fracCoord)
-            piovereArcGr.SetPointError(1,yPiOverE[3],fracCoordErr)
+            piovereArcGr.SetPointError(1,yPiOverE[3],0)
 
         combPiOverE = computePiOverE(x=xyvalues,     xresp=xyrespvalues,     gr=responseProfiles[xaxisName+yaxisName+'_comb'],byMode=byMode)
         if len(combPiOverE)==4:
@@ -309,10 +455,11 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
         if len(combdiagPiOverE)==4:
             fracCoord, fracCoordErr = getMedianFor(x=yfracvaluesAtDiag)
             if byMode:
-                fracCoord,fracCoordErr= fitGaussianToPeak(data=yfracvaluesAtDiag,hrange=(0,1),nbins=50)
+                fracCoord,fracCoordErr= fitGaussianToPeak(data=yfracvaluesAtDiag,hrange=(0,1),nbins=20)
             piovereArcGr.SetPoint(2,combdiagPiOverE[2],fracCoord)
-            piovereArcGr.SetPointError(2,combdiagPiOverE[3],fracCoordErr)
+            piovereArcGr.SetPointError(2,combdiagPiOverE[3],0)
 
+        piovereArcGr.Sort()
         piovereArcFunc=fitPiOverEArc(piovereArcGr)
         if not (piovereArcFunc is None):
             for ip in xrange(0,3):
@@ -325,7 +472,7 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
         # SHOW ENERGY SLICE
         #
         canvas.Clear()
-        canvas.Divide(3,1)            
+        canvas.Divide(2,2)            
 
         #scatter 1
         p=canvas.cd(1)
@@ -449,13 +596,13 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
 
     #show residual parameterisations
     canvas.Clear()
-    canvas.Divide(3,1)
+    canvas.Divide(2,2)
     for key in piovereArcFuncEvol:
         p=canvas.cd(key+1)
         p.SetLogx()
         piovereArcFuncEvol[key].Draw('ap')
         piovereArcFuncEvol[key].GetXaxis().SetTitle('<E(rec)>')
-        piovereArcFuncEvol[key].GetYaxis().SetTitle(piovereArcFuncEvol[key].GetTitle())
+        piovereArcFuncEvol[key].GetYaxis().SetTitle(piovereArcFuncEvol[key].GetTitle())        
         if key==0: MyPaveText('#bf{CMS} #it{simulation}')
 
         #do the fit only after both corrections are applied
@@ -473,8 +620,11 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
         #resEvolFunc.SetParLimits(1,-2,2)
         #resEvolFunc.SetParLimits(2,0.1,100)
         #resEvolFunc.SetParLimits(3,0.1,100)
-        piovereArcFuncEvol[key].Fit( resEvolFunc, 'MR+','',0,500 )
+        piovereArcFuncEvol[key].Fit( resEvolFunc, 'MR+','',0,100 )
         piovereArcFuncEvol[key].GetFunction(resEvolFunc.GetName()).SetRange(0,10000)
+        limit=piovereArcFuncEvol[key].GetFunction(resEvolFunc.GetName()).Eval(10000)
+        piovereArcFuncEvol[key].GetYaxis().SetRangeUser(limit-2,limit+2)
+
 
     canvas.Modified()
     canvas.Update()
@@ -549,12 +699,13 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
         responseFunc.SetParameter(4,0)
         responseFunc.SetParLimits(4,0,2)
         if key=='HEB':
-            responseFunc.SetParameter(0,0.30)
-            responseFunc.SetParameter(1,0.28)
-            responseFunc.SetParameter(2,0.009)
-            responseFunc.SetParameter(3,0.003)
-            responseFunc.SetParameter(4,0.7)
-            responseProfiles[key].Fit(responseFunc,'MRQ+')
+            #responseFunc.SetParameter(0,0.30)
+            #responseFunc.SetParameter(1,0.28)
+            #responseFunc.SetParameter(2,0.009)
+            #responseFunc.SetParameter(3,0.003)
+            responseFunc.FixParameter(3,0)
+            #responseFunc.SetParameter(4,0.7)
+            responseProfiles[key].Fit(responseFunc,'MRQ+','',0,100)
             responseProfiles[key].GetFunction(responseFunc.GetName()).SetRange(0,1000)
         else:
             responseFunc.FixParameter(3,0)
@@ -886,39 +1037,8 @@ def adaptWorkspaceForPionCalibration(opt,outDir):
     #prepare workspace (if needed) and output
     if wsUrl is None :
 
-        #electromagnetic energy scale of each section
-        emCalibMap={'EE':None,'HEF':None,'HEB':None}
-        if opt.emCalibUrl :
-            for iurl in opt.emCalibUrl.split(','):
-                subDet,url=iurl.split(':')
-                print 'Replacing default energy scale in %s with calibration from %s'%(subDet,url)
-                calibF=ROOT.TFile.Open(url)
-                #emCalibMap[subDet]=(calibF.Get('simple_calib'),calibF.Get('calib_3_simple_res'))
-                #don't apply residuals! dangerous for low energy!!! 
-                emCalibMap[subDet]=(calibF.Get('simple_calib'),None)
-                calibF.Close()
-
-        #readout material overburden file
-        matParamBeforeHGCMap={}
-        matFurl='%s/src/UserCode/HGCanalysis/data/HGCMaterialOverburden.root'%os.environ['CMSSW_BASE']
-        matF=ROOT.TFile.Open(matFurl)
-        matParamBeforeHGCGr=matF.Get("lambdaOverburden")
-        matF.Close()
-        if not( matParamBeforeHGCGr is None) : print 'Material overburden has been read from %s'%matFurl
-
-        #init weighting scheme
-        weightingScheme={
-            'EE': [([1, 1 ], matParamBeforeHGCGr, 0.010, emCalibMap['EE']),
-                   ([2, 11], None,                0.036, emCalibMap['EE']),
-                   ([12,21], None,                0.043, emCalibMap['EE']),
-                   ([22,30], None,                0.056, emCalibMap['EE'])],
-            'HEF':[([31,31], None,                0.338, emCalibMap['HEF']),
-                   ([32,42], None,                0.273, emCalibMap['HEF'])],
-            'HEB':[([43,54], None,                0.475, emCalibMap['HEB'])]
-            }
-        
         #prepare the workspace and get new url
-        wsUrl=prepareWorkspace(url=opt.input,weightingScheme=weightingScheme,vetoTrackInt=opt.vetoTrackInt,vetoHEBLeaks=opt.vetoHEBLeaks,treeVarName=opt.treeVarName)
+        wsUrl=prepareWorkspace(url=opt.input,weightingScheme=WEIGHTINGSCHEME,vetoTrackInt=opt.vetoTrackInt,vetoHEBLeaks=opt.vetoHEBLeaks,treeVarName=opt.treeVarName)
     
     #all done here
     print 'Workspace ready for pion calibration, stored @ %s'%wsUrl
@@ -949,6 +1069,8 @@ def runCalibrationStudy(opt):
     #init phase space regions of interest
     etaRanges = [[1.55,1.75],[1.75,2.0],[2.0,2.25],[2.25,2.5],[2.5,2.7],[2.7,2.9]]
     enRanges  = [[1.8,2.2],[2.8,3.2],[4.5,5.5],[7.5,8.5],[9,11],[19,21],[39,41],[49,51],[74,76],[99,101],[124,126],[174,176],[249,251],[399,401],[499,501]]
+    #if opt.noEE and opt.noHEF:
+    #    enRanges=enRanges[:len(enRanges)-3]
 
     pioverE_EE, pioverE_HEF, pioverE_HEB, banana = None,None,None, None
 
@@ -1053,7 +1175,8 @@ def runCalibrationStudy(opt):
         return
     
     #read calibrations from file, if available
-    weightTitles={'simple':'Simple sum ','gc':'Global compensation'} #,'lc':'Local compensation'}
+    weightTitles={'simple':'Simple sum '}
+    if opt.noEE==False and opt.noHEF==False: weightTitles['gc']='Global compensation'
     calibPostFix='uncalib'
     calibMap={}
     calibMapRes={}
@@ -1079,6 +1202,13 @@ def runCalibrationStudy(opt):
     for ientry in xrange(0,ws.data('data').numEntries()):
 
         entryVars=ws.data('data').get(ientry)
+
+        #check phi
+        phi=entryVars.find('phi').getVal()
+        nphi=ROOT.TMath.Floor(ROOT.TMath.Abs(9*phi/ROOT.TMath.Pi()))
+        phi=ROOT.TMath.Abs(phi)-nphi*ROOT.TMath.Pi()/9.
+        if ROOT.TMath.Abs(phi-ROOT.TMath.Pi()/18.)<0.03 : continue
+
         newEntry=ROOT.RooArgSet()
 
         for baseVar in ['en','eta','phi']:
@@ -1279,7 +1409,7 @@ def runCalibrationStudy(opt):
                 showCalibrationFitResults( theVar=ws.var(vName),
                                            theData=redData,
                                            thePDF=ws.pdf('resol_%s'%fitName),
-                                           theLabel='#it{Energy=%d GeV, %3.1f<#eta<%3.1f}\\#mu=%3.2f#pm%3.2f\\#sigma=%3.2f#pm%3.2f\\#sigma_{eff}=%3.2f'%(genEn_mean,genEta_min,genEta_max,meanFit,meanFit_error,sigmaFit,sigmaFit_error,sigmaEffVal),
+                                           theLabel='#it{Energy=%3.0f GeV, %3.1f<#eta<%3.1f}\\#mu=%3.2f#pm%3.2f\\#sigma=%3.2f#pm%3.2f\\#sigma_{eff}=%3.2f'%(genEn_mean,genEta_min,genEta_max,meanFit,meanFit_error,sigmaFit,sigmaFit_error,sigmaEffVal),
                                            fitName=fitName,
                                            outDir=outDir)
 
@@ -1330,6 +1460,7 @@ def main():
     parser.add_option('--calib' ,              dest='calibUrl',      help='pion calibration file',                                          default=None)
     parser.add_option('--compWeights' ,        dest='compWeights',   help='file with software compensation weights',                        default=None)
     parser.add_option('--byMode',              dest='byMode',        help='flag pi/e is to be determined by mode',                          default=False, action="store_true")
+    parser.add_option('--weighting',           dest='weighting',     help='em,lambda,dedx based weights',                                   default='em')
     parser.add_option('--vetoTrackInt',        dest='vetoTrackInt',  help='flag if tracker interactions should be removed',                 default=False, action="store_true")
     parser.add_option('--vetoHEBLeaks',        dest='vetoHEBLeaks',  help='flag if HEB leaks are allowed',                                  default=False, action='store_true')
     parser.add_option('--banana',              dest='bananaUrl',     help='Apply banana correction from this url',                          default=None)
@@ -1372,7 +1503,8 @@ def main():
     ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.NumIntegration);
     ROOT.RooMsgService.instance().getStream(1).removeTopic(ROOT.RooFit.NumIntegration);
 
-    runCalibrationStudy(opt)
+    initWeightingScheme(opt=opt)
+    runCalibrationStudy(opt=opt)
     
 if __name__ == "__main__":
     sys.exit(main())
