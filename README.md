@@ -85,9 +85,14 @@ for i in ${a[@]}; do
 done
 
 ### Minimum bias (1000 events per file x 500 jobs, should be ok for later mixing with particle gun)
-python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/MinBias_${CMSSW_VERSION}/HLLHC_Fix        -b HLLHC            -c UserCode/HGCanalysis/python/minBias_cfi.py -n 500";
-python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/MinBias_${CMSSW_VERSION}/HLLHC_Fix        -b HLLHC_Fix        -c UserCode/HGCanalysis/python/minBias_cfi.py -n 500";
-python scripts/submitLocalHGCalProduction.py -q 1nd -n 500 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/MinBias_${CMSSW_VERSION}/HLLHCCrabKissing -b HLLHCCrabKissing -c UserCode/HGCanalysis/python/minBias_cfi.py -n 500";
+beamspots=(HLLHC_Fix HLLHCCrabKissing)
+for b in ${beamspots[@]}; do
+    #python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/MinBias_${CMSSW_VERSION}/${b}        -b ${b}        -c UserCode/HGCanalysis/python/minBias_cfi.py -n 500";
+    python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/GluGluHtoGG_${CMSSW_VERSION}/${b}        -b ${b} -k        -c UserCode/HGCanalysis/python/hToGG_cfi.py -n 100";
+    python scripts/submitLocalHGCalProduction.py -q 1nd -n 500 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/VBFHtoInv_${CMSSW_VERSION}/${b}        -b ${b}  -k      -c UserCode/HGCanalysis/python/VBFH125toInv_cfi.py -n 100";
+done
+
+
 
 
 ### Other processes

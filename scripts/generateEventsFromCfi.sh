@@ -19,9 +19,10 @@ TAG=""
 PHYSLIST="QGSP_FTFP_BERT_EML"
 TKFILTER=""
 SIMONLY=""
+GENPARTICLEFILTER=""
 PU=0
 BEAMSPOT="HLLHC"
-while getopts "hp:e:n:c:o:w:j:g:t:l:xzfsa:b:" opt; do
+while getopts "hp:e:n:c:o:w:j:g:t:l:xzfksa:b:" opt; do
     case "$opt" in
     h)
         echo ""
@@ -42,6 +43,7 @@ while getopts "hp:e:n:c:o:w:j:g:t:l:xzfsa:b:" opt; do
 	echo "     -z      exclude HEF (turn into air)"
         echo "     -t      tag to name output file"
 	echo "     -f      filter events interacting before HGC"
+	echo "     -k      filter genParticle candidates (photons, status 3 quarks) in HGC fiducial region"
 	echo "     -s      sim only"
 	echo "     -a      average pileup"
 	echo "     -b      beamspot HLLHC - default / HLLHC_Fix / HLLHCCrabKissing"
@@ -78,6 +80,8 @@ while getopts "hp:e:n:c:o:w:j:g:t:l:xzfsa:b:" opt; do
     s)  SIMONLY="True"
 	;;
     f)  TKFILTER="True"
+	;;
+    k) GENPARTICLEFILTER="True"
 	;;
     b)  BEAMSPOT=$OPTARG
 	;;
@@ -174,6 +178,13 @@ if [[ "${TKFILTER}" != "" ]]; then
     echo "Adding hgcTrackerInteractionsFilter"
     echo "process.load('UserCode.HGCanalysis.hgcTrackerInteractionsFilter_cfi')" >> ${WORKDIR}/${PYFILE}
     echo "getattr(process,'simulation_step')._seq = getattr(process,'simulation_step')._seq * process.trackerIntFilter" >> ${WORKDIR}/${PYFILE}
+fi
+
+#check if genparticle filter is required
+if [[ "${GENPARTICLEFILTER}" != "" ]]; then
+    echo "Adding fiducial genParticles filter"
+    echo "process.load('UserCode.HGCanalysis.hgcGenCandSelector_cff')" >> ${WORKDIR}/${PYFILE}
+    echo "getattr(process,'simulation_step')._seq = getattr(process,'simulation_step')._seq * process.hgcGenParticleFilter * process.hgcCandFilter" >> ${WORKDIR}/${PYFILE}
 fi
 
 #

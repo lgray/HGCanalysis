@@ -715,7 +715,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  totalE_[key]=totalEn;
 	  totalX0WgtE_[key]=totalX0WgtEn;
 	  totalLambdaWgtE_[key]=totalLambdaWgtEn;
-	  avgEPerHitEE_[key] = nhitsEE> 0 ? totalEnEE/nhitsEE : 0.;
+	  avgEPerHitEE_[key]  = nhitsEE> 0 ? totalEnEE/nhitsEE : 0.;
 	  avgEPerHitHEF_[key] = nhitsHEF> 0 ? totalEnHEF/nhitsHEF : 0.;
 	  avgEPerHitHEB_[key] = nhitsHEB> 0 ? totalEnHEB/nhitsHEB : 0.;
 
@@ -753,6 +753,8 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      int layerIdx(hitLayer+layerCtrOffset[subDetCtr]-1);	      
 
 	      float en(detIt->second.first);
+	      //int idx(abs((hitX-emeanX_[key][layerIdx])/cellSize));
+	      //int idy(abs((hitY-emeanY_[key][layerIdx])/cellSize));
 	      int idx(abs((hitX-emeanX_[key][layerIdx])/cellSize));
 	      int idy(abs((hitY-emeanY_[key][layerIdx])/cellSize));
 	      if(idx<=1 && idy<=1) edeps3x3_[key][layerIdx] += en;
