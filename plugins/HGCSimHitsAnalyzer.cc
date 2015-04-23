@@ -136,7 +136,7 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       t_->Branch("edep_"+key,      edeps_[key],    "edep_"+key+"[nlay]/F");
 
       edepstdc_[key]    = new Float_t[100];
-      t_->Branch("edepstdc_"+key,      edeps_[key],    "edepstdc_"+key+"[nlay]/F");
+      t_->Branch("edepstdc_"+key,      edepstdc_[key],    "edepstdc_"+key+"[nlay]/F");
 
       if(key=="rec")
 	{
@@ -156,6 +156,9 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       nhits_[key]    = new Int_t[100];
       t_->Branch("nhits_"+key,     nhits_[key],    "nhits_"+key+"[nlay]/I");
 
+      nhitstdc_[key]    = new Int_t[100];
+      t_->Branch("nhitstdc_"+key,     nhitstdc_[key],    "nhitstdc_"+key+"[nlay]/I");
+
       nhitsavg_[key]    = new Int_t[100];
       t_->Branch("nhitsavg_"+key,     nhitsavg_[key],    "nhitsavg_"+key+"[nlay]/I");
 
@@ -167,6 +170,12 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
 
       emeanTimeLayer_[key] = new Float_t[100];
       t_->Branch("emeanTimeLayer_"+key,  emeanTimeLayer_[key], "emeanTimeLayer_"+key+"[nlay]/F");
+
+      maxTimeLayer_[key] = new Float_t[100];
+      t_->Branch("maxTimeLayer_"+key,  maxTimeLayer_[key], "maxTimeLayer_"+key+"[nlay]/F");
+      
+      maxTimeEnergyLayer_[key] = new Float_t[100];
+      t_->Branch("maxTimeEnergyLayer_"+key,  maxTimeEnergyLayer_[key], "maxTimeEnergyLayer_"+key+"[nlay]/F");
 
       emeanPhi_[key] = new Float_t[100];
       t_->Branch("emeanPhi_"+key,  emeanPhi_[key], "emeanPhi_"+key+"[nlay]/F");
@@ -312,7 +321,7 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       genHitX_=hitPos.x();
       genHitY_=hitPos.y();
       genHitZ_=hitPos.z();
-      hasInteractionBeforeHGC_=(fabs(hitPos.z())<317);
+      hasInteractionBeforeHGC_=(fabs(hitPos.z())<317 && fabs(hitPos.z()) > 1e-3);
       hasChargedInteraction_=intInfo.info;
 
       // gen vertex positions
@@ -619,6 +628,9 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  //loop over the hits
 	  int nhitsEE(0), nhitsHEF(0), nhitsHEB(0);
 	  float totalEn(0), totalEnTDC(0),totalX0WgtEn(0), totalLambdaWgtEn(0),totalEnEE(0),totalEnHEF(0),totalEnHEB(0);
+          
+          //constexpr float tdc_reso = 0.080f;
+
 	  for(std::map<uint32_t,std::pair<float,float> >::iterator detIt=stepIt->second.begin();
 	      detIt!=stepIt->second.end();
 	      detIt++)
@@ -669,6 +681,13 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
                 */
                 emeanTimeLayer_[key][layerIdx] += en*( time ); // - (std::abs(hitZ) - std::abs(layerZ[0]))/cm_per_ns
                 edepstdc_[key][layerIdx]      += en;
+
+                if( time > maxTimeLayer_[key][layerIdx] ) {
+                  maxTimeLayer_[key][layerIdx] = time;
+                  maxTimeEnergyLayer_[key][layerIdx] = en;
+                }
+
+                ++nhitstdc_[key][layerIdx];
               }
               
 	      emeanEta_[key][layerIdx]      += en*hitEta;

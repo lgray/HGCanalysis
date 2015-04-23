@@ -101,7 +101,10 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	      ctrledeps_[key][ilay]=0;
 	    }
 	    emeanPhi_[key][ilay]=0;       emeanEta_[key][ilay]=0;       emeanX_[key][ilay]=0;       emeanY_[key][ilay]=0;
-            edepstdc_[key][ilay]=0;  
+            edepstdc_[key][ilay]=0; 
+            nhitstdc_[key][ilay]=0; 
+            maxTimeLayer_[key][ilay]=0;
+            maxTimeEnergyLayer_[key][ilay]=0;
             emeanTimeLayer_[key][ilay]=0;
 	    edepdR_[key][ilay]=0;         edepArea_[key][ilay]=0;       widthep1_[key][ilay]=0;     widthep2_[key][ilay]=0;
 	    width1_[key][ilay]=0;         width2_[key][ilay]=0;
@@ -136,8 +139,8 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   std::map<TString, Float_t> hitMax_, hitMaxX_, hitMaxY_, hitMaxEta_, hitMaxPhi_;
   std::map<TString, Int_t> hitMaxLayer_, showerStart_;
   std::map<TString, Float_t> totalE_, avgEPerHitEE_,avgEPerHitHEF_,avgEPerHitHEB_, totalX0WgtE_, totalLambdaWgtE_, totalLength_, totalVolumeEE_,totalVolumeHEF_,totalVolumeHEB_,emeanTime_;
-  std::map<TString, Float_t *> edeps_, edepstdc_, weightedEdeps_, edeps3x3_, edeps5x5_, ctrledeps_;
-  std::map<TString, Int_t *> nhits_, nhitsavg_, nhits5mip_, nhits10mip_, ctrlnhits_;
+  std::map<TString, Float_t *> edeps_, edepstdc_, maxTimeLayer_, maxTimeEnergyLayer_, weightedEdeps_, edeps3x3_, edeps5x5_, ctrledeps_;
+  std::map<TString, Int_t *> nhits_, nhitstdc_, nhitsavg_, nhits5mip_, nhits10mip_, ctrlnhits_;
   std::map<TString, Float_t *> emeanX_, emeanY_, emeanPhi_,    emeanEta_, emeanTimeLayer_;
   std::map<TString, Float_t *> width1_, width2_, widthep1_, widthep2_, edepdR_, edepArea_;
 
