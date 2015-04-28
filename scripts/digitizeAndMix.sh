@@ -44,7 +44,7 @@ done
 #
 # CONFIGURE JOB
 #
-DIGIOUTNAME=Events_PU${PILEUP}.root
+DIGIOUTNAME=Events_${JOBNB}_PU${PILEUP}.root
 BASEJOBNAME=Events_${JOBNB}_PU${PILEUP}
 BASEJOBNAME=${BASEJOBNAME/","/"_"}
 OUTFILE=${BASEJOBNAME}.root
@@ -54,8 +54,8 @@ LOGFILE=${BASEJOBNAME}.log
 #
 # RUN cmsRun and at the end move the output to the required directory
 #
-echo "cmsRun ${CFG} ${INPUTF} ${MINBIASTAG} ${PILEUP} ${WORKDIR}"
-cmsRun ${CFG} ${INPUTF} ${MINBIASTAG} ${PILEUP} ${WORKDIR} > ${WORKDIR}/${LOGFILE} 2>&1
+echo "cmsRun ${CFG} ${INPUTF} ${JOBNB} 1 ${MINBIASTAG} ${PILEUP} ${WORKDIR}"
+cmsRun ${CFG} ${INPUTF} ${JOBNB} 1 ${MINBIASTAG} ${PILEUP} ${WORKDIR} > ${WORKDIR}/${LOGFILE} 2>&1
 
 #move output
 echo $STOREDIR

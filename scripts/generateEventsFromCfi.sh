@@ -192,18 +192,18 @@ fi
 #
 cmsRun ${WORKDIR}/${PYFILE} > ${WORKDIR}/${LOGFILE} 2>&1
 
-if [ -z ${SIMONLY} ]; then
-    if [[ $STOREDIR =~ .*/store/cmst3.* ]]; then
-	cmsMkdir ${STOREDIR}
-	cmsStage -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
-    elif [[ $STOREDIR =~ /afs/.* ]]; then
-	mkdir ${STOREDIR}
-	cp -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
-    fi
-else
-    echo "will digitize and mix for <PU>=${PU}"
-    digitizeAndMix.sh -o ${STOREDIR}/DIGI-PU${PU} -m MinBias_CMSSW_6_2_0_SLHC20 -i "file:${WORKDIR}/${OUTFILE}" -p ${PU} -j ${JOBNB};
+if [[ $STOREDIR =~ .*/store/cmst3.* ]]; then
+    cmsMkdir ${STOREDIR}
+    cmsStage -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
+elif [[ $STOREDIR =~ /afs/.* ]]; then
+    mkdir ${STOREDIR}
+    cp -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
 fi
+
+#else
+#    echo "will digitize and mix for <PU>=${PU}"
+#    digitizeAndMix.sh -o ${STOREDIR}/DIGI-PU${PU} -m MinBias_CMSSW_6_2_0_SLHC20 -i "file:${WORKDIR}/${OUTFILE}" -p ${PU} -j ${JOBNB};
+#fi
 
 rm ${WORKDIR}/${OUTFILE}
 

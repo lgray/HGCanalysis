@@ -79,39 +79,50 @@ for pid in ${pids[@]}; do
 done
 
 
-a=(lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_140PU lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_200PU lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_20PU lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_75PU lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_NoPU)
-for i in ${a[@]}; do 
-    cmsRun test/runHGCSimHitsAnalyzer_cfg.py ${i}; 
-done
-
-### Minimum bias (1000 events per file x 500 jobs, should be ok for later mixing with particle gun)
+#
+# PRODUCTION WITH PILEUP
+#
+#simulation step
 beamspots=(HLLHC_Fix HLLHCCrabKissing)
 for b in ${beamspots[@]}; do
-    #python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/MinBias_${CMSSW_VERSION}/${b}        -b ${b}        -c UserCode/HGCanalysis/python/minBias_cfi.py -n 500";
-    python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/GluGluHtoGG_${CMSSW_VERSION}/${b}        -b ${b} -k        -c UserCode/HGCanalysis/python/hToGG_cfi.py -n 100";
-    python scripts/submitLocalHGCalProduction.py -q 1nd -n 500 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/VBFHtoInv_${CMSSW_VERSION}/${b}        -b ${b}  -k      -c UserCode/HGCanalysis/python/VBFH125toInv_cfi.py -n 100";
+    python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/MinBias_${CMSSW_VERSION}/${b} -b ${b} -c UserCode/HGCanalysis/python/minBias_cfi.py -n 500";
+    python scripts/submitLocalHGCalProduction.py -q 2nd -n 1000 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/GluGluHtoGG_${CMSSW_VERSION}/${b}/SIM -b ${b} -c UserCode/HGCanalysis/python/hToGG_cfi.py -n 50 -p 22";
+    python scripts/submitLocalHGCalProduction.py -q 1nd -n 1000 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/VBFHtoInv_${CMSSW_VERSION}/${b}/SIM -b ${b} -c UserCode/HGCanalysis/python/VBFH125toInv_cfi.py -n 50 -p 0";
 done
 
+#SIM integrity check
+samples=(VBFHtoInv GluGluHtoGG MinBias)
+for b in ${beamspots[@]}; do
+    for s in ${samples[@]}; do
+    	python scripts/checkProductionIntegrity.py -d /store/cmst3/group/hgcal/CMSSW/${s}_${CMSSW_VERSION}/${b}/SIM &
+    done
+done
 
-
-
-### Other processes
-
-Can use the minimum bias example, just substitute the argument passed in the -c option to point to the new cfi snippet.
-
-### Redigitization with pileup mixing (will run one job per file, randomizing the min.bias files at start)
-
-tags=(Single211_${CMSSW_VERSION})
-pu=(140 100 200)
-for tag in ${tags[@]}; do
-    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/${tag}/RECO | awk '{print $5}'`)
-    nFiles=${#inputFiles[@]};
-    echo "Submitting $nFiles for ${tag}"
+#digi step
+pu=(0 140)
+samples=(VBFHtoInv GluGluHtoGG)
+for s in ${samples[@]}; do
     for p in ${pu[@]}; do
-    	python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 1nw -s digitizeAndMix.sh -o "-o /store/cmst3/group/hgcal/CMSSW/${tag}/ReRECO_PU${p} -m MinBias_${CMSSW_VERSION} -t ${tag}/RECO -p ${p}";
+    	for b in ${beamspots[@]}; do
+	    sigDir=${s}_${CMSSW_VERSION}/${b}
+	    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/${sigDir}/SIM | awk '{print $5}'`)
+            nFiles=${#inputFiles[@]};
+	    echo "Submitting ${nFiles} jobs for events in ${sigDir}"
+	    python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 2nw -s digitizeAndMix.sh -o "-o /store/cmst3/group/hgcal/CMSSW/${sigDir}/DIGI-PU${p} -c  ${CMSSW_BASE}/src/UserCode/HGCanalysis/test/digitizeAndMix_cfg.py -m MinBias_${CMSSW_VERSION}/${b}/SIM -p ${p} -i ${sigDir}/SIM";
+        done
+    done
+done
+
+#DIGI integrity check
+for s in ${samples[@]}; do
+    for p in ${pu[@]}; do
+    	for b in ${beamspots[@]}; do
+    	    python scripts/checkProductionIntegrity.py -d /store/cmst3/group/hgcal/CMSSW/${s}_${CMSSW_VERSION}/${b}/DIGI-PU${p} &	  
+        done
     done
 done
     
+#RECO step
 
 ## Producing analysis ntuples
 

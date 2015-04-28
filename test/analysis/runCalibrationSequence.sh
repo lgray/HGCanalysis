@@ -18,7 +18,7 @@ if [ -z ${step} ]; then
 fi
 
 energies=(2 3 5 8 10 20 40 50 75 100 125 175 250 400 500)
-pids=(22 211 130)
+pids=(22 211) # 130)
 prods=(RECO-PU0 RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR)
 WHOAMI=`whoami`
 
@@ -34,9 +34,9 @@ if [ "$step" == "sim" ]; then
 
             python scripts/submitLocalHGCalProduction.py -q 1nw -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO-PU0 -p ${pid} -n 250 -e ${en} -f";
 	    
-	    if [ "$pid" == "130" ]; then
-		continue
-	    fi
+	    #if [ "$pid" == "130" ]; then
+	    continue
+	    #fi
 
 	    #the following simulations will remove EE and EE+HEF sequentially
 	    python scripts/submitLocalHGCalProduction.py -q 2nd -n 100 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/Single${pid}_${CMSSW_VERSION}/RECO-PU0-EE_AIR -p ${pid} -n 250 -e ${en} -x -f";	    
