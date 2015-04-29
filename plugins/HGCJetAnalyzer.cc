@@ -1,8 +1,17 @@
 #include "UserCode/HGCanalysis/plugins/HGCJetAnalyzer.h"
-
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
 #include "DataFormats/Math/interface/deltaR.h"
-
+#include "DataFormats/ParticleFlowReco/interface/PFRecHitFwd.h"
+#include "DataFormats/ParticleFlowReco/interface/PFRecHitFraction.h"
+#include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
+#include "DataFormats/ParticleFlowReco/interface/PFBlockFwd.h"
+#include "DataFormats/ParticleFlowReco/interface/PFBlock.h"
+#include "DataFormats/ParticleFlowReco/interface/PFBlockElementCluster.h"
+#include "DataFormats/ParticleFlowReco/interface/PFClusterFwd.h"
+#include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
 #include <iostream>
+#include <unordered_map>
 
 using namespace std;
 
@@ -10,43 +19,46 @@ using namespace std;
 HGCJetAnalyzer::HGCJetAnalyzer( const edm::ParameterSet &iConfig )
 {
   //configure analyzer
+  genSource_        = iConfig.getUntrackedParameter< std::string >("genSource");
   genJetsSource_    = iConfig.getUntrackedParameter<std::string>("genJetsSource");
   pfJetsSource_     = iConfig.getUntrackedParameter< std::string >("pfJetsSource");
+  eeRecHitsSource_  = iConfig.getUntrackedParameter< std::string >("eeRecHitsSource");
+  hefRecHitsSource_  = iConfig.getUntrackedParameter< std::string >("hefRecHitsSource");
 
   edm::Service<TFileService> fs;
-  histMap_["kin_gen"]         = fs->make<TH2F>("kin_gen",         ";Transverse momentum [GeV];Pseudo-rapidity;Jets",    40, 0, 1000, 15, 1.5, 3.0);
-  histMap_["kin_gen_matched"] = fs->make<TH2F>("kin_gen_matched", ";Transverse momentum [GeV];Pseudo-rapidity;Jets",    40, 0, 1000, 15, 1.5, 3.0);
-  histMap_["kin_rec"]         = fs->make<TH2F>("kin_rec",         ";Transverse momentum [GeV];Pseudo-rapidity;Jets",    40, 0, 1000, 15, 1.5, 3.0);
-  histMap_["kin_rec_unm"]     = fs->make<TH2F>("kin_rec_unm",     ";Transverse momentum [GeV];Pseudo-rapidity;Jets",    40, 0, 1000, 15, 1.5, 3.0);
-  histMap_["ptresp_pt"]       = fs->make<TH2F>("ptresp_pt",       ";p_{T}(gen) [GeV];p_{T}(reco)/p_{T}(gen);Jets",      50, 0, 500, 100,0,4);
 
-  TString ptthr[]={"","_pt30","_pt70","_pt200"};
-  for(size_t i=0; i<sizeof(ptthr)/sizeof(TString); i++)
-    histMap_["ptresp_eta"+ptthr[i]]      = fs->make<TH2F>("ptresp_eta"+ptthr[i],      ";Pseudo-rapidity (gen);p_{T}(reco)/p_{T}(gen);Jets", 15, 1.5, 3.0,  100,0,4);
+  const Double_t PTBINS[]={0,5,10,20,40,60,80,100,120,150,200,250,500,1000};
+  const Int_t NPTBINS=sizeof(PTBINS)/sizeof(Double_t)-1;
 
-  TString comp[]={"gamma","chf","nhf"};
-  TString jetType[]={"","_unm"};
-  for(size_t i=0; i<sizeof(comp)/sizeof(TString); i++)
-    {
-      for(size_t j=0; j<sizeof(jetType)/sizeof(TString); j++)
-	{
-	  histMap_[comp[i]+"_pt_enfrac"+jetType[j] ] = fs->make<TH2F>(comp[i]+"_pt_enfrac"+jetType[j],  ";Transverse momentum [GeV];"+comp[i]+" fraction;Jets",           40, 0, 1000,  50,0,1);
-	  histMap_[comp[i]+"_pt_en"+jetType[j] ]     = fs->make<TH2F>(comp[i]+"_pt_en"+jetType[j],      ";Transverse momentum [GeV];"+comp[i]+" total energy [GeV];Jets", 40, 0, 1000,  100,0,1000);
-	  histMap_[comp[i]+"_pt_inden"+jetType[j]]   = fs->make<TH2F>(comp[i]+"_pt_inden"+jetType[j],   ";Transverse momentum [GeV];"+comp[i]+" energy [GeV];Jets",       40, 0, 1000,  100,0,100);
-	  histMap_[comp[i]+"_pt_mult"+jetType[j]]    = fs->make<TH2F>(comp[i]+"_pt_mult"+jetType[j],    ";Transverse momentum [GeV];"+comp[i]+" multiplicity;Jets",       40, 0, 1000,  100,0,100);
-	  
-	  for(size_t k=0; k<sizeof(ptthr)/sizeof(TString); k++)
-	    {
-	      histMap_[comp[i]+"_eta"+ptthr[k]+"_enfrac"+jetType[j]] = fs->make<TH2F>(comp[i]+"_eta"+ptthr[k]+"_enfrac"+jetType[j], ";Pseudo-rapidity;"+comp[i]+" fraction;Jets",           15, 1.5, 3.0, 50,0,1);
-	      histMap_[comp[i]+"_eta"+ptthr[k]+"_en"+jetType[j]]     = fs->make<TH2F>(comp[i]+"_eta"+ptthr[k]+"_en"+jetType[j],     ";Pseudo-rapidity;"+comp[i]+" total energy [GeV];Jets", 15, 1.5, 3.0, 100,0,1000);
-	      histMap_[comp[i]+"_eta"+ptthr[k]+"_inden"+jetType[j]]  = fs->make<TH2F>(comp[i]+"_eta"+ptthr[k]+"_inden"+jetType[j],  ";Pseudo-rapidity;"+comp[i]+" energy [GeV];Jets",       15, 1.5, 3.0, 100,0,100);
-	      histMap_[comp[i]+"_eta"+ptthr[k]+"_mult"+jetType[j]]   = fs->make<TH2F>(comp[i]+"_eta"+ptthr[k]+"_mult"+jetType[j],   ";Pseudo-rapidity;"+comp[i]+" multiplicity;Jets",       15, 1.5, 3.0, 100,0,100);
-	    }
-	}
-    }
-  
- 
+  histMap_["gen"]           = fs->make<TH2F>("gen",        ";Transverse momentum [GeV];Pseudo-rapidity;Jets/bin width",              NPTBINS,PTBINS, 15, 1.5, 3.0);
+  histMap_["gen_parton"]    = fs->make<TH2F>("gen_parton", ";Transverse momentum [GeV];Pseudo-rapidity;Parton-matching efficiency",  NPTBINS,PTBINS, 15, 1.5, 3.0);
+  histMap_["gen_reco"]      = fs->make<TH2F>("gen_reco",   ";Transverse momentum [GeV];Pseudo-rapidity;Reco-matching efficiency",    NPTBINS,PTBINS, 15, 1.5, 3.0);
   for(std::map<TString,TH2F *>::iterator it=histMap_.begin(); it!=histMap_.end(); it++) it->second->Sumw2();
+
+  jetTree_=fs->make<TTree>("HGCJets","HGCJets");
+  jetTree_->Branch("jpt",&jpt_,"jpt/F");
+  jetTree_->Branch("jeta",&jeta_,"jeta/F");
+  jetTree_->Branch("jphi",&jphi_,"jphi/F");
+  jetTree_->Branch("jmass",&jmass_,"jmass/F");
+  jetTree_->Branch("jnhf",&jnhf_,"jnhf/F");
+  jetTree_->Branch("jnhe",&jnhe_,"jnhe/F");
+  jetTree_->Branch("jnhm",&jnhm_,"jnhm_/F");
+  jetTree_->Branch("jgf",&jgf_,"jgf/F");
+  jetTree_->Branch("jge",&jge_,"jge/F");
+  jetTree_->Branch("jgm",&jgm_,"jgm/F");
+  jetTree_->Branch("jchf",&jchf_,"jchf/F");
+  jetTree_->Branch("jche",&jche_,"jche/F");
+  jetTree_->Branch("jchm",&jchm_,"jchm/F");
+  jetTree_->Branch("gjpt",&gjpt_,"gjpt/F");
+  jetTree_->Branch("gjeta",&gjeta_,"gjeta/F");
+  jetTree_->Branch("gjphi",&gjphi_,"gjphi/F");
+  jetTree_->Branch("gjmass",&gjmass_,"gjmass/F");
+  jetTree_->Branch("ppt",&ppt_,"ppt/F");
+  jetTree_->Branch("peta",&peta_,"peta/F");
+  jetTree_->Branch("pphi",&pphi_,"pphi/F");
+  jetTree_->Branch("pmass",&pmass_,"pmass/F");
+  jetTree_->Branch("pid",&pid_,"pid/F");
+  jetTree_->Branch("nTDCHits",&nTDCHits_,"nTDCHits/I");
 }
 
 //
@@ -57,120 +69,217 @@ HGCJetAnalyzer::~HGCJetAnalyzer()
 //
 void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSetup)
 {
-  //generator level jets
+  //
+  // match gen jets
+  // gen particles
+  // - find all status2 parton (after showering) within R=0.4
+  // - minimize in pT
+  // reco matching
+  // based on http://cms.cern.ch/iCMS/jsp/openfile.jsp?tp=draft&files=AN2013_125_v3.pdf
+  // - give preference to higher pT gen jets first (collections are already ordered)
+  // - find reco jet which minimizes deltaR within 0.2 cone
+  // - remove matched reco jet from next matches
+  // - iterate until all gen jets are matched
+  //
   edm::Handle<reco::GenJetCollection> genJets;
   iEvent.getByLabel(edm::InputTag(genJetsSource_), genJets);
-
+  edm::Handle<edm::View<reco::Candidate> > genParticles;
+  iEvent.getByLabel(edm::InputTag(genSource_), genParticles);
+  edm::Handle<std::vector<reco::PFJet> > pfJets;
+  iEvent.getByLabel(edm::InputTag(pfJetsSource_),pfJets);
+  std::unordered_map<uint32_t,uint32_t> reco2genJet,genJet2Parton;
   for(size_t j=0; j<genJets->size(); j++)
     {
       const reco::GenJet& genjet=genJets->at(j);
-      if(fabs(genjet.eta())<1.7 || fabs(genjet.eta())>2.8) continue;
-      histMap_["kin_gen"]->Fill(genjet.pt(),fabs(genjet.eta()));
-    }
-
-
-  //PF jets
-  edm::Handle<std::vector<reco::PFJet> > pfJets;
-  iEvent.getByLabel(edm::InputTag(pfJetsSource_),pfJets);
-
-  //loop over jets
-  std::map<TString, std::vector<float> > compInfo;
-  compInfo["gamma"] = std::vector<float>(3,0);
-  compInfo["chf"]   = std::vector<float>(3,0);
-  compInfo["nhf"]   = std::vector<float>(3,0);
-  for(size_t i=0; i<pfJets->size(); i++)
-    {
-      const reco::PFJet &jet=pfJets->at(i);
-
-      float pt  = jet.pt();
-      float eta = fabs(jet.eta());
-      if(eta<1.7 || eta>2.8) continue;
-
-      compInfo["nhf"][0]   = jet.neutralHadronEnergyFraction();
-      compInfo["nhf"][1]   = jet.neutralHadronEnergy();
-      compInfo["nhf"][2]   = jet.neutralHadronMultiplicity();
-      compInfo["gamma"][0] = jet.photonEnergyFraction();
-      compInfo["gamma"][1] = jet.photonEnergy();
-      compInfo["gamma"][2] = jet.photonMultiplicity();
-      compInfo["chf"][0]   = jet.chargedHadronEnergyFraction();
-      compInfo["chf"][1]   = jet.chargedHadronEnergy();
-      compInfo["chf"][2]   = jet.chargedHadronMultiplicity();
-
-      //match by DR
-      float genpt(0),geneta(0),minDR(0.4),minDeltaPt(99999.);
-      for(size_t j=0; j<genJets->size(); j++)
+      float pt=genjet.pt();
+      float abseta=fabs(genjet.eta());
+      if(abseta<1.5 || abseta>3.0) continue;
+     
+      //gen particle matching
+      bool genMatched(false);
+      float minDPt(99999.);
+      for(size_t i = 0; i < genParticles->size(); ++ i)
 	{
-	  const reco::GenJet& genjet=genJets->at(j);
-	  if(fabs(genjet.eta())<1.7 || fabs(genjet.eta())>2.8) continue;
-
-	  float dR=deltaR(genjet,jet);
-	  if(dR>minDR) continue;
-	  float dPt=fabs(pt-genjet.pt());
-	  if(dPt>minDeltaPt) continue;
-	  //minDR=dR; //don't update it: require the matching in this cone that minimizes the pT
-	  minDeltaPt=dPt;
-	  genpt=genjet.pt();
-	  geneta=fabs(genjet.eta());
-	}
-
-      //fill histos
-      TString jetType("");
-      float ptToUse(genpt>0 ? genpt : pt);
-      float etaToUse(genpt>0 ? geneta : eta);
-      std::vector<TString> ptcats(1,"");
-      if(ptToUse>200)     ptcats.push_back("_pt200");
-      else if(ptToUse>70) ptcats.push_back("_pt70");
-      else if(ptToUse>30) ptcats.push_back("_pt30");
-      if(genpt>0) 
-	{
-	  histMap_["kin_gen_matched"]->Fill(genpt,geneta);
-	  histMap_["kin_rec"]->Fill(pt,eta);
-	  float resp(pt/genpt);
-	  histMap_["ptresp_pt"]->Fill(min(genpt,float(499.)),resp);
-	  for(size_t k=0; k<ptcats.size(); k++) histMap_["ptresp_eta"+ptcats[k]]->Fill(geneta,resp);
-	}
-      else
-	{
-	  jetType="_unm";
-	  histMap_["kin_rec_unm"]->Fill(pt,eta);
-	}
-
-      //jet components
-      for(std::map<TString, std::vector<float> >::iterator it=compInfo.begin();
-	  it!=compInfo.end();
-	  it++)
-	{
-	  if(pt<20) continue;
-	  
-	  histMap_[ it->first + "_pt_enfrac"+jetType ] ->Fill( ptToUse, it->second[0] );
-	  histMap_[ it->first + "_pt_en"+jetType ]     ->Fill( ptToUse, it->second[1] );
-	  histMap_[ it->first + "_pt_mult"+jetType ]   ->Fill( ptToUse, it->second[2] );
-	  for(size_t k=0; k<ptcats.size(); k++)
-	    {
-	      histMap_[ it->first + "_eta"+ptcats[k]+"_enfrac"+jetType ] ->Fill( etaToUse, it->second[0] );
-	      histMap_[ it->first + "_eta"+ptcats[k]+"_en"+jetType ]     ->Fill( etaToUse, it->second[1] );
-	      histMap_[ it->first + "_eta"+ptcats[k]+"_mult"+jetType ]   ->Fill( etaToUse, it->second[2] );
-	    }
+	  const reco::GenParticle & p = dynamic_cast<const reco::GenParticle &>( (*genParticles)[i] );
+	  if(p.status()!=2) continue;
+	  if( !(abs(p.pdgId())==21 || abs(p.pdgId())<6) ) continue;
+	  float dR(deltaR(p,genjet));
+	  if(dR>0.4) continue;
+	  float dPt( fabs(p.pt()-pt));
+	  if(dPt>minDPt) continue;
+	  minDPt=dPt;
+	  genJet2Parton[j]=i;
+	  genMatched=true;
 	}
       
-      //loop over constituents
-      std::vector<reco::PFCandidatePtr> jetConst(jet.getPFConstituents());
-      for(std::vector<reco::PFCandidatePtr>::iterator cIt=jetConst.begin();cIt!=jetConst.end(); cIt++)
+      //reco matching
+      bool recoMatched(false);
+      float minDR=0.2;
+      for(size_t i=0; i<pfJets->size(); i++)
 	{
-	  TString compType("");
-	  if( (*cIt)->particleId() == reco::PFCandidate::gamma )     compType="gamma";
-	  else if( (*cIt)->particleId() == reco::PFCandidate::h )    compType="chf";
-	  else if( (*cIt)->particleId() == reco::PFCandidate::h0 )   compType="nhf";
-	  else continue;
-	  histMap_[ compType + "_pt_inden"  + jetType ]->Fill( ptToUse, (*cIt)->energy() );
-	   for(size_t k=0; k<ptcats.size(); k++)
-	     histMap_[ compType + "_eta"+ptcats[k]+"_inden" + jetType ]->Fill( etaToUse, (*cIt)->energy() );
- 	}
+	  const reco::PFJet &jet=pfJets->at(i);
+	  float dR=deltaR(jet,genjet);
+	  if(dR>minDR) continue;
+	  minDR=dR;
+	  if(reco2genJet.find(i)!=reco2genJet.end()) continue;
+	  reco2genJet[i]=j;
+	  recoMatched=true;
+	}
+
+      //kinematics and matching efficiencies
+      Int_t ptbin=histMap_["gen"]->GetXaxis()->FindBin(pt);
+      Float_t binwidth=histMap_["gen"]->GetXaxis()->GetBinWidth(ptbin);
+      histMap_["gen"]->Fill(pt,abseta,1./binwidth);
+      if(genMatched)  histMap_["gen_parton"]->Fill(pt,abseta,1./binwidth);
+      if(recoMatched) histMap_["gen_reco"]->Fill(pt,abseta,1./binwidth);
     }
+
+
+  //
+  //map RECHits by DetId (to be used later)
+  //
+  std::unordered_map<uint32_t,uint32_t> eeRecHitsIdMap;
+  edm::Handle<HGCRecHitCollection> eeRecHits;
+  iEvent.getByLabel(edm::InputTag("HGCalRecHit",eeRecHitsSource_),eeRecHits); 
+  if(eeRecHits.isValid())
+    {
+      uint32_t recHitCtr=0;
+      for(HGCRecHitCollection::const_iterator hit_it=eeRecHits->begin(); hit_it!=eeRecHits->end(); hit_it++,recHitCtr++)
+	{
+	  uint32_t recoDetId(hit_it->id());
+	  eeRecHitsIdMap[recoDetId]=recHitCtr;
+	}
+    }
+  std::unordered_map<uint32_t,uint32_t> hefRecHitsIdMap;
+  edm::Handle<HGCRecHitCollection> hefRecHits;
+  iEvent.getByLabel(edm::InputTag("HGCalRecHit",hefRecHitsSource_),hefRecHits); 
+  if(hefRecHits.isValid())
+    {
+      uint32_t recHitCtr=0;
+      for(HGCRecHitCollection::const_iterator hit_it=hefRecHits->begin(); hit_it!=hefRecHits->end(); hit_it++,recHitCtr++)
+	{
+	  uint32_t recoDetId(hit_it->id());
+	  hefRecHitsIdMap[recoDetId]=recHitCtr;
+	}
+    }
+  
+  //
+  // Analyze matched jets
+  // 
+  for(std::unordered_map<uint32_t,uint32_t>::iterator recoIt=reco2genJet.begin();
+      recoIt!=reco2genJet.end();
+      recoIt++)
+    {
+      const reco::PFJet &jet=pfJets->at(recoIt->first);
+      jpt_  = jet.pt();
+      jeta_ = jet.eta();
+      jphi_ = jet.phi();
+      jmass_= jet.mass();
+      jnhf_ = jet.neutralHadronEnergyFraction();
+      jnhe_ = jet.neutralHadronEnergy();
+      jnhm_ = jet.neutralHadronMultiplicity();
+      jgf_  = jet.photonEnergyFraction();
+      jge_  = jet.photonEnergy();
+      jgm_  = jet.photonMultiplicity();
+      jchf_ = jet.chargedHadronEnergyFraction();
+      jche_ = jet.chargedHadronEnergy();
+      jchm_ = jet.chargedHadronMultiplicity();
+
+      const reco::GenJet& genjet=genJets->at(recoIt->second);
+      gjpt_ = genjet.pt();
+      gjeta_ = genjet.eta();
+      gjphi_ = genjet.phi();
+      gjmass_ = genjet.mass();
+
+      ppt_=0; peta_=0; pphi_=0; pmass_=0; pid_=0;
+      if(genJet2Parton.find(recoIt->second)!=genJet2Parton.end())
+	{
+	  const reco::GenParticle & p = dynamic_cast<const reco::GenParticle &>( (*genParticles)[ genJet2Parton[recoIt->second] ] );
+	  ppt_   = p.pt();
+	  peta_  = p.eta();
+	  pphi_  = p.phi();
+	  pmass_ = p.mass();
+	  pid_   = p.pdgId();
+	}
+      
+      
+      //first find all pf clusters used
+      std::set<const reco::PFBlockElementCluster *> pfClusters;
+      std::vector<reco::PFCandidatePtr> jetConst(jet.getPFConstituents());
+      for(std::vector<reco::PFCandidatePtr>::iterator cIt=jetConst.begin();
+	  cIt!=jetConst.end(); 
+	  cIt++)
+	{
+	  const reco::PFCandidate::ElementsInBlocks&einb=(*cIt)->elementsInBlocks();
+	  for(size_t ieleinb=0; ieleinb<einb.size(); ieleinb++)
+	    {
+	      const reco::PFBlockRef blockRef = einb[ieleinb].first;
+	      
+	      const edm::OwnVector< reco::PFBlockElement > &eleList=blockRef->elements();
+	      for(unsigned int iEle=0; iEle<eleList.size(); iEle++)
+		{
+		  reco::PFBlockElement::Type eletype = eleList[iEle].type();
+		  if(eletype!=reco::PFBlockElement::HGC_ECAL && eletype!=reco::PFBlockElement::HGC_HCALF && eletype!=reco::PFBlockElement::HGC_HCALB) continue;
+		  pfClusters.insert( dynamic_cast<const reco::PFBlockElementCluster*>(&(eleList[iEle])) );
+		}
+	    }
+	}
+	  
+      //analyze rec hits which have been clustered
+      nTDCHits_=0;
+      for(std::set<const reco::PFBlockElementCluster *>::iterator sc=pfClusters.begin();
+	  sc!=pfClusters.end();
+	  sc++)
+	{
+	  for( const auto& rhf : (*sc)->clusterRef()->hitsAndFractions() )
+	    {
+	      uint32_t recoDetId( rhf.first.rawId() );
+	      
+	      const HGCRecHit *hitPtr=0;
+	      std::unordered_map<uint32_t,uint32_t>::iterator ptoHit=eeRecHitsIdMap.find(recoDetId);
+	      if(ptoHit==eeRecHitsIdMap.end()) {
+		ptoHit=hefRecHitsIdMap.find(recoDetId);
+		if(ptoHit==hefRecHitsIdMap.end()) continue;
+		hitPtr = & ( (*(hefRecHits))[ ptoHit->second] );
+	      }
+	      else{
+		hitPtr = & ( (*(eeRecHits))[ ptoHit->second] );
+	      }
+	      //uint32_t layIdx(((recoDetId>>19)&0x1f));
+	      float toa=hitPtr->time();
+	      //float frac=rhf.second;
+	      //float en=hitPtr->energy()*1.0e6;		
+	      
+	      nTDCHits_ += (toa>0);
+	      //if(toa>0)
+	      //	std::cout << "Jet #"<< recoIt->first
+	      //		  << " eta=" << jeta_
+	      //		  << " pt/GeV=" << jpt_
+	      //		  << " gen pt/GeV=" << gjpt_ 
+	      //		  << " DetId 0x" << hex << recoDetId << dec
+	      //		  << " layer #" << layIdx << dec
+	      //		  << " E/keV=" << en
+	      //		  << " frac=" << frac
+	      //		  << " t/ns=" << toa 
+	      //		  << std::endl;
+	    }
+	}
+      cout << nTDCHits_ << " " << recoIt->first << " " << recoIt->second 
+	   << " " << gjpt_ << " " << gjeta_ << " " << gjphi_ <<  endl;
+
+      //fill tree with information
+      jetTree_->Fill();
+    }
+  std::cout << "-----" << std::endl;
+
 }
 
 //
-void HGCJetAnalyzer::endJob() { }
+void HGCJetAnalyzer::endJob() 
+{ 
+  histMap_["gen_parton"]->Divide(histMap_["gen"]);
+  histMap_["gen_reco"]->Divide(histMap_["gen"]);
+}
 
 
 //define this as a plug-in

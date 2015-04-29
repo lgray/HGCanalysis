@@ -14,9 +14,6 @@ process.load('Configuration.StandardSequences.MagneticField_38T_PostLS1_cff')
 process.load('Configuration.StandardSequences.Digi_cff')
 process.load('Configuration.StandardSequences.SimL1Emulator_cff')
 process.load('Configuration.StandardSequences.DigiToRaw_cff')
-#process.load('Configuration.StandardSequences.RawToDigi_cff')
-#process.load('Configuration.StandardSequences.L1Reco_cff')
-#process.load('Configuration.StandardSequences.Reconstruction_cff')
 process.load('Configuration.StandardSequences.EndOfProcess_cff')
 process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_cff')
 
@@ -67,7 +64,7 @@ process.output = cms.OutputModule("PoolOutputModule",
     fileName = cms.untracked.string('file:%s/Events_%d_PU%d.root'%(outputDir,ffile,avgPU)),
     dataset = cms.untracked.PSet(
         filterName = cms.untracked.string(''),
-        dataTier = cms.untracked.string('GEN-SIM-DIGI-RAW')
+        dataTier = cms.untracked.string('DIGI-RAW')
     )
 )
 
@@ -84,7 +81,7 @@ process.mix.input.fileNames = cms.untracked.vstring(mixFileNames)
 process.mix.digitizers = cms.PSet(process.theDigitizersValid)
 
 from Configuration.AlCa.GlobalTag import GlobalTag
-process.GlobalTag = GlobalTag(process.GlobalTag, 'DES23_62_V1::All', '')
+process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:upgradePLS3', '')
 
 # Path and EndPath definitions
 process.digitisation_step = cms.Path(process.pdigi_valid)

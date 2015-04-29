@@ -58,14 +58,6 @@ process.ak3GenJets = ak5GenJets.clone(rParam = 0.3)
 process.TFileService = cms.Service("TFileService", fileName = cms.string(outputName))
 process.load('UserCode.HGCanalysis.hgcJetAnalyzer_cfi')
 
-process.analysis_ak2       = process.analysis_ak4.clone( genJetsSource = cms.untracked.string("ak2GenJets"), pfJetsSource  = cms.untracked.string("ak2PFJetsPandora") )
-process.analysis_ak3       = process.analysis_ak4.clone( genJetsSource = cms.untracked.string("ak2GenJets"), pfJetsSource  = cms.untracked.string("ak3PFJetsPandora") )
-process.analysis_ak4_cmspf = process.analysis_ak4.clone( genJetsSource = cms.untracked.string("ak4GenJets"), pfJetsSource  = cms.untracked.string("ak4PFJets") )
-
 #run it
-process.p = cms.Path(
-    process.genParticlesForJets*process.ak2GenJets*process.ak3GenJets*
-    process.ak2PFJetsPandora*process.ak3PFJetsPandora*
-    process.analysis_kt4*process.analysis_ak2*process.analysis_ak3*process.analysis_ak4*process.analysis_ak5*process.analysis_ak4_cmspf
-    )
+process.p = cms.Path(process.analysis)
 
