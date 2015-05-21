@@ -23,6 +23,8 @@
 #include "DataFormats/ParticleFlowReco/interface/PFClusterFwd.h"
 #include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
 
+#include "CLHEP/Random/RandGauss.h"
+
 #include "TH1F.h"
 #include "TTree.h"
 #include "TString.h"
@@ -75,6 +77,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	nClusters_[key]=0;
 	totalE_[key]=0;
         emeanTime_[key] = 0;
+        emeanTime20_[key] = emeanTime50_[key] = emeanTime80_[key] = emeanTime100_[key] = emeanTime150_[key] = emeanTime200_[key] = 0;
 	avgEPerHitEE_[key]=0;
 	avgEPerHitHEF_[key]=0;
 	avgEPerHitHEB_[key]=0;
@@ -96,6 +99,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	  {
 	    nhits_[key][ilay]=0;          nhitsavg_[key][ilay]=0;          nhits5mip_[key][ilay]=0;      nhits10mip_[key][ilay]=0;
 	    edeps_[key][ilay]=0;          edeps3x3_[key][ilay]=0;       edeps5x5_[key][ilay]=0;
+            
 	    if(ctrledeps_.find(key)!=ctrledeps_.end()) { 
 	      ctrlnhits_[key][ilay]=0;
 	      ctrledeps_[key][ilay]=0;
@@ -106,6 +110,10 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
             maxTimeLayer_[key][ilay]=0;
             maxTimeEnergyLayer_[key][ilay]=0;
             emeanTimeLayer_[key][ilay]=0;
+
+            emeanTimeLayer20_[key][ilay] =  emeanTimeLayer50_[key][ilay] =  emeanTimeLayer80_[key][ilay] =  
+              emeanTimeLayer100_[key][ilay] =  emeanTimeLayer150_[key][ilay] =  emeanTimeLayer200_[key][ilay] = 0;
+
 	    edepdR_[key][ilay]=0;         edepArea_[key][ilay]=0;       widthep1_[key][ilay]=0;     widthep2_[key][ilay]=0;
 	    width1_[key][ilay]=0;         width2_[key][ilay]=0;
 	  }
@@ -139,9 +147,11 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   std::map<TString, Float_t> hitMax_, hitMaxX_, hitMaxY_, hitMaxEta_, hitMaxPhi_;
   std::map<TString, Int_t> hitMaxLayer_, showerStart_;
   std::map<TString, Float_t> totalE_, avgEPerHitEE_,avgEPerHitHEF_,avgEPerHitHEB_, totalX0WgtE_, totalLambdaWgtE_, totalLength_, totalVolumeEE_,totalVolumeHEF_,totalVolumeHEB_,emeanTime_;
+  std::map<TString, Float_t> emeanTime20_, emeanTime50_, emeanTime80_, emeanTime100_, emeanTime150_, emeanTime200_;
   std::map<TString, Float_t *> edeps_, edepstdc_, maxTimeLayer_, maxTimeEnergyLayer_, weightedEdeps_, edeps3x3_, edeps5x5_, ctrledeps_;
   std::map<TString, Int_t *> nhits_, nhitstdc_, nhitsavg_, nhits5mip_, nhits10mip_, ctrlnhits_;
   std::map<TString, Float_t *> emeanX_, emeanY_, emeanPhi_,    emeanEta_, emeanTimeLayer_;
+  std::map<TString, Float_t *> emeanTimeLayer20_, emeanTimeLayer50_, emeanTimeLayer80_, emeanTimeLayer100_, emeanTimeLayer150_, emeanTimeLayer200_;
   std::map<TString, Float_t *> width1_, width2_, widthep1_, widthep2_, edepdR_, edepArea_;
 
   //tree and summary ntuple
@@ -156,6 +166,9 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   //hgcal
   std::vector<std::string> hitCollections_, recHitCollections_, geometrySource_;
   std::string pfClustersCollection_, emPFClustersCollection_;
+
+  // noise generator
+  CLHEP::RandGauss *tdcReso_;
 
   //Geant4
   std::string g4TracksSource_, g4VerticesSource_;
