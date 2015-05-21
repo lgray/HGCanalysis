@@ -14,6 +14,8 @@
 #include "Geometry/Records/interface/IdealGeometryRecord.h"
 #include "Geometry/FCalGeometry/interface/HGCalGeometry.h"
 
+#include "FWCore/Utilities/interface/RandomNumberGenerator.h"
+
 #include "SimG4CMS/Calo/interface/CaloHitID.h"
 
 #include "DetectorDescription/Core/interface/DDFilter.h"
@@ -45,6 +47,14 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
   pfClusterAssociationCone_ = iConfig.getUntrackedParameter< double >("pfClusterAssociationCone");
   g4TracksSource_           = iConfig.getUntrackedParameter<std::string>("g4TracksSource");
   g4VerticesSource_         = iConfig.getUntrackedParameter<std::string>("g4VerticesSource");
+
+  //init rand
+  edm::Service<edm::RandomNumberGenerator> rngs;
+  if ( ! rngs.isAvailable() ) {
+    throw cms::Exception("Configuration") << "HGCDigitizer requires the RandomNumberGeneratorService - please add this service or remove the modules that require it";
+  }
+
+  tdcReso_ = new CLHEP::RandGauss( rngs->getEngine() );
 
   //init tree
   edm::Service<TFileService> fs;
@@ -101,6 +111,24 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
 
       emeanTime_[key]    = 0;
       t_->Branch("emeanTime_"+key,      &emeanTime_[key],       "emeanTime_"+key+"/F");
+
+      emeanTime20_[key] = 0;
+      t_->Branch("emeanTime20_"+key,  &emeanTime20_[key], "emeanTime20_"+key+"/F");
+
+      emeanTime50_[key] = 0;
+      t_->Branch("emeanTime50_"+key,  &emeanTime50_[key], "emeanTime50_"+key+"/F");
+
+      emeanTime80_[key] = 0;
+      t_->Branch("emeanTime80_"+key,  &emeanTime80_[key], "emeanTime80_"+key+"/F");
+
+      emeanTime100_[key] = 0;
+      t_->Branch("emeanTime100_"+key,  &emeanTime100_[key], "emeanTime100_"+key+"/F");
+
+      emeanTime150_[key] = 0;
+      t_->Branch("emeanTime150_"+key,  &emeanTime150_[key], "emeanTime150_"+key+"/F");
+
+      emeanTime200_[key] = 0;
+      t_->Branch("emeanTime200_"+key,  &emeanTime200_[key], "emeanTime200_"+key+"/F");
 
       avgEPerHitEE_[key]    = 0;
       t_->Branch("avgEPerHitEE_"+key,      &avgEPerHitEE_[key],       "avgEPerHitEE_"+key+"/F");
@@ -170,6 +198,24 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
 
       emeanTimeLayer_[key] = new Float_t[100];
       t_->Branch("emeanTimeLayer_"+key,  emeanTimeLayer_[key], "emeanTimeLayer_"+key+"[nlay]/F");
+
+      emeanTimeLayer20_[key] = new Float_t[100];
+      t_->Branch("emeanTimeLayer20_"+key,  emeanTimeLayer20_[key], "emeanTimeLayer20_"+key+"[nlay]/F");
+
+      emeanTimeLayer50_[key] = new Float_t[100];
+      t_->Branch("emeanTimeLayer50_"+key,  emeanTimeLayer50_[key], "emeanTimeLayer50_"+key+"[nlay]/F");
+
+      emeanTimeLayer80_[key] = new Float_t[100];
+      t_->Branch("emeanTimeLayer80_"+key,  emeanTimeLayer80_[key], "emeanTimeLayer80_"+key+"[nlay]/F");
+
+      emeanTimeLayer100_[key] = new Float_t[100];
+      t_->Branch("emeanTimeLayer100_"+key,  emeanTimeLayer100_[key], "emeanTimeLayer100_"+key+"[nlay]/F");
+
+      emeanTimeLayer150_[key] = new Float_t[100];
+      t_->Branch("emeanTimeLayer150_"+key,  emeanTimeLayer150_[key], "emeanTimeLayer150_"+key+"[nlay]/F");
+
+      emeanTimeLayer200_[key] = new Float_t[100];
+      t_->Branch("emeanTimeLayer200_"+key,  emeanTimeLayer200_[key], "emeanTimeLayer200_"+key+"[nlay]/F");
 
       maxTimeLayer_[key] = new Float_t[100];
       t_->Branch("maxTimeLayer_"+key,  maxTimeLayer_[key], "maxTimeLayer_"+key+"[nlay]/F");
@@ -654,9 +700,16 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      }
 	       
 	    
+              constexpr std::array<float,6> tdc_resolutions = { { 0.020f, 0.050f, 0.080f, 0.100f, 0.150f, 0.200f} } ;
+
 	      int layerIdx(hitLayer+layerCtrOffset[subDetCtr]-1); 
 	      float en(detIt->second.first);
               float time(detIt->second.second);
+              float time_smeared[6];// 20,50,80,100,150,200
+              for( int ii = 0; ii < 6; ++ii ) {
+                time_smeared[ii] = tdcReso_->fire(time,tdc_resolutions[ii]);
+              }
+              
 	      totalEn                    += en;
               totalEnTDC                 += ( time > 0 ? en : 0.0 );
 	      if(subDetCtr==0)           { totalEnEE += en; nhitsEE++; }
@@ -680,6 +733,14 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
                           << time - (std::abs(hitZ) - std::abs(layerZ[0]))/cm_per_ns << std::endl;
                 */
                 emeanTimeLayer_[key][layerIdx] += en*( time ); // - (std::abs(hitZ) - std::abs(layerZ[0]))/cm_per_ns
+                
+                emeanTimeLayer20_[key][layerIdx] += en*( time_smeared[0] );
+                emeanTimeLayer50_[key][layerIdx] += en*( time_smeared[1] );
+                emeanTimeLayer80_[key][layerIdx] += en*( time_smeared[2] );
+                emeanTimeLayer100_[key][layerIdx] += en*( time_smeared[3] );
+                emeanTimeLayer150_[key][layerIdx] += en*( time_smeared[4] );
+                emeanTimeLayer200_[key][layerIdx] += en*( time_smeared[5] );
+
                 edepstdc_[key][layerIdx]      += en;
 
                 if( time > maxTimeLayer_[key][layerIdx] ) {
@@ -716,18 +777,49 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      emeanX_[key][ilay]   /= iTotalEn;	  
 	      emeanY_[key][ilay]   /= iTotalEn;
               float iTDCEn( edepstdc_[key][ilay] );
-              if( iTDCEn > 1e-2 ) {                
+              if( iTDCEn > 0.001f ) {                
                 emeanTime_[key] += emeanTimeLayer_[key][ilay];
-                emeanTimeLayer_[key][ilay] /= iTDCEn;                
+                emeanTime20_[key] += emeanTimeLayer20_[key][ilay];
+                emeanTime50_[key] += emeanTimeLayer50_[key][ilay];
+                emeanTime80_[key] += emeanTimeLayer80_[key][ilay];
+                emeanTime100_[key] += emeanTimeLayer100_[key][ilay];
+                emeanTime150_[key] += emeanTimeLayer150_[key][ilay];
+                emeanTime200_[key] += emeanTimeLayer200_[key][ilay];
+                
+                emeanTimeLayer_[key][ilay] /= iTDCEn; 
+                emeanTimeLayer20_[key][ilay] /= iTDCEn; 
+                emeanTimeLayer50_[key][ilay] /= iTDCEn; 
+                emeanTimeLayer80_[key][ilay] /= iTDCEn; 
+                emeanTimeLayer100_[key][ilay] /= iTDCEn; 
+                emeanTimeLayer150_[key][ilay] /= iTDCEn; 
+                emeanTimeLayer200_[key][ilay] /= iTDCEn; 
               } else {
-                emeanTimeLayer_[key][ilay] = -1.f;        
+                emeanTimeLayer_[key][ilay] = -1.f;
+                emeanTimeLayer20_[key][ilay] = -1.f;
+                emeanTimeLayer50_[key][ilay] = -1.f;
+                emeanTimeLayer80_[key][ilay] = -1.f;
+                emeanTimeLayer100_[key][ilay] = -1.f;
+                emeanTimeLayer150_[key][ilay] = -1.f;
+                emeanTimeLayer200_[key][ilay] = -1.f;
               }
 	    }
 
-          if( totalEnTDC > 1e-2) {
-            emeanTime_[key] /= totalEnTDC;            
+          if( totalEnTDC > 0.001f) {
+            emeanTime_[key] /= totalEnTDC;     
+            emeanTime20_[key] /= totalEnTDC;
+            emeanTime50_[key] /= totalEnTDC;
+            emeanTime80_[key] /= totalEnTDC;
+            emeanTime100_[key] /= totalEnTDC;
+            emeanTime150_[key] /= totalEnTDC;
+            emeanTime200_[key] /= totalEnTDC;
           } else {
-            emeanTime_[key] = -1.f;        
+            emeanTime_[key] = -1.f;
+            emeanTime20_[key] = -1.f;
+            emeanTime50_[key] = -1.f;
+            emeanTime80_[key] = -1.f;
+            emeanTime100_[key] = -1.f;
+            emeanTime150_[key] = -1.f;
+            emeanTime200_[key] = -1.f;
           }
 
 	  //save energy sums

@@ -20,6 +20,9 @@ process.options   = cms.untracked.PSet( wantSummary = cms.untracked.bool(False),
                                         SkipEvent = cms.untracked.vstring('ProductNotFound')
                                         ) 
 
+process.RandomNumberGeneratorService.analysis = cms.PSet( initialSeed = cms.untracked.uint32(12345),
+                                                          engineName = cms.untracked.string('HepJamesRandom') )
+
 # configure from command line
 # cmsRun test/runHGCSimHitsAnalyzer_cfg.py tag
 # where tag can be any sub-directory under /store/cmst3/group/hgcal/CMSSW
