@@ -1,5 +1,6 @@
 #include "UserCode/HGCanalysis/interface/HuffmanAlgo.h"
 #include "UserCode/HGCanalysis/interface/HGCAnalysisTools.h"
+#include "UserCode/HGCanalysis/interface/ROOTTools.h"
 #include "UserCode/HGCanalysis/interface/ROIInfo.h"
 #include "UserCode/HGCanalysis/interface/HGCROISummary.h"
 

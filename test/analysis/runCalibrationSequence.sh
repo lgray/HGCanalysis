@@ -18,7 +18,7 @@ if [ -z ${step} ]; then
 fi
 
 energies=(2 3 5 8 10 20 40 50 75 100 125 175 250 400 500)
-pids=(22 211) # 130)
+pids=(22) # 211 130)
 prods=(RECO-PU0 RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR)
 WHOAMI=`whoami`
 
