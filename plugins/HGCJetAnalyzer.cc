@@ -1,4 +1,8 @@
 #include "UserCode/HGCanalysis/plugins/HGCJetAnalyzer.h"
+#include "UserCode/HGCanalysis/interface/JetTools.h"
+#include "UserCode/HGCanalysis/interface/HGCAnalysisTools.h"
+#include "UserCode/HGCanalysis/interface/PCAShowerAnalysis.h"
+
 #include "DataFormats/HepMCCandidate/interface/GenParticle.h"
 #include "DataFormats/HGCRecHit/interface/HGCRecHitCollections.h"
 #include "DataFormats/Math/interface/deltaR.h"
@@ -10,55 +14,52 @@
 #include "DataFormats/ParticleFlowReco/interface/PFBlockElementCluster.h"
 #include "DataFormats/ParticleFlowReco/interface/PFClusterFwd.h"
 #include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
+#include "DataFormats/VertexReco/interface/VertexFwd.h"
+#include "DataFormats/VertexReco/interface/Vertex.h"
+
+#include "SimDataFormats/CaloHit/interface/PCaloHit.h"
+#include "SimDataFormats/CaloHit/interface/PCaloHitContainer.h"
+#include "SimG4CMS/Calo/interface/CaloHitID.h"
+#include "DataFormats/ForwardDetId/interface/HGCalDetId.h"
+
+#include "DetectorDescription/OfflineDBLoader/interface/GeometryInfoDump.h"
+#include "Geometry/Records/interface/IdealGeometryRecord.h"
+#include "Geometry/FCalGeometry/interface/HGCalGeometry.h"
+
 #include <iostream>
-#include <unordered_map>
 
 using namespace std;
 
 //
-HGCJetAnalyzer::HGCJetAnalyzer( const edm::ParameterSet &iConfig )
+HGCJetAnalyzer::HGCJetAnalyzer( const edm::ParameterSet &iConfig ) : 
+  slimmedRecHits_(new std::vector<SlimmedRecHit>),
+  slimmedClusters_(new std::vector<SlimmedCluster>),
+  slimmedJets_(new std::vector<SlimmedJet>),
+  slimmedVertices_(new std::vector<SlimmedVertex>),
+  genVertex_(new TVector3)
 {
   //configure analyzer
+  g4TracksSource_   = iConfig.getUntrackedParameter< std::string >("g4TracksSource");
+  g4VerticesSource_ = iConfig.getUntrackedParameter< std::string >("g4VerticesSource");
   genSource_        = iConfig.getUntrackedParameter< std::string >("genSource");
   genJetsSource_    = iConfig.getUntrackedParameter<std::string>("genJetsSource");
+  recoVertexSource_ = iConfig.getUntrackedParameter<std::string>("recoVertexSource");
   pfJetsSource_     = iConfig.getUntrackedParameter< std::string >("pfJetsSource");
+  eeSimHitsSource_  = iConfig.getUntrackedParameter< std::string >("eeSimHitsSource");
+  hefSimHitsSource_ = iConfig.getUntrackedParameter< std::string >("hefSimHitsSource");
   eeRecHitsSource_  = iConfig.getUntrackedParameter< std::string >("eeRecHitsSource");
-  hefRecHitsSource_  = iConfig.getUntrackedParameter< std::string >("hefRecHitsSource");
+  hefRecHitsSource_ = iConfig.getUntrackedParameter< std::string >("hefRecHitsSource");
 
   edm::Service<TFileService> fs;
-
-  const Double_t PTBINS[]={0,5,10,20,40,60,80,100,120,150,200,250,500,1000};
-  const Int_t NPTBINS=sizeof(PTBINS)/sizeof(Double_t)-1;
-
-  histMap_["gen"]           = fs->make<TH2F>("gen",        ";Transverse momentum [GeV];Pseudo-rapidity;Jets/bin width",              NPTBINS,PTBINS, 15, 1.5, 3.0);
-  histMap_["gen_parton"]    = fs->make<TH2F>("gen_parton", ";Transverse momentum [GeV];Pseudo-rapidity;Parton-matching efficiency",  NPTBINS,PTBINS, 15, 1.5, 3.0);
-  histMap_["gen_reco"]      = fs->make<TH2F>("gen_reco",   ";Transverse momentum [GeV];Pseudo-rapidity;Reco-matching efficiency",    NPTBINS,PTBINS, 15, 1.5, 3.0);
-  for(std::map<TString,TH2F *>::iterator it=histMap_.begin(); it!=histMap_.end(); it++) it->second->Sumw2();
-
-  jetTree_=fs->make<TTree>("HGCJets","HGCJets");
-  jetTree_->Branch("jpt",&jpt_,"jpt/F");
-  jetTree_->Branch("jeta",&jeta_,"jeta/F");
-  jetTree_->Branch("jphi",&jphi_,"jphi/F");
-  jetTree_->Branch("jmass",&jmass_,"jmass/F");
-  jetTree_->Branch("jnhf",&jnhf_,"jnhf/F");
-  jetTree_->Branch("jnhe",&jnhe_,"jnhe/F");
-  jetTree_->Branch("jnhm",&jnhm_,"jnhm_/F");
-  jetTree_->Branch("jgf",&jgf_,"jgf/F");
-  jetTree_->Branch("jge",&jge_,"jge/F");
-  jetTree_->Branch("jgm",&jgm_,"jgm/F");
-  jetTree_->Branch("jchf",&jchf_,"jchf/F");
-  jetTree_->Branch("jche",&jche_,"jche/F");
-  jetTree_->Branch("jchm",&jchm_,"jchm/F");
-  jetTree_->Branch("gjpt",&gjpt_,"gjpt/F");
-  jetTree_->Branch("gjeta",&gjeta_,"gjeta/F");
-  jetTree_->Branch("gjphi",&gjphi_,"gjphi/F");
-  jetTree_->Branch("gjmass",&gjmass_,"gjmass/F");
-  jetTree_->Branch("ppt",&ppt_,"ppt/F");
-  jetTree_->Branch("peta",&peta_,"peta/F");
-  jetTree_->Branch("pphi",&pphi_,"pphi/F");
-  jetTree_->Branch("pmass",&pmass_,"pmass/F");
-  jetTree_->Branch("pid",&pid_,"pid/F");
-  jetTree_->Branch("nTDCHits",&nTDCHits_,"nTDCHits/I");
+  tree_=fs->make<TTree>("HGC","HGC");
+  tree_->Branch("run",   &run_,   "run/I");
+  tree_->Branch("event", &event_, "event/I");
+  tree_->Branch("lumi",  &lumi_,  "lumi/I");
+  tree_->Branch("RecHits",   "std::vector<SlimmedRecHit>",   &slimmedRecHits_);
+  tree_->Branch("Clusters",  "std::vector<SlimmedCluster>",  &slimmedClusters_);
+  tree_->Branch("Jets",      "std::vector<SlimmedJet>",      &slimmedJets_);
+  tree_->Branch("Vertices",  "std::vector<SlimmedVertex>",   &slimmedVertices_);
+  tree_->Branch("GenVertex", "TVector3",                     &genVertex_);
 }
 
 //
@@ -67,8 +68,142 @@ HGCJetAnalyzer::~HGCJetAnalyzer()
 }
 
 //
-void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSetup)
+//store basic information on RecHits
+//
+void HGCJetAnalyzer::slimRecHits(const edm::Event &iEvent, const edm::EventSetup &iSetup)
 {
+  slimmedRecHits_->clear();
+  
+  //EE hits
+  edm::Handle<edm::PCaloHitContainer> eeSimHits;
+  iEvent.getByLabel(edm::InputTag("g4SimHits",eeSimHitsSource_), eeSimHits);
+  edm::Handle<HGCRecHitCollection> eeRecHits;
+  iEvent.getByLabel(edm::InputTag("HGCalRecHit",eeRecHitsSource_),eeRecHits); 
+  if(eeRecHits.isValid())
+    {
+      edm::ESHandle<HGCalGeometry> eeGeom;
+      iSetup.get<IdealGeometryRecord>().get("HGCalEESensitive",eeGeom);
+      const HGCalTopology &topo=eeGeom->topology();
+      const HGCalDDDConstants &dddConst=topo.dddConstants(); 
+      
+      float eeMipEn(55.1);
+      for(HGCRecHitCollection::const_iterator hit_it=eeRecHits->begin(); 
+	  hit_it!=eeRecHits->end(); 
+	  hit_it++)
+	{
+	  uint32_t recoDetId(hit_it->id());
+	  const GlobalPoint pos( std::move( eeGeom->getPosition(recoDetId) ) );	
+	  slimmedRecHits_->push_back( SlimmedRecHit(recoDetId,
+						    pos.x(),pos.y(),pos.z(),
+						    hit_it->energy()*1e6/eeMipEn,
+						    hit_it->time(),
+						    dddConst.getFirstModule(true)->cellSize ) );
+	}
+      
+      //add the simHits
+      if(eeSimHits.isValid())
+	{
+	  for(edm::PCaloHitContainer::const_iterator hit_it = eeSimHits->begin(); 
+	      hit_it != eeSimHits->end();
+	      hit_it++)
+	    {
+	      //gang SIM->RECO cells to get final layer assignment  
+	      HGCalDetId simId(hit_it->id());
+	      int layer(simId.layer()),cell(simId.cell());
+	      std::pair<int,int> recoLayerCell=dddConst.simToReco(cell,layer,topo.detectorType());
+	      cell  = recoLayerCell.first;
+	      layer = recoLayerCell.second;
+	      if(layer<0) continue;
+	      
+	      uint32_t recoDetId( (uint32_t)HGCEEDetId(ForwardSubdetector(ForwardSubdetector::HGCEE),
+						       simId.zside(),
+						       layer,
+						       simId.sector(),
+						       simId.subsector(),
+						       cell));
+	      SlimmedRecHitCollection::iterator theHit=std::find(slimmedRecHits_->begin(),
+								 slimmedRecHits_->end(),
+								 SlimmedRecHit(recoDetId));
+	      if(theHit == slimmedRecHits_->end()) continue;
+
+	      float dist2center( sqrt( theHit->x_*theHit->x_+theHit->y_*theHit->y_+theHit->z_*theHit->z_) );
+	      float tof(hit_it->time()-dist2center/(0.1*CLHEP::c_light)+1.0);
+	      float emf(hit_it->energyEM()/hit_it->energy());
+	      theHit->addSimHit( hit_it->energy()*1e6/eeMipEn,tof,emf );
+	    }
+	}
+    }
+  
+  //HEF hits
+  edm::Handle<edm::PCaloHitContainer> hefSimHits;
+  iEvent.getByLabel(edm::InputTag("g4SimHits",hefSimHitsSource_), hefSimHits);
+  edm::Handle<HGCRecHitCollection> hefRecHits;
+  iEvent.getByLabel(edm::InputTag("HGCalRecHit",hefRecHitsSource_),hefRecHits); 
+  if(hefRecHits.isValid())
+    {
+      edm::ESHandle<HGCalGeometry> hefGeom;
+      iSetup.get<IdealGeometryRecord>().get("HGCalHESiliconSensitive",hefGeom);
+      const HGCalTopology &topo=hefGeom->topology();
+      const HGCalDDDConstants &dddConst=topo.dddConstants(); 
+      
+      float hefMipEn(85.0);
+      for(HGCRecHitCollection::const_iterator hit_it=hefRecHits->begin(); 
+	  hit_it!=hefRecHits->end(); 
+	  hit_it++)
+	{
+	  uint32_t recoDetId(hit_it->id());
+	  const GlobalPoint pos( std::move( hefGeom->getPosition(recoDetId) ) );	
+	  slimmedRecHits_->push_back( SlimmedRecHit(recoDetId,
+						    pos.x(),pos.y(),pos.z(),
+						    hit_it->energy()*1e6/hefMipEn,
+						    hit_it->time(),
+						    dddConst.getFirstModule(true)->cellSize ) );
+	}
+      
+      //add the simHits
+      if(hefSimHits.isValid())
+	{
+	  for(edm::PCaloHitContainer::const_iterator hit_it = hefSimHits->begin(); 
+	      hit_it != hefSimHits->end();
+	      hit_it++)
+	    {
+	      //gang SIM->RECO cells to get final layer assignment  
+	      HGCalDetId simId(hit_it->id());
+	      int layer(simId.layer()),cell(simId.cell());
+	      std::pair<int,int> recoLayerCell=dddConst.simToReco(cell,layer,topo.detectorType());
+	      cell  = recoLayerCell.first;
+	      layer = recoLayerCell.second;
+	      if(layer<0) continue;
+	      
+	      uint32_t recoDetId( (uint32_t)HGCHEDetId(ForwardSubdetector(ForwardSubdetector::HGCHEF),
+						       simId.zside(),
+						       layer,
+						       simId.sector(),
+						       simId.subsector(),
+						       cell));
+	      SlimmedRecHitCollection::iterator theHit=std::find(slimmedRecHits_->begin(),
+								 slimmedRecHits_->end(),
+								 SlimmedRecHit(recoDetId));
+	      if(theHit == slimmedRecHits_->end()) continue;
+	      
+	      float dist2center( sqrt( theHit->x_*theHit->x_+theHit->y_*theHit->y_+theHit->z_*theHit->z_) );
+	      float tof(hit_it->time()-dist2center/(0.1*CLHEP::c_light)+1.0);
+	      float emf(hit_it->energyEM()/hit_it->energy());
+	      theHit->addSimHit( hit_it->energy()*1e6/hefMipEn,tof,emf );
+	    }
+	}
+    }
+}
+
+//
+void HGCJetAnalyzer::doMCJetMatching(edm::Handle<std::vector<reco::PFJet> > &pfJets,
+				     edm::Handle<reco::GenJetCollection> &genJets,
+				     edm::Handle<edm::View<reco::Candidate> > &genParticles,
+				     std::unordered_map<uint32_t,uint32_t> &reco2genJet,
+				     std::unordered_map<uint32_t,uint32_t> &genJet2Parton,
+				     std::unordered_map<uint32_t,uint32_t> &genJet2Stable)
+{
+  
   //
   // match gen jets
   // gen particles
@@ -81,13 +216,6 @@ void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
   // - remove matched reco jet from next matches
   // - iterate until all gen jets are matched
   //
-  edm::Handle<reco::GenJetCollection> genJets;
-  iEvent.getByLabel(edm::InputTag(genJetsSource_), genJets);
-  edm::Handle<edm::View<reco::Candidate> > genParticles;
-  iEvent.getByLabel(edm::InputTag(genSource_), genParticles);
-  edm::Handle<std::vector<reco::PFJet> > pfJets;
-  iEvent.getByLabel(edm::InputTag(pfJetsSource_),pfJets);
-  std::unordered_map<uint32_t,uint32_t> reco2genJet,genJet2Parton;
   for(size_t j=0; j<genJets->size(); j++)
     {
       const reco::GenJet& genjet=genJets->at(j);
@@ -96,25 +224,30 @@ void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
       if(abseta<1.5 || abseta>3.0) continue;
      
       //gen particle matching
-      bool genMatched(false);
-      float minDPt(99999.);
+      float minDPt2Stable(99999.),minDpt2Parton(9999.);
       for(size_t i = 0; i < genParticles->size(); ++ i)
 	{
 	  const reco::GenParticle & p = dynamic_cast<const reco::GenParticle &>( (*genParticles)[i] );
-	  if(p.status()!=2) continue;
-	  if( !(abs(p.pdgId())==21 || abs(p.pdgId())<6) ) continue;
 	  float dR(deltaR(p,genjet));
 	  if(dR>0.4) continue;
 	  float dPt( fabs(p.pt()-pt));
-	  if(dPt>minDPt) continue;
-	  minDPt=dPt;
-	  genJet2Parton[j]=i;
-	  genMatched=true;
+
+	  if(p.status()==1)
+	    {
+	      if(dPt>minDPt2Stable) continue;
+	      minDPt2Stable=dPt;
+	      genJet2Stable[j]=i;
+	    }
+	  else if(p.status()==2 && ( (abs(p.pdgId())==21 || abs(p.pdgId())<6) ) )
+	    {
+	      if(dPt>minDpt2Parton) continue;
+	      minDpt2Parton=dPt;
+	      genJet2Parton[j]=i;
+	    }
 	}
-      
+  
       //reco matching
-      bool recoMatched(false);
-      float minDR=0.2;
+      float minDR(0.2);
       for(size_t i=0; i<pfJets->size(); i++)
 	{
 	  const reco::PFJet &jet=pfJets->at(i);
@@ -123,85 +256,117 @@ void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
 	  minDR=dR;
 	  if(reco2genJet.find(i)!=reco2genJet.end()) continue;
 	  reco2genJet[i]=j;
-	  recoMatched=true;
-	}
-
-      //kinematics and matching efficiencies
-      Int_t ptbin=histMap_["gen"]->GetXaxis()->FindBin(pt);
-      Float_t binwidth=histMap_["gen"]->GetXaxis()->GetBinWidth(ptbin);
-      histMap_["gen"]->Fill(pt,abseta,1./binwidth);
-      if(genMatched)  histMap_["gen_parton"]->Fill(pt,abseta,1./binwidth);
-      if(recoMatched) histMap_["gen_reco"]->Fill(pt,abseta,1./binwidth);
-    }
-
-
-  //
-  //map RECHits by DetId (to be used later)
-  //
-  std::unordered_map<uint32_t,uint32_t> eeRecHitsIdMap;
-  edm::Handle<HGCRecHitCollection> eeRecHits;
-  iEvent.getByLabel(edm::InputTag("HGCalRecHit",eeRecHitsSource_),eeRecHits); 
-  if(eeRecHits.isValid())
-    {
-      uint32_t recHitCtr=0;
-      for(HGCRecHitCollection::const_iterator hit_it=eeRecHits->begin(); hit_it!=eeRecHits->end(); hit_it++,recHitCtr++)
-	{
-	  uint32_t recoDetId(hit_it->id());
-	  eeRecHitsIdMap[recoDetId]=recHitCtr;
 	}
     }
-  std::unordered_map<uint32_t,uint32_t> hefRecHitsIdMap;
-  edm::Handle<HGCRecHitCollection> hefRecHits;
-  iEvent.getByLabel(edm::InputTag("HGCalRecHit",hefRecHitsSource_),hefRecHits); 
-  if(hefRecHits.isValid())
+}
+
+
+
+//
+void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iSetup)
+{
+
+  //event header
+  run_   = iEvent.id().run();
+  event_ = iEvent.id().event();
+  lumi_  = iEvent.luminosityBlock();
+
+  //parse rec hits
+  slimRecHits(iEvent,iSetup);
+
+  //Geant4 collections
+  edm::Handle<std::vector<SimTrack> > SimTk;
+  iEvent.getByLabel(g4TracksSource_,SimTk);
+  edm::Handle<std::vector<SimVertex> > SimVtx;
+  iEvent.getByLabel(g4VerticesSource_,SimVtx); 
+  edm::Handle<std::vector<int> > genBarcodes;
+  iEvent.getByLabel("genParticles",genBarcodes);  
+
+  //PV collection 
+  edm::Handle<reco::VertexCollection> vtxH;
+  iEvent.getByLabel(recoVertexSource_, vtxH);
+  slimmedVertices_->clear();
+  std::vector<size_t> selVtx;
+  for(size_t iv=0; iv<vtxH->size(); iv++)
     {
-      uint32_t recHitCtr=0;
-      for(HGCRecHitCollection::const_iterator hit_it=hefRecHits->begin(); hit_it!=hefRecHits->end(); hit_it++,recHitCtr++)
-	{
-	  uint32_t recoDetId(hit_it->id());
-	  hefRecHitsIdMap[recoDetId]=recHitCtr;
-	}
+      const reco::Vertex &vtx=vtxH->at(iv);
+      if(!vtx.isValid()) continue;
+      if(vtx.isFake()) continue;
+      selVtx.push_back(iv);
+      slimmedVertices_->push_back( SlimmedVertex(vtx.nTracks(),vtx.x(),vtx.y(),vtx.z(),vtx.p4().pt(),vtx.normalizedChi2()) );
+    }
+
+  //hard process vertex
+  edm::Handle<edm::View<reco::Candidate> > genParticles;
+  iEvent.getByLabel(edm::InputTag(genSource_), genParticles);
+  for(size_t i = 0; i < genParticles->size(); ++ i)
+    {
+       const reco::GenParticle & p = dynamic_cast<const reco::GenParticle &>( (*genParticles)[i] );
+       if(p.status()!=3) continue;
+       genVertex_->SetXYZ(p.vx(),p.vy(),p.vz());
+       break;
     }
   
+  //jet analysis
+  edm::Handle<std::vector<reco::PFJet> > pfJets;
+  iEvent.getByLabel(edm::InputTag(pfJetsSource_),pfJets);
+  edm::Handle<reco::GenJetCollection> genJets;
+  iEvent.getByLabel(edm::InputTag(genJetsSource_), genJets);
+  std::unordered_map<uint32_t,uint32_t> reco2genJet,genJet2Parton,genJet2Stable;
+  doMCJetMatching(pfJets,genJets,genParticles,reco2genJet,genJet2Parton,genJet2Stable);
+
   //
-  // Analyze matched jets
+  // Analyze reco jets fiducial in HGC
   // 
-  for(std::unordered_map<uint32_t,uint32_t>::iterator recoIt=reco2genJet.begin();
-      recoIt!=reco2genJet.end();
-      recoIt++)
+  slimmedJets_->clear();
+  slimmedClusters_->clear();
+  for(size_t j=0; j<pfJets->size(); j++)
     {
-      const reco::PFJet &jet=pfJets->at(recoIt->first);
-      jpt_  = jet.pt();
-      jeta_ = jet.eta();
-      jphi_ = jet.phi();
-      jmass_= jet.mass();
-      jnhf_ = jet.neutralHadronEnergyFraction();
-      jnhe_ = jet.neutralHadronEnergy();
-      jnhm_ = jet.neutralHadronMultiplicity();
-      jgf_  = jet.photonEnergyFraction();
-      jge_  = jet.photonEnergy();
-      jgm_  = jet.photonMultiplicity();
-      jchf_ = jet.chargedHadronEnergyFraction();
-      jche_ = jet.chargedHadronEnergy();
-      jchm_ = jet.chargedHadronMultiplicity();
+      const reco::PFJet &jet=pfJets->at(j);
 
-      const reco::GenJet& genjet=genJets->at(recoIt->second);
-      gjpt_ = genjet.pt();
-      gjeta_ = genjet.eta();
-      gjphi_ = genjet.phi();
-      gjmass_ = genjet.mass();
-
-      ppt_=0; peta_=0; pphi_=0; pmass_=0; pid_=0;
-      if(genJet2Parton.find(recoIt->second)!=genJet2Parton.end())
+      if(jet.pt()<10 || fabs(jet.eta())<1.5 || fabs(jet.eta())>3.0) continue;
+     
+      SlimmedJet slimJet(jet.pt(),jet.eta(),jet.phi(),jet.mass(),jet.jetArea());
+     
+      for(size_t isv=0; isv<selVtx.size(); isv++)
 	{
-	  const reco::GenParticle & p = dynamic_cast<const reco::GenParticle &>( (*genParticles)[ genJet2Parton[recoIt->second] ] );
-	  ppt_   = p.pt();
-	  peta_  = p.eta();
-	  pphi_  = p.phi();
-	  pmass_ = p.mass();
-	  pid_   = p.pdgId();
+	  size_t iv=selVtx[isv];
+	  std::pair<float,float> beta=betaVariables( &jet, &(vtxH->at(iv)), *vtxH);
+	  slimJet.addBetaStar(beta.second);
 	}
-      
+
+      slimJet.setPFEnFractions(jet.neutralHadronEnergyFraction(),
+			       jet.photonEnergyFraction(),
+			       jet.chargedHadronEnergyFraction());
+      slimJet.setPFMultiplicities(jet.neutralHadronMultiplicity(),
+				  jet.photonMultiplicity(),
+				  jet.chargedHadronMultiplicity());
+
+      if( reco2genJet.find(j) != reco2genJet.end())
+	{
+	  uint32_t genJetIdx=reco2genJet[j];
+
+	  const reco::GenJet& genjet=genJets->at( genJetIdx );
+	  slimJet.setGenJet(genjet.pt(),genjet.eta(),genjet.phi(),genjet.mass(),genjet.jetArea());
+	  
+	  if(genJet2Parton.find( genJetIdx )!=genJet2Parton.end())
+	    {
+	      const reco::GenParticle & p = dynamic_cast<const reco::GenParticle &>( (*genParticles)[ genJet2Parton[genJetIdx] ] );
+	      slimJet.setParton(p.pt(),p.eta(),p.phi(),p.pdgId());
+	      
+	    }
+	  
+	  if(genJet2Stable.find(genJetIdx)!=genJet2Stable.end())
+	    {
+	      const reco::GenParticle & p = dynamic_cast<const reco::GenParticle &>( (*genParticles)[ genJet2Stable[genJetIdx] ] );
+	      G4InteractionPositionInfo intInfo=getInteractionPosition(SimTk.product(),SimVtx.product(),genBarcodes->at(genJet2Stable[genJetIdx]));
+	      math::XYZVectorD hitPos=intInfo.pos; 
+	      slimJet.setStable(p.pdgId(),
+				p.pt(),      p.eta(),     p.phi(),  
+				hitPos.x(),  hitPos.y(),  hitPos.z());
+	    }
+	}
+
       
       //first find all pf clusters used
       std::set<const reco::PFBlockElementCluster *> pfClusters;
@@ -224,61 +389,73 @@ void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
 		}
 	    }
 	}
-	  
-      //analyze rec hits which have been clustered
-      nTDCHits_=0;
-      for(std::set<const reco::PFBlockElementCluster *>::iterator sc=pfClusters.begin();
-	  sc!=pfClusters.end();
-	  sc++)
+
+      //iterate of the clusters
+      for(std::set<const reco::PFBlockElementCluster *>::iterator cIt=pfClusters.begin();
+	  cIt!=pfClusters.end();
+	  cIt++)
 	{
-	  for( const auto& rhf : (*sc)->clusterRef()->hitsAndFractions() )
+	  const reco::PFClusterRef &cl=(*cIt)->clusterRef();
+	  SlimmedCluster slimCluster( cl->energy(),cl->eta(),cl->phi(),(int)cl->hitsAndFractions().size() );
+	  slimCluster.jetidx_=slimmedJets_->size();
+	  
+	  //run pca analysis
+	  PCAShowerAnalysis pca;
+	  const reco::CaloCluster *caloCl=dynamic_cast<const reco::CaloCluster *>(cl.get());
+	  PCAShowerAnalysis::PCASummary_t pcaSummary=pca.computeShowerParameters( *caloCl, *slimmedRecHits_);
+	  slimCluster.center_x_ = pcaSummary.center_x;
+	  slimCluster.center_y_ = pcaSummary.center_y;
+	  slimCluster.center_z_ = pcaSummary.center_z;
+	  slimCluster.axis_x_   = pcaSummary.axis_x;
+	  slimCluster.axis_y_   = pcaSummary.axis_y;
+	  slimCluster.axis_z_   = pcaSummary.axis_z;
+	  slimCluster.ev_1_     = pcaSummary.ev_1;
+	  slimCluster.ev_2_     = pcaSummary.ev_2;
+	  slimCluster.ev_3_     = pcaSummary.ev_3;
+	  slimCluster.sigma_1_  = pcaSummary.sigma_1;
+	  slimCluster.sigma_2_  = pcaSummary.sigma_2;
+	  slimCluster.sigma_3_  = pcaSummary.sigma_3;
+
+	  GlobalPoint pcaShowerPos(pcaSummary.center_x,pcaSummary.center_y,pcaSummary.center_z);
+	  GlobalVector pcaShowerDir(pcaSummary.axis_x,pcaSummary.axis_y,pcaSummary.axis_z);
+	  for(size_t ih=0; ih<pcaSummary.usedRecHits.size(); ih++)
 	    {
-	      uint32_t recoDetId( rhf.first.rawId() );
+	      int idx=pcaSummary.usedRecHits[ih];
+
+	      if( (*slimmedRecHits_)[idx].clustId_ != -1 ) continue;
 	      
-	      const HGCRecHit *hitPtr=0;
-	      std::unordered_map<uint32_t,uint32_t>::iterator ptoHit=eeRecHitsIdMap.find(recoDetId);
-	      if(ptoHit==eeRecHitsIdMap.end()) {
-		ptoHit=hefRecHitsIdMap.find(recoDetId);
-		if(ptoHit==hefRecHitsIdMap.end()) continue;
-		hitPtr = & ( (*(hefRecHits))[ ptoHit->second] );
-	      }
-	      else{
-		hitPtr = & ( (*(eeRecHits))[ ptoHit->second] );
-	      }
-	      //uint32_t layIdx(((recoDetId>>19)&0x1f));
-	      float toa=hitPtr->time();
-	      //float frac=rhf.second;
-	      //float en=hitPtr->energy()*1.0e6;		
+	      (*slimmedRecHits_)[idx].clustId_=slimmedClusters_->size();
+
+	      GlobalPoint cellPos((*slimmedRecHits_)[idx].x_,(*slimmedRecHits_)[idx].y_,(*slimmedRecHits_)[idx].z_);
+	      float cellSize = (*slimmedRecHits_)[idx].cellSize_;
+	      float lambda = (cellPos.z()-pcaShowerPos.z())/pcaShowerDir.z();
+	      GlobalPoint interceptPos = pcaShowerPos + lambda*pcaShowerDir;
+	      float absdx=std::fabs(cellPos.x()-interceptPos.x());
+	      float absdy=std::fabs(cellPos.y()-interceptPos.y());
 	      
-	      nTDCHits_ += (toa>0);
-	      //if(toa>0)
-	      //	std::cout << "Jet #"<< recoIt->first
-	      //		  << " eta=" << jeta_
-	      //		  << " pt/GeV=" << jpt_
-	      //		  << " gen pt/GeV=" << gjpt_ 
-	      //		  << " DetId 0x" << hex << recoDetId << dec
-	      //		  << " layer #" << layIdx << dec
-	      //		  << " E/keV=" << en
-	      //		  << " frac=" << frac
-	      //		  << " t/ns=" << toa 
-	      //		  << std::endl;
+	      (*slimmedRecHits_)[idx].isIn3x3_ = (absdx<cellSize*3./2. && absdy<cellSize*3./2.);
+	      (*slimmedRecHits_)[idx].isIn5x5_ = (absdx<cellSize*5./2. && absdy<cellSize*5./2.);
+	      (*slimmedRecHits_)[idx].isIn7x7_ = (absdx<cellSize*7./2. && absdy<cellSize*7./2.);
 	    }
+	  
+	  slimmedClusters_->push_back(slimCluster);
 	}
-      cout << nTDCHits_ << " " << recoIt->first << " " << recoIt->second 
-	   << " " << gjpt_ << " " << gjeta_ << " " << gjphi_ <<  endl;
 
-      //fill tree with information
-      jetTree_->Fill();
+      //all done with this jet
+      slimmedJets_->push_back(slimJet);
     }
-  std::cout << "-----" << std::endl;
-
+  
+  //remove unclustered vertices
+  slimmedRecHits_->erase(remove_if(slimmedRecHits_->begin(), slimmedRecHits_->end(), SlimmedRecHit::IsNotClustered),
+			 slimmedRecHits_->end());
+  
+  //all done, fill tree
+  if(slimmedJets_->size())  tree_->Fill();
 }
 
 //
 void HGCJetAnalyzer::endJob() 
 { 
-  histMap_["gen_parton"]->Divide(histMap_["gen"]);
-  histMap_["gen_reco"]->Divide(histMap_["gen"]);
 }
 
 

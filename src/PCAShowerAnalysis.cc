@@ -17,8 +17,11 @@ PCAShowerAnalysis::~PCAShowerAnalysis ()
 }
 
 //
-PCASummary_t PCAShowerAnalysis::computeShowerParameters(const reco::CaloCluster &cl,const SlimmedRecHitCollection &recHits)
+PCAShowerAnalysis::PCASummary_t PCAShowerAnalysis::computeShowerParameters(const reco::CaloCluster &cl,const SlimmedRecHitCollection &recHits)
 {  
+  //repare the summary
+  PCAShowerAnalysis::PCASummary_t summary;
+
   principal_->Clear();
   double variables[3] = {0.,0.,0.};
   for (unsigned int ih=0;ih<cl.hitsAndFractions().size();++ih) 
@@ -26,6 +29,8 @@ PCASummary_t PCAShowerAnalysis::computeShowerParameters(const reco::CaloCluster 
       uint32_t id = (cl.hitsAndFractions())[ih].first.rawId();
       SlimmedRecHitCollection::const_iterator theHit=std::find(recHits.begin(),recHits.end(),SlimmedRecHit(id));
       if(theHit==recHits.end()) continue;
+
+      summary.usedRecHits.push_back(ih);
 
       //fill position variables
       variables[0] = theHit->x_; 
@@ -50,8 +55,7 @@ PCASummary_t PCAShowerAnalysis::computeShowerParameters(const reco::CaloCluster 
   TVectorD eigenvalues = *principal_->GetEigenValues();
   TVectorD sigmas = *principal_->GetSigmas();
 
-  //build a summary
-  PCASummary_t summary;
+  //fill rest of the summary
   summary.center_x = (*principal_->GetMeanValues())[0];
   summary.center_y = (*principal_->GetMeanValues())[1];
   summary.center_z = (*principal_->GetMeanValues())[2];	
