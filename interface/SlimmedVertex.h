@@ -29,6 +29,4 @@ class SlimmedVertex : public TObject
   ClassDef(SlimmedVertex,1)
 };
 
-typedef std::vector<SlimmedVertex> SlimmedVertexCollection;
-
 #endif

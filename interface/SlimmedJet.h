@@ -70,6 +70,4 @@ class SlimmedJet : public TObject
   ClassDef(SlimmedJet,1)
 };
 
-typedef std::vector<SlimmedJet> SlimmedJetCollection;
-
 #endif

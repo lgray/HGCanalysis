@@ -293,7 +293,7 @@ void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
       if(!vtx.isValid()) continue;
       if(vtx.isFake()) continue;
       selVtx.push_back(iv);
-      slimmedVertices_->push_back( SlimmedVertex(vtx.nTracks(),vtx.x(),vtx.y(),vtx.z(),vtx.p4().pt(),vtx.normalizedChi2()) );
+      slimmedVertices_->push_back(SlimmedVertex(vtx.nTracks(),vtx.x(),vtx.y(),vtx.z(),vtx.p4().pt(),vtx.normalizedChi2()) );
     }
 
   //hard process vertex
