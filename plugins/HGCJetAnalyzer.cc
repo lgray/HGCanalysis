@@ -397,7 +397,7 @@ void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
 	{
 	  const reco::PFClusterRef &cl=(*cIt)->clusterRef();
 	  SlimmedCluster slimCluster( cl->energy(),cl->eta(),cl->phi(),(int)cl->hitsAndFractions().size() );
-	  slimCluster.jetidx_=slimmedJets_->size();
+	  slimCluster.jetidx_=slimmedJets_->size();	  
 	  
 	  //run pca analysis
 	  PCAShowerAnalysis pca;
@@ -418,24 +418,26 @@ void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
 
 	  GlobalPoint pcaShowerPos(pcaSummary.center_x,pcaSummary.center_y,pcaSummary.center_z);
 	  GlobalVector pcaShowerDir(pcaSummary.axis_x,pcaSummary.axis_y,pcaSummary.axis_z);
-	  for(size_t ih=0; ih<pcaSummary.usedRecHits.size(); ih++)
+	  for (unsigned int ih=0;ih<cl->hitsAndFractions().size();++ih) 
 	    {
-	      int idx=pcaSummary.usedRecHits[ih];
+	      uint32_t id = (cl->hitsAndFractions())[ih].first.rawId();
+	      SlimmedRecHitCollection::iterator theHit=std::find(slimmedRecHits_->begin(),
+								 slimmedRecHits_->end(),
+								 SlimmedRecHit(id));
+	      if(theHit==slimmedRecHits_->end()) continue;
 
-	      if( (*slimmedRecHits_)[idx].clustId_ != -1 ) continue;
+	      theHit->clustId_=slimmedClusters_->size();
 	      
-	      (*slimmedRecHits_)[idx].clustId_=slimmedClusters_->size();
-
-	      GlobalPoint cellPos((*slimmedRecHits_)[idx].x_,(*slimmedRecHits_)[idx].y_,(*slimmedRecHits_)[idx].z_);
-	      float cellSize = (*slimmedRecHits_)[idx].cellSize_;
+	      GlobalPoint cellPos(theHit->x_,theHit->y_,theHit->z_);
+	      float cellSize = theHit->cellSize_;
 	      float lambda = (cellPos.z()-pcaShowerPos.z())/pcaShowerDir.z();
 	      GlobalPoint interceptPos = pcaShowerPos + lambda*pcaShowerDir;
 	      float absdx=std::fabs(cellPos.x()-interceptPos.x());
 	      float absdy=std::fabs(cellPos.y()-interceptPos.y());
 	      
-	      (*slimmedRecHits_)[idx].isIn3x3_ = (absdx<cellSize*3./2. && absdy<cellSize*3./2.);
-	      (*slimmedRecHits_)[idx].isIn5x5_ = (absdx<cellSize*5./2. && absdy<cellSize*5./2.);
-	      (*slimmedRecHits_)[idx].isIn7x7_ = (absdx<cellSize*7./2. && absdy<cellSize*7./2.);
+	      theHit->isIn3x3_ = (absdx<cellSize*3./2. && absdy<cellSize*3./2.);
+	      theHit->isIn5x5_ = (absdx<cellSize*5./2. && absdy<cellSize*5./2.);
+	      theHit->isIn7x7_ = (absdx<cellSize*7./2. && absdy<cellSize*7./2.);
 	    }
 	  
 	  slimmedClusters_->push_back(slimCluster);
@@ -446,9 +448,11 @@ void HGCJetAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
     }
   
   //remove unclustered vertices
+  std::cout << slimmedRecHits_->size() << "->";
   slimmedRecHits_->erase(remove_if(slimmedRecHits_->begin(), slimmedRecHits_->end(), SlimmedRecHit::IsNotClustered),
 			 slimmedRecHits_->end());
-  
+  std::cout << slimmedRecHits_->size() << std::endl;
+
   //all done, fill tree
   if(slimmedJets_->size())  tree_->Fill();
 }

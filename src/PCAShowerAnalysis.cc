@@ -30,8 +30,6 @@ PCAShowerAnalysis::PCASummary_t PCAShowerAnalysis::computeShowerParameters(const
       SlimmedRecHitCollection::const_iterator theHit=std::find(recHits.begin(),recHits.end(),SlimmedRecHit(id));
       if(theHit==recHits.end()) continue;
 
-      summary.usedRecHits.push_back(ih);
-
       //fill position variables
       variables[0] = theHit->x_; 
       variables[1] = theHit->y_; 

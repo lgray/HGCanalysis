@@ -32,7 +32,6 @@ class PCAShowerAnalysis
     float axis_x,   axis_y,   axis_z;
     float ev_1,     ev_2,     ev_3;
     float sigma_1,  sigma_2,  sigma_3;
-    std::vector<int> usedRecHits;
   };  
 
   PCAShowerAnalysis(bool segmented=true, bool logweighting=true, bool debug=false ) ;
