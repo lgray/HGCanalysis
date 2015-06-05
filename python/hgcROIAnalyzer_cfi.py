@@ -1,14 +1,17 @@
 import FWCore.ParameterSet.Config as cms
 
 analysis = cms.EDAnalyzer("HGCROIAnalyzer",
+                          g4TracksSource   = cms.untracked.string('g4SimHits'),
+                          g4VerticesSource = cms.untracked.string('g4SimHits'),
                           genSource        = cms.untracked.string("genParticles"),
-                          genJetsSource    = cms.untracked.string("kt4GenJets"),
-                          geometrySource   = cms.untracked.vstring('HGCalEESensitive','HGCalHESiliconSensitive',  'HGCalHEScintillatorSensitive'),
-                          hitCollections   = cms.untracked.vstring('HGCEERecHits',    'HGCHEFRecHits',            'HGCHEBRecHits'),
-                          mipEn            = cms.untracked.vdouble(55.1,               85,                        1498.4),
-                          trackJetCollection  = cms.untracked.string('ak5TrackJets'),
-                          vtxCollection    = cms.untracked.string('offlinePrimaryVertices'),
-                          taggingMode      = cms.untracked.bool(False), #True),
-                          saveHitTree      = cms.untracked.bool(False),
-                          roipuParamFile   = cms.untracked.FileInPath('UserCode/HGCanalysis/data/ROIPUparams.root')
+                          genJetsSource    = cms.untracked.string("ak4GenJets"),
+                          useSuperClustersAsROIs = cms.untracked.bool(True),
+                          superClustersSource = cms.untracked.string("particleFlowSuperClusterHGCEE"),
+                          pfJetsSource     = cms.untracked.string("ak4PFJets"),
+                          recoVertexSource = cms.untracked.string('offlinePrimaryVertices'),
+                          eeSimHitsSource  = cms.untracked.string('HGCHitsEE'),
+                          eeRecHitsSource  = cms.untracked.string('HGCEERecHits'),
+                          hefSimHitsSource = cms.untracked.string('HGCHitsHEfront'),
+                          hefRecHitsSource = cms.untracked.string('HGCHEFRecHits')
                           )
+

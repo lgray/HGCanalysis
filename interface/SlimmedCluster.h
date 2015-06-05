@@ -17,7 +17,7 @@ class SlimmedCluster : public TObject
       eta_=other.eta_;
       phi_=other.phi_;
       nhits_=other.nhits_;
-      jetidx_=other.jetidx_;
+      roiidx_=other.roiidx_;
       center_x_=other.center_x_;
       center_y_=other.center_y_; 
       center_z_=other.center_z_;
@@ -38,7 +38,7 @@ class SlimmedCluster : public TObject
   float axis_x_,   axis_y_,   axis_z_;
   float ev_1_,     ev_2_,     ev_3_;
   float sigma_1_,  sigma_2_,  sigma_3_;
-  int nhits_,jetidx_;
+  int nhits_,roiidx_;
 
   ClassDef(SlimmedCluster,1)
 };

@@ -8,7 +8,7 @@
    <class name="SlimmedVertex" />
    <class name="std::vector<SlimmedVertex>" />
    <class name="edm::Wrapper<std::vector<SlimmedVertex> >" />
-   <class name="SlimmedJet" />
-   <class name="std::vector<SlimmedJet>" />
-   <class name="edm::Wrapper<std::vector<SlimmedJet> >" />
+   <class name="SlimmedROI" />
+   <class name="std::vector<SlimmedROI>" />
+   <class name="edm::Wrapper<std::vector<SlimmedROI> >" />
 </lcgdict>

@@ -1,17 +1,17 @@
-#ifndef slimmedjet_h
-#define slimmedjet_h
+#ifndef slimmedroi_h
+#define slimmedroi_h
 
 #include "TObject.h"
 
 /**
-   @short use to strip down the information of a Jet
+   @short use to strip down the information of a Region Of Interest
  */
-class SlimmedJet : public TObject
+class SlimmedROI : public TObject
 {
  public:
- SlimmedJet() : pt_(0), eta_(0) {}
- SlimmedJet(float pt, float eta, float phi,float mass,float area): pt_(pt), eta_(eta), phi_(phi), mass_(mass), area_(area) { }
-  SlimmedJet(const SlimmedJet &other)
+ SlimmedROI() : pt_(0), eta_(0) {}
+ SlimmedROI(float pt, float eta, float phi,float mass,float area): pt_(pt), eta_(eta), phi_(phi), mass_(mass), area_(area) { }
+  SlimmedROI(const SlimmedROI &other)
     {
       pt_       = other.pt_;            
       eta_      = other.eta_; 
@@ -56,7 +56,7 @@ class SlimmedJet : public TObject
     stablex_=hitx; stabley_=hity;  stablez_=hitz;
   }
   void addBetaStar(float betaStar) { betaStar_.push_back(betaStar); }
-  virtual ~SlimmedJet() { }
+  virtual ~SlimmedROI() { }
 
   float pt_,eta_,phi_,mass_,area_;
   float nhf_,nhm_,pf_,pm_,chf_,chm_;
@@ -67,7 +67,7 @@ class SlimmedJet : public TObject
   int partonid_,stableid_;
   std::vector<float> betaStar_;
 
-  ClassDef(SlimmedJet,1)
+  ClassDef(SlimmedROI,1)
 };
 
 #endif

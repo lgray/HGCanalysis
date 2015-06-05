@@ -1,16 +1,12 @@
 import FWCore.ParameterSet.Config as cms
 
-process = cms.Process("HGCROIAnalysis")
+process = cms.Process("ROIAnalysis")
 
 process.load('Configuration.StandardSequences.Services_cff')
 process.load('SimGeneral.HepPDTESSource.pythiapdt_cfi')    
 process.load('FWCore.MessageService.MessageLogger_cfi')
-#v5 geometry
 process.load('Configuration.Geometry.GeometryExtended2023HGCalMuonReco_cff')
 process.load('Configuration.Geometry.GeometryExtended2023HGCalMuon_cff')
-#v4 geometry
-#process.load('Configuration.Geometry.GeometryExtended2023HGCalV4MuonReco_cff')
-#process.load('Configuration.Geometry.GeometryExtended2023HGCalV4Muon_cff')
 process.load('Configuration.StandardSequences.MagneticField_38T_PostLS1_cff')
 
 ## MessageLogger
@@ -21,48 +17,42 @@ process.options   = cms.untracked.PSet( wantSummary = cms.untracked.bool(False),
                                         ) 
 
 # configure from command line
-# cmsRun test/runHGCROIsAnalyzer_cfg.py tag
+# cmsRun test/runHGCSimHitsAnalyzer_cfg.py tag
 # where tag can be any sub-directory under /store/cmst3/group/hgcal/CMSSW
 #           or any upgrade relval sample (may need tweaking for new releases...)
-ffile=0
-step=-1
-preFix='Single13_CMSSW_6_2_0_SLHC18'
-doFullAnalysis=True
 import os,sys
-if(len(sys.argv)<3):
-    print '\ncmsRun runHGCHitsAnalyzer_cfg.py doFullAnalysis tag first_file step\n'
-    print '\ttag - process tag'
-    print '\tfirst_file - first file to process'
-    print '\tstep - number of files to process\n'
+if(len(sys.argv)<2):
+    print '\ncmsRun runHGCROIAnalyzer_cfg.py input [outputfile]\n'
     sys.exit()
-
-preFix=sys.argv[2]
+input2process=sys.argv[2]
+outputName='HGCROIAnalyzer.root'
 if(len(sys.argv)>3):
-    if(sys.argv[3].isdigit()) : ffile=int(sys.argv[3])
-if(len(sys.argv)>4):
-    if(sys.argv[4].isdigit()) : step=int(sys.argv[4])
-print '[runHGCHitsAnalyzer] processing %d files of %s, starting from %d'%(step,preFix,ffile)
+    outputName=sys.argv[3]
+
+print '[runHGCROIAnalyzer] processing from %s and output name is %s'%(input2process,outputName)
 
 #configure the source (list all files in directory within range [ffile,ffile+step[
 from UserCode.HGCanalysis.storeTools_cff import fillFromStore
 process.source = cms.Source("PoolSource",                            
                             fileNames=cms.untracked.vstring()
                             )
-if preFix.find('/store')>=0 :
-    process.source.fileNames=fillFromStore(preFix,ffile,step)
-elif preFix.find('lpc:')>=0:
-    preFix=preFix.split(':')[1]
-    process.source.fileNames=fillFromStore('srm://cmseos.fnal.gov:8443/srm/v2/server?SFN=/eos/uscms/store/user/lpchgcal/HGCAL_Samples/%s'%preFix,ffile,step)
+if input2process.find('file')>=0:
+    process.source.fileNames=cms.untracked.vstring(input2process)
 else :
-    process.source.fileNames=fillFromStore('/store/cmst3/group/hgcal/CMSSW/%s'%preFix,ffile,step)
+    process.source.fileNames=fillFromStore(input2process)
+print process.source.fileNames
 process.source.duplicateCheckMode = cms.untracked.string('noDuplicateCheck')
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
 
+#prepare alternative jet collections 
+#from RecoJets.Configuration.RecoPFJets_cff import *
+#process.ak3PFJetsPandora = ak4PFJets.clone( src=cms.InputTag('pandorapfanew'), rParam = 0.3 )
+#process.load('RecoJets.Configuration.GenJetParticles_cff')
+#from RecoJets.JetProducers.ak5GenJets_cfi import ak5GenJets
+#process.ak3GenJets = ak5GenJets.clone(rParam = 0.3)
+
 #load the analyzer
-import getpass
-whoami=getpass.getuser()
-outputTag=preFix.replace('/','_')
-process.TFileService = cms.Service("TFileService", fileName = cms.string('/tmp/%s/%s_Hits_%d.root'%(whoami,outputTag,ffile)))
+process.TFileService = cms.Service("TFileService", fileName = cms.string(outputName))
 process.load('UserCode.HGCanalysis.hgcROIAnalyzer_cfi')
 
 #run it
