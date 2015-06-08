@@ -3,34 +3,30 @@
 
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/EDAnalyzer.h"
-
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/Framework/interface/ESTransientHandle.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/ServiceRegistry/interface/Service.h"
+#include "FWCore/Utilities/interface/Exception.h"
 
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
 
-#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/EgammaReco/interface/SuperCluster.h"
 #include "DataFormats/JetReco/interface/GenJet.h"
 #include "DataFormats/Candidate/interface/Candidate.h"
+#include "DataFormats/JetReco/interface/PFJet.h"
+#include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
 
-#include "DetectorDescription/Core/interface/DDCompactView.h"
-#include "SimG4CMS/Calo/interface/HGCNumberingScheme.h"
-#include "Geometry/FCalGeometry/interface/HGCalGeometry.h"
+#include "UserCode/HGCanalysis/interface/SlimmedRecHit.h"
+#include "UserCode/HGCanalysis/interface/SlimmedROI.h"
+#include "UserCode/HGCanalysis/interface/SlimmedVertex.h"
+#include "UserCode/HGCanalysis/interface/SlimmedCluster.h"
 
-#include "FWCore/ParameterSet/interface/FileInPath.h"
-
-#include "UserCode/HGCanalysis/interface/HGCROISummary.h"
-
-#include "TH2F.h"
-#include "TH1F.h"
 #include "TTree.h"
-#include "TNtuple.h"
-#include "TRandom.h"
+#include "TVector3.h"
 
-#include <string>
+#include <unordered_map>
 
 /**
    @class HGCROIAnalyzer
@@ -46,47 +42,37 @@ class HGCROIAnalyzer : public edm::EDAnalyzer
   virtual void analyze( const edm::Event&, const edm::EventSetup& );
 
  private:
-
-  void tagEvent(const edm::Event &iEvent, const edm::EventSetup &iSetup);
-  void buildROI(const edm::Event &iEvent, const edm::EventSetup &iSetup);
+  
+  void slimRecHits(const edm::Event &iEvent, const edm::EventSetup &iSetup);
+  void doMCJetMatching(edm::Handle<std::vector<reco::PFJet> > &pfJets,
+		       edm::Handle<reco::GenJetCollection> &genJets,
+		       edm::Handle<edm::View<reco::Candidate> > &genParticles,
+		       std::unordered_map<uint32_t,uint32_t> &reco2genJet,
+		       std::unordered_map<uint32_t,uint32_t> &genJet2Parton,
+		       std::unordered_map<uint32_t,uint32_t> &genJet2Stable);
+  void doMCJetMatching(edm::Handle<reco::SuperClusterCollection> &superClusters,
+		       edm::Handle<reco::GenJetCollection> &genJets,
+		       edm::Handle<edm::View<reco::Candidate> > &genParticles,
+		       std::unordered_map<uint32_t,uint32_t> &reco2genJet,
+		       std::unordered_map<uint32_t,uint32_t> &genJet2Parton,
+		       std::unordered_map<uint32_t,uint32_t> &genJet2Stable);
 
   virtual void endJob() ;
 
-
-  //ROI stuff
-  TRandom rand_;
-  HGCROISummary roiEvt_;
-  TTree *roiT_;
-  bool saveHitTree_;
-  TH2F *regsH_;
-  Int_t nLayerBins_, nEtaBins_;
-
-  TH2F *csidrH_,*csitdrH_;
-  Int_t   ndRbins_,       nCsiBins_;
-  Float_t drMin_, drMax_, csiMin_,csiMax_;
-
-  TH2F *medianPU_csiH_,  *widthPU_csiH_, *sigma1PU_csiH_, *sigma2PU_csiH_;
-  TH2F *medianPU_csitH_, *widthPU_csitH_;
-
-  //
-  bool taggingMode_;
+  TTree *tree_;
+  Int_t run_,event_,lumi_;
+  std::vector<SlimmedRecHit> *slimmedRecHits_;
+  std::vector<SlimmedCluster> *slimmedClusters_;
+  std::vector<SlimmedROI> *slimmedROIs_;
+  std::vector<SlimmedVertex> *slimmedVertices_;
+  TVector3 *genVertex_;
   
-  //
-  edm::FileInPath roipuParamFile_;
-
-  //gen level
-  std::string genSource_, genJetsSource_;
-  
-  //hgcal
-  std::vector<std::string> geometrySource_;
-  std::vector<std::string> hitCollections_;
-  std::vector<double> mipEn_;
-
-  //vertices
-  std::string vtxCollection_;
-
-  //tracks
-  std::string trackJetCollection_;
+  bool useSuperClustersAsROIs_;
+  std::string eeSimHitsSource_, hefSimHitsSource_;
+  std::string eeRecHitsSource_, hefRecHitsSource_;
+  std::string g4TracksSource_, g4VerticesSource_;
+  std::string recoVertexSource_;
+  std::string genSource_, genJetsSource_, pfJetsSource_, superClustersSource_;
 };
  
 

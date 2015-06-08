@@ -83,18 +83,18 @@ done
 # PRODUCTION WITH PILEUP
 #
 #simulation step
-beamspots=(HLLHC_Fix HLLHCCrabKissing)
+beamspots=(HLLHC_Fix) # HLLHCCrabKissing)
 for b in ${beamspots[@]}; do
     #python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/MinBias_${CMSSW_VERSION}/${b} -b ${b} -c UserCode/HGCanalysis/python/minBias_cfi.py -n 500";
-    #python scripts/submitLocalHGCalProduction.py -q 2nd -n 1000 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/GluGluHtoGG_${CMSSW_VERSION}/${b}/RECO-PU0 -b ${b} -c UserCode/HGCanalysis/python/hToGG_cfi.py -n 50 -p 22";
+    python scripts/submitLocalHGCalProduction.py -q 2nd -n 1000 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/GluGluHtoGG_${CMSSW_VERSION}/${b}/RECO-PU0 -b ${b} -c UserCode/HGCanalysis/python/hToGG_cfi.py -n 50 -p 22";
     python scripts/submitLocalHGCalProduction.py -q 1nd -n 1000 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/VBFHtoInv_${CMSSW_VERSION}/${b}/RECO-PU0 -b ${b} -c UserCode/HGCanalysis/python/VBFH125toInv_cfi.py -n 50 -p 0";
 done
 
 #SIM integrity check
-samples=(VBFHtoInv GluGluHtoGG MinBias)
+samples=(VBFHtoInv GluGluHtoGG) # MinBias)
 for b in ${beamspots[@]}; do
     for s in ${samples[@]}; do
-    	python scripts/checkProductionIntegrity.py -d /store/cmst3/group/hgcal/CMSSW/${s}_${CMSSW_VERSION}/${b}/SIM &
+    	python scripts/checkProductionIntegrity.py -d /store/cmst3/group/hgcal/CMSSW/${s}_${CMSSW_VERSION}/${b}/RECO-PU0 &
     done
 done
 
