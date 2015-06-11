@@ -79,34 +79,68 @@ for pid in ${pids[@]}; do
 done
 
 
-a=(lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_140PU lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_200PU lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_20PU lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_75PU lpchgcal/HGCAL_Samples/chgdPionFixedEAndEta_withPFRecHits_SLHC20_patch1_NoPU)
-for i in ${a[@]}; do 
-    cmsRun test/runHGCSimHitsAnalyzer_cfg.py ${i}; 
+#
+# PRODUCTION WITH PILEUP
+#
+#simulation step
+beamspots=(HLLHC_Fix) # HLLHCCrabKissing)
+for b in ${beamspots[@]}; do
+    #python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-s -o /store/cmst3/group/hgcal/CMSSW/MinBias_${CMSSW_VERSION}/${b} -b ${b} -c UserCode/HGCanalysis/python/minBias_cfi.py -n 500";
+    python scripts/submitLocalHGCalProduction.py -q 2nd -n 1000 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/GluGluHtoGG_${CMSSW_VERSION}/${b}/RECO-PU0 -b ${b} -c UserCode/HGCanalysis/python/hToGG_cfi.py -n 50 -p 22";
+    python scripts/submitLocalHGCalProduction.py -q 1nd -n 1000 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/VBFHtoInv_${CMSSW_VERSION}/${b}/RECO-PU0 -b ${b} -c UserCode/HGCanalysis/python/VBFH125toInv_cfi.py -n 50 -p 0";
 done
 
-### Minimum bias (1000 events per file x 500 jobs, should be ok for later mixing with particle gun)
+#SIM integrity check
+samples=(VBFHtoInv GluGluHtoGG) # MinBias)
+for b in ${beamspots[@]}; do
+    for s in ${samples[@]}; do
+    	python scripts/checkProductionIntegrity.py -d /store/cmst3/group/hgcal/CMSSW/${s}_${CMSSW_VERSION}/${b}/RECO-PU0 &
+    done
+done
 
-python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/MinBias_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/minBias_cfi.py -n 500";
-
-python scripts/submitLocalHGCalProduction.py -q 2nd -n 500 -s generateEventsFromCfi.sh -o "-o /store/cmst3/group/hgcal/CMSSW/MinBias_v4_${CMSSW_VERSION} -c UserCode/HGCanalysis/python/minBias_cfi.py -n 500 -g Extended2023HGCalV4Muon,Extended2023HGCalV4MuonReco";
-
-### Other processes
-
-Can use the minimum bias example, just substitute the argument passed in the -c option to point to the new cfi snippet.
-
-### Redigitization with pileup mixing (will run one job per file, randomizing the min.bias files at start)
-
-tags=(Single211_${CMSSW_VERSION})
-pu=(140 100 200)
-for tag in ${tags[@]}; do
-    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/${tag}/RECO | awk '{print $5}'`)
-    nFiles=${#inputFiles[@]};
-    echo "Submitting $nFiles for ${tag}"
+#digi step
+pu=(140)
+samples=(VBFHtoInv GluGluHtoGG)
+for s in ${samples[@]}; do
     for p in ${pu[@]}; do
-    	python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 1nw -s digitizeAndMix.sh -o "-o /store/cmst3/group/hgcal/CMSSW/${tag}/ReRECO_PU${p} -m MinBias_${CMSSW_VERSION} -t ${tag}/RECO -p ${p}";
+    	for b in ${beamspots[@]}; do
+	    sigDir=${s}_${CMSSW_VERSION}/${b}
+	    inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/${sigDir}/SIM | awk '{print $5}'`)
+            nFiles=${#inputFiles[@]};
+	    echo "Submitting ${nFiles} jobs for events in ${sigDir}"
+	    python scripts/submitLocalHGCalProduction.py -n ${nFiles} -q 2nw -s digitizeAndMix.sh -o "-o /store/cmst3/group/hgcal/CMSSW/${sigDir}/DIGI-PU${p} -c  ${CMSSW_BASE}/src/UserCode/HGCanalysis/test/digitizeAndMix_cfg.py -m MinBias_${CMSSW_VERSION}/${b}/SIM -p ${p} -i ${sigDir}/SIM";
+        done
+    done
+done
+
+#DIGI integrity check
+for s in ${samples[@]}; do
+    for p in ${pu[@]}; do
+    	for b in ${beamspots[@]}; do
+    	    python scripts/checkProductionIntegrity.py -d /store/cmst3/group/hgcal/CMSSW/${s}_${CMSSW_VERSION}/${b}/DIGI-PU${p} &	  
+        done
     done
 done
     
+#RECO step
+recoBatchUnit=50
+cfg=${CMSSW_BASE}/src/UserCode/HGCanalysis/test/recoStep_cfg.py
+for s in ${samples[@]}; do
+    for p in ${pu[@]}; do
+    	for b in ${beamspots[@]}; do
+	     tag=${s}_${CMSSW_VERSION}/${b}
+	     outputdir=/store/cmst3/group/hgcal/CMSSW/${tag}/RECO-PU${p}
+	     inputFiles=(`cmsLs /store/cmst3/group/hgcal/CMSSW/${tag}/DIGI-PU${p} | awk '{print $5}'`)
+	     for ifile in ${!inputFiles[*]}; do
+	     	 file=${inputFiles[$ifile]}
+		 nEvts=`edmFileUtil -P ${file} | grep -ir bytes | awk '{print $6}'`
+		 nJobs=$((nEvts / recoBatchUnit))
+		 echo "${file} has ${nEvts} events will be split into ${nJobs} jobs using ${cfg} with outout @ $outputdir"
+		 submitLocalHGCalProduction.py -s recoStep.sh -o "-o ${outputdir} -c ${workdir}/${cfg} -t ${tag}/DIGI-PU${p} -f ${ifile} -n ${recoBatchUnit}" -n ${nJobs} -q 2nw
+	     done
+	done
+    done
+done
 
 ## Producing analysis ntuples
 

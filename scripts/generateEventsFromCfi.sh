@@ -12,15 +12,18 @@ WORKDIR="/tmp/`whoami`/"
 STOREDIR=${WORKDIR}
 JOBNB=1
 GEOMETRY="Extended2023HGCalMuon,Extended2023HGCalMuonReco"
-CUSTOM="SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon"
+#CUSTOM="SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon"
+CUSTOM="RecoParticleFlow/PandoraTranslator/customizeHGCalPandora_cff.cust_2023HGCalPandoraMuon"
 EE_AIR=""
 HEF_AIR=""
 TAG=""
 PHYSLIST="QGSP_FTFP_BERT_EML"
 TKFILTER=""
 SIMONLY=""
+GENPARTICLEFILTER=""
 PU=0
-while getopts "hp:e:n:c:o:w:j:g:t:l:xzfsa:" opt; do
+BEAMSPOT="HLLHC"
+while getopts "hp:e:n:c:o:w:j:g:t:l:xzfksa:b:" opt; do
     case "$opt" in
     h)
         echo ""
@@ -41,8 +44,10 @@ while getopts "hp:e:n:c:o:w:j:g:t:l:xzfsa:" opt; do
 	echo "     -z      exclude HEF (turn into air)"
         echo "     -t      tag to name output file"
 	echo "     -f      filter events interacting before HGC"
+	echo "     -k      filter genParticle candidates (photons, status 3 quarks) in HGC fiducial region"
 	echo "     -s      sim only"
 	echo "     -a      average pileup"
+	echo "     -b      beamspot HLLHC - default / HLLHC_Fix / HLLHCCrabKissing"
 	echo "     -h      help"
         echo ""
 	exit 0
@@ -77,6 +82,10 @@ while getopts "hp:e:n:c:o:w:j:g:t:l:xzfsa:" opt; do
 	;;
     f)  TKFILTER="True"
 	;;
+    k) GENPARTICLEFILTER="True"
+	;;
+    b)  BEAMSPOT=$OPTARG
+	;;
     esac
 done
 
@@ -109,7 +118,7 @@ if [ -z ${SIMONLY} ]; then
     cmsDriver.py ${CFI} -n ${NEVENTS} \
 	--python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
 	-s GEN,SIM,DIGI:pdigi_valid,L1,DIGI2RAW,RAW2DIGI,L1Reco,RECO --datatier GEN-SIM-DIGI-RECO --eventcontent FEVTDEBUGHLT \
-	--conditions auto:upgradePLS3 --beamspot HLLHC --magField 38T_PostLS1 \
+	--conditions auto:upgradePLS3 --beamspot ${BEAMSPOT} --magField 38T_PostLS1 \
 	--customise ${CUSTOM} \
 	--geometry ${GEOMETRY} \
 	--no_exec 
@@ -117,7 +126,7 @@ else
     cmsDriver.py ${CFI} -n ${NEVENTS} \
 	--python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
 	-s GEN,SIM --datatier GEN-SIM --eventcontent FEVTDEBUGHLT \
-	--conditions auto:upgradePLS3 --beamspot HLLHC --magField 38T_PostLS1 \
+	--conditions auto:upgradePLS3 --beamspot ${BEAMSPOT} --magField 38T_PostLS1 \
 	--customise  ${CUSTOM} \
 	--geometry ${GEOMETRY} \
 	--no_exec   
@@ -172,23 +181,30 @@ if [[ "${TKFILTER}" != "" ]]; then
     echo "getattr(process,'simulation_step')._seq = getattr(process,'simulation_step')._seq * process.trackerIntFilter" >> ${WORKDIR}/${PYFILE}
 fi
 
+#check if genparticle filter is required
+if [[ "${GENPARTICLEFILTER}" != "" ]]; then
+    echo "Adding fiducial genParticles filter"
+    echo "process.load('UserCode.HGCanalysis.hgcGenCandSelector_cff')" >> ${WORKDIR}/${PYFILE}
+    echo "getattr(process,'simulation_step')._seq = getattr(process,'simulation_step')._seq * process.hgcGenParticleFilter * process.hgcCandFilter" >> ${WORKDIR}/${PYFILE}
+fi
+
 #
 # RUN cmsRun and at the end move the output to the required directory
 #
 cmsRun ${WORKDIR}/${PYFILE} > ${WORKDIR}/${LOGFILE} 2>&1
 
-if [ -z ${SIMONLY} ]; then
-    if [[ $STOREDIR =~ .*/store/cmst3.* ]]; then
-	cmsMkdir ${STOREDIR}
-	cmsStage -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
-    elif [[ $STOREDIR =~ /afs/.* ]]; then
-	mkdir ${STOREDIR}
-	cp -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
-    fi
-else
-    echo "will digitize and mix for <PU>=${PU}"
-    digitizeAndMix.sh -o ${STOREDIR}/DIGI-PU${PU} -m MinBias_CMSSW_6_2_0_SLHC20 -i "file:${WORKDIR}/${OUTFILE}" -p ${PU} -j ${JOBNB};
+if [[ $STOREDIR =~ .*/store/cmst3.* ]]; then
+    cmsMkdir ${STOREDIR}
+    cmsStage -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
+elif [[ $STOREDIR =~ /afs/.* ]]; then
+    mkdir ${STOREDIR}
+    cp -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
 fi
+
+#else
+#    echo "will digitize and mix for <PU>=${PU}"
+#    digitizeAndMix.sh -o ${STOREDIR}/DIGI-PU${PU} -m MinBias_CMSSW_6_2_0_SLHC20 -i "file:${WORKDIR}/${OUTFILE}" -p ${PU} -j ${JOBNB};
+#fi
 
 rm ${WORKDIR}/${OUTFILE}
 

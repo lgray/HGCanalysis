@@ -59,6 +59,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
     genId_=0;
     genEn_=0;   genEta_=0;  genPhi_=0;
     genHitX_=0; genHitY_=0; genHitZ_=0;
+    genVertexX_=0; genVertexY_=0; genVertexZ_=0;
     hasChargedInteraction_=false;
     hasInteractionBeforeHGC_=false;
     layerShowerStart_=0;
@@ -73,6 +74,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	showerMeanX_[key]=0; showerMeanY_[key]=0; showerMeanZ_[key]=0; showerMeanEta_[key]=0; showerMeanPhi_[key]=0;
 	nClusters_[key]=0;
 	totalE_[key]=0;
+        emeanTime_[key] = 0;
 	avgEPerHitEE_[key]=0;
 	avgEPerHitHEF_[key]=0;
 	avgEPerHitHEB_[key]=0;
@@ -99,6 +101,11 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	      ctrledeps_[key][ilay]=0;
 	    }
 	    emeanPhi_[key][ilay]=0;       emeanEta_[key][ilay]=0;       emeanX_[key][ilay]=0;       emeanY_[key][ilay]=0;
+            edepstdc_[key][ilay]=0; 
+            nhitstdc_[key][ilay]=0; 
+            maxTimeLayer_[key][ilay]=0;
+            maxTimeEnergyLayer_[key][ilay]=0;
+            emeanTimeLayer_[key][ilay]=0;
 	    edepdR_[key][ilay]=0;         edepArea_[key][ilay]=0;       widthep1_[key][ilay]=0;     widthep2_[key][ilay]=0;
 	    width1_[key][ilay]=0;         width2_[key][ilay]=0;
 	  }
@@ -121,6 +128,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   Int_t genId_;
   Float_t genEn_,genEta_,genPhi_;
   Float_t genHitX_, genHitY_, genHitZ_;
+  Float_t genVertexX_, genVertexY_, genVertexZ_;
   Int_t pfMatchId_;
   Bool_t hasChargedInteraction_,hasInteractionBeforeHGC_;
   Int_t layerShowerStart_;
@@ -130,10 +138,10 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   std::map<TString, Float_t *> clusterEn_, clusterZ_, clusterEta_, clusterPhi_;
   std::map<TString, Float_t> hitMax_, hitMaxX_, hitMaxY_, hitMaxEta_, hitMaxPhi_;
   std::map<TString, Int_t> hitMaxLayer_, showerStart_;
-  std::map<TString, Float_t> totalE_, avgEPerHitEE_,avgEPerHitHEF_,avgEPerHitHEB_, totalX0WgtE_, totalLambdaWgtE_, totalLength_, totalVolumeEE_,totalVolumeHEF_,totalVolumeHEB_;
-  std::map<TString, Float_t *> edeps_, weightedEdeps_, edeps3x3_, edeps5x5_, ctrledeps_;
-  std::map<TString, Int_t *> nhits_, nhitsavg_, nhits5mip_, nhits10mip_, ctrlnhits_;
-  std::map<TString, Float_t *> emeanX_, emeanY_, emeanPhi_,    emeanEta_;
+  std::map<TString, Float_t> totalE_, avgEPerHitEE_,avgEPerHitHEF_,avgEPerHitHEB_, totalX0WgtE_, totalLambdaWgtE_, totalLength_, totalVolumeEE_,totalVolumeHEF_,totalVolumeHEB_,emeanTime_;
+  std::map<TString, Float_t *> edeps_, edepstdc_, maxTimeLayer_, maxTimeEnergyLayer_, weightedEdeps_, edeps3x3_, edeps5x5_, ctrledeps_;
+  std::map<TString, Int_t *> nhits_, nhitstdc_, nhitsavg_, nhits5mip_, nhits10mip_, ctrlnhits_;
+  std::map<TString, Float_t *> emeanX_, emeanY_, emeanPhi_,    emeanEta_, emeanTimeLayer_;
   std::map<TString, Float_t *> width1_, width2_, widthep1_, widthep2_, edepdR_, edepArea_;
 
   //tree and summary ntuple

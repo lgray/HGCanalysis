@@ -142,8 +142,8 @@ float HGCOccupancyAnalyzer::analyzeHEDigis(size_t isd,edm::Handle<HGCHEDigiColle
       
       for(int it=0; it<=itSampleIdx; it++)
 	{
-	  int gain_i=hit_it->sample(it).gain();
-	  int adc_i=hit_it->sample(it).adc();
+	  int gain_i=hit_it->sample(it).threshold();
+	  int adc_i=hit_it->sample(it).data();
 	  
 	  //for the IT sample extract occupancies
 	  if(it==itSampleIdx) occHistos_[isd].count(layer,eta,adc_i);
@@ -156,8 +156,8 @@ float HGCOccupancyAnalyzer::analyzeHEDigis(size_t isd,edm::Handle<HGCHEDigiColle
 	      size_t totalIntegTime(1);
 	      for(int jt=it+1; jt<=itSampleIdx; jt++)
 		{
-		  int gain_j=hit_it->sample(jt).gain();
-		  int adc_j=hit_it->sample(jt).adc();
+		  int gain_j=hit_it->sample(jt).threshold();
+		  int adc_j=hit_it->sample(jt).data();
 		  if(adc_j !=0 ) break;
 		  if(gain_j ==0 ) break;
 		  totalIntegTime++;
@@ -186,8 +186,8 @@ float HGCOccupancyAnalyzer::analyzeEEDigis(size_t isd,edm::Handle<HGCEEDigiColle
 
       for(int it=0; it<=itSampleIdx; it++)
 	{
-	  int gain_i=hit_it->sample(it).gain();
-	  int adc_i=hit_it->sample(it).adc();
+	  int gain_i=hit_it->sample(it).threshold();
+	  int adc_i=hit_it->sample(it).data();
 	  
 	  //for the IT sample extract occupancies
 	  if(it==itSampleIdx) occHistos_[isd].count(layer,eta,adc_i);
@@ -200,8 +200,8 @@ float HGCOccupancyAnalyzer::analyzeEEDigis(size_t isd,edm::Handle<HGCEEDigiColle
 	      size_t totalIntegTime(1);
 	      for(int jt=it+1; jt<=itSampleIdx; jt++)
 		{
-		  int gain_j=hit_it->sample(jt).gain();
-		  int adc_j=hit_it->sample(jt).adc();
+		  int gain_j=hit_it->sample(jt).threshold();
+		  int adc_j=hit_it->sample(jt).data();
 		  if(adc_j !=0 ) break;
 		  if(gain_j ==0 ) break;
 		  totalIntegTime++;
