@@ -95,11 +95,11 @@ fi
 
 #e.m. calibration
 if [ "${step}" == "emcalib" ]; then
-    prods=(RECO-PU0-EE_HEF_AIR) # RECO-PU0-EE_AIR RECO-PU0)
+    prods=(RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR RECO-PU0)
     echo "********************************************"
     echo "e.m. calibration"
     echo "********************************************"
-    vars=("edep_rec" "edep_sim")
+    vars=("edep_rec") # "edep_sim")
     extraOpts=("" "--weighting lambda" "--weighting dedx")
     for prod in ${prods[@]}; do
 	
@@ -118,11 +118,11 @@ if [ "${step}" == "emcalib" ]; then
 		outDir=${sample}/${var}${opt//\ /};
 
 		if [[ ${prod} =~ .*EE_HEF_AIR.* && ${var} =~ .*rec.* ]]; then
-		    python test/analysis/runEMCalibration.py ${opt} ${baseOpts} -i ${sample}.root -v ${var} --useSaturatedCalibModel;
-		#    python test/analysis/runEMCalibration.py -w ${outDir}/workspace.root ${baseOpts} ${opt} --useSaturatedCalibModel;
+		    #python test/analysis/runEMCalibration.py ${opt} ${baseOpts} -i ${sample}.root -v ${var} --useSaturatedCalibModel;
+		    python test/analysis/runEMCalibration.py -w ${outDir}/workspace.root ${baseOpts} ${opt} --useSaturatedCalibModel;
 		else
-		    python test/analysis/runEMCalibration.py ${opt} ${baseOpts} -i ${sample}.root -v ${var};
-		#    python test/analysis/runEMCalibration.py -w ${outDir}/workspace.root ${baseOpts} ${opt};
+		#    python test/analysis/runEMCalibration.py ${opt} ${baseOpts} -i ${sample}.root -v ${var};
+		    python test/analysis/runEMCalibration.py -w ${outDir}/workspace.root ${baseOpts} ${opt};
 		fi
 		
 		mkdir -p ${outDir};
@@ -136,14 +136,13 @@ fi
 
 #Pion calibration
 if [ "${step}" == "picalib" ]; then    
-    #prods=(RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR RECO-PU0)
-    #prods=(RECO-PU0-EE_AIR RECO-PU0)
-    prods=(RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR)
-    #weightOpts=("" "--weighting lambda" "--weighting dedx")    
-    weightOpts=("" "--weighting lambda" "--weighting dedx")    
+    prods=(RECO-PU0-EE_HEF_AIR RECO-PU0-EE_AIR RECO-PU0)
+    #prods=(RECO-PU0-EE_AIR)
+    #prods=(RECO-PU0-EE_HEF_AIR)
+    weightOpts=("" "--weighting lambda" "--weighting dedx")        
     centralOpts=("" "--byMode")
     #centralOpts=("--byMode")
-    vars=("edep_rec") # "edep_sim")
+    vars=("edep_rec")
     echo "********************************************"
     echo "pion calibration"
     echo "********************************************"
@@ -174,18 +173,18 @@ if [ "${step}" == "picalib" ]; then
 		    if [[ ${prod} =~ .*EE_HEF_AIR.* ]]; then
 			baseOpts="${weight} ${central} --vetoTrackInt --noEE --noHEF";
 		    elif [[ ${prod} =~ .*EE_AIR.* ]]; then
-			baseOpts="${weight} ${central} --vetoTrackInt --noEE --hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}${postfix}${central}/HEB_response.root";
+			baseOpts="${weight} ${central} --vetoTrackInt --noEE --hebResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}${postfix}${central}/HEB_response.root";
 		    else
-			baseOpts="${weight} ${central} --vetoTrackInt --byMode"
+			baseOpts="${weight} ${central} --vetoTrackInt"
 		    fi
-	    
+		    
 		    #python test/analysis/runPionCalibration.py -i ${sample}.root --emCalib EE:${emEE},HEF:${emHEF},HEB:${emHEB} -v ${var} ${baseOpts} --noResCalib
 		    #mkdir -p ${outDir}
 		    #mv ${sample}/*.* ${outDir};
 
 		    if [[ ! ${prod} =~ .*AIR.* ]]; then		
             		#use separate combination
-			baseOpts="${baseOpts} --hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}/HEB_response.root --hefResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}/HEFHEB_response_corry.root"
+			baseOpts="${baseOpts} --hebResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}${postfix}${central}/HEB_response.root --hefResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}${postfix}${central}/HEFHEB_response_corrx_corry.root"
 			python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --noResCalib
 			baseOpts="${baseOpts} --eeResp ${outDir}/EEHEFHEB_response_corry.root"
 			python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --noResCalib
@@ -202,7 +201,7 @@ if [ "${step}" == "picalib" ]; then
 			python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --noResCalib
 
 			#apply pi/e and derive banana correction
-			baseOpts="${baseOpts} --hebResp=Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}${postfix}${central}/HEB_response.root --hefResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}${postfix}${central}/HEFHEB_response_corry.root"
+			baseOpts="${baseOpts} --hebResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_HEF_AIR_SimHits/${var}${postfix}${central}/HEB_response.root --hefResp Single211_${CMSSW_VERSION}_RECO-PU0-EE_AIR_SimHits/${var}${postfix}${central}/HEFHEB_response_corry.root"
 			python test/analysis/runPionCalibration.py -w ${outDir}/workspace.root -v ${var} ${baseOpts} --noResCalib
 
 			#apply banana correction
