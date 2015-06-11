@@ -11,6 +11,7 @@ from UserCode.HGCanalysis.HGCTree2Workspace import *
 
 INTEGMIPEM=None
 WEIGHTINGSCHEME=None
+THRMIPFRAC=1.1
 
 """
 Starts weighting scheme
@@ -161,7 +162,7 @@ def getMedianFor(x):
 """
 creates an histogram and fits a gaussian 
 """
-def fitGaussianToPeak(data,hrange=None,nbins=None):
+def fitGaussianToPeak(data,hrange=None,nbins=None,byLog=False):
     meanX,meanXerr=0,0
     try:
         data.InheritsFrom('TH1')
@@ -172,25 +173,55 @@ def fitGaussianToPeak(data,hrange=None,nbins=None):
         data.Fit('gaus','LMRQ0+','')
         meanX,meanXerr=data.GetFunction('gaus').GetParameter(1),data.GetFunction('gaus').GetParError(1)      
     except:
-        if len(data)<5: return 0,0
-        h=ROOT.TH1F('datah','',nbins,hrange[0],hrange[1])
-        for d in data: h.Fill(d)
-        #spec=ROOT.TSpectrum()
-        #spec.Search(h,1,"nobackground goff")
-        #maxBin=h.GetXaxis().FindBin(spec.GetPositionX()[0])
-        maxBin=h.GetMaximumBin()
-        if maxBin>h.GetXaxis().GetNbins()-3: maxBin=h.GetXaxis().FindBin(h.GetMean())
-        fitRangeMin=h.GetXaxis().GetBinCenter(maxBin-7)
-        fitRangeMax=h.GetXaxis().GetBinCenter(maxBin+7)       
-        gaus=ROOT.TF1('gaus','gaus',hrange[0],hrange[1])
-        gaus.SetParLimits(1,hrange[0],hrange[1])
-        h.Fit(gaus,'LMRQ+','',fitRangeMin,fitRangeMax)
-        meanX,meanXerr=h.GetFunction('gaus').GetParameter(1),h.GetFunction('gaus').GetParError(1)       
-       # h.SaveAs('/tmp/psilva/temp.root')
-       # raw_input('...')
-        h.Delete()
-        gaus.Delete()
 
+        if len(data)<5: return meanX,meanXerr
+
+        h,gaus=None,None
+        if byLog:
+            h=ROOT.TH1F('datah','',nbins,-2.0,1.0)
+            for d in data: 
+                if d==0: continue        
+                h.Fill(ROOT.TMath.Log(d))
+
+            mean=h.GetMean()
+            rms=h.GetRMS()
+            gaus=ROOT.TF1('gaus','gaus',-2,1.0)
+            h.Fit(gaus,'MRQ+')
+            
+            try:
+                meanX    = ROOT.TMath.Exp(h.GetFunction('gaus').GetParameter(1))
+                meanXerr = h.GetFunction('gaus').GetParError(1)*meanX
+            except:
+                pass
+        else:
+            h=ROOT.TH1F('datah','',nbins,hrange[0],hrange[1])
+            for d in data: h.Fill(d)
+
+            mean=h.GetMean()
+            rms=h.GetRMS()
+
+            # use the value at the 3rd bin as minimum possible
+            fitMin    = ROOT.TMath.Max(mean-rms,hrange[0])
+            fitMinBin = ROOT.TMath.Max(3,h.GetXaxis().FindBin(fitMin))
+            fitMin    = h.GetXaxis().GetBinLowEdge(fitMinBin)
+            # use the value at nbins-3 as maximum possible
+            fitMax    = ROOT.TMath.Min(mean+0.5*rms,hrange[1])
+            nbins     = h.GetXaxis().GetNbins()
+            fitMaxBin = ROOT.TMath.Min(nbins-3,h.GetXaxis().FindBin(fitMax))
+            fitMax    = h.GetXaxis().GetBinUpEdge(fitMaxBin)
+            gaus=ROOT.TF1('gaus','gaus',hrange[0],hrange[1])
+            gaus.SetParLimits(1,fitMin,fitMax)
+            h.Fit(gaus,'LMRQ+','',fitMin,fitMax)
+            meanX,meanXerr=h.GetFunction('gaus').GetParameter(1),h.GetFunction('gaus').GetParError(1)       
+
+        if h: 
+            #h.Draw()
+            #raw_input('...')
+            h.Delete()
+        if gaus:
+            gaus.Delete()
+
+    #all done here
     return meanX,meanXerr
 
 """
@@ -220,8 +251,8 @@ def computePiOverE(x,xresp,gr,byMode):
     median,     medianErr     = getMedianFor(x=x)
     medianResp, medianRespErr = getMedianFor(x=xresp)
     if byMode and len(x)>3:
-        mode,     modeErr     = fitGaussianToPeak(data=x,     hrange=(0,2*median),     nbins=400)
-        modeResp, modeRespErr = fitGaussianToPeak(data=xresp, hrange=(0,2), nbins=50)
+        mode,     modeErr     = fitGaussianToPeak(data=x,     hrange=(0,2*median),  nbins=100, byLog=False)
+        modeResp, modeRespErr = fitGaussianToPeak(data=xresp, hrange=(0,2),         nbins=100, byLog=True)
         np=gr.GetN()
         gr.SetPoint(np,mode,modeResp)
         gr.SetPointError(np,modeErr,modeRespErr)
@@ -297,7 +328,6 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
         responseProfiles[key].SetName('%s_prof'%key)
 
     #loop over available energies
-    thrMipFrac=1.1
     for ien in xrange(0,len(enRanges)):
         genEn_min=enRanges[ien][0]
         genEn_max=enRanges[ien][1]
@@ -341,10 +371,10 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
             for var,corrFunc in xaxis:
                 imip=0
                 if corrFunc is None : 
-                    xmipThr += thrMipFrac*INTEGMIPEM[var]
+                    xmipThr += THRMIPFRAC*INTEGMIPEM[var]
                     xmip    += INTEGMIPEM[var]
                 else :
-                    xmipThr += thrMipFrac*INTEGMIPEM[var]/corrFunc.Eval(thrMipFrac*INTEGMIPEM[var])
+                    xmipThr += THRMIPFRAC*INTEGMIPEM[var]/corrFunc.Eval(THRMIPFRAC*INTEGMIPEM[var])
                     xmip    += INTEGMIPEM[var]/corrFunc.Eval(INTEGMIPEM[var])
                 ienVal=entryVars.find('en_%s'%var).getVal()
                 if not (corrFunc is None) : ienVal /= corrFunc.Eval(xyvalRaw)
@@ -354,10 +384,10 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
             yval, ymipThr, ymip = 0, 0, 0
             for var,corrFunc in yaxis:
                 if corrFunc is None : 
-                    ymipThr += thrMipFrac*INTEGMIPEM[var]
+                    ymipThr += THRMIPFRAC*INTEGMIPEM[var]
                     ymip    += INTEGMIPEM[var]
                 else :
-                    ymipThr += thrMipFrac*INTEGMIPEM[var]/corrFunc.Eval(thrMipFrac*INTEGMIPEM[var])
+                    ymipThr += THRMIPFRAC*INTEGMIPEM[var]/corrFunc.Eval(THRMIPFRAC*INTEGMIPEM[var])
                     ymip    += INTEGMIPEM[var]/corrFunc.Eval(INTEGMIPEM[var])
                 ienVal=entryVars.find('en_%s'%var).getVal()
                 if not (corrFunc is None): ienVal /= corrFunc.Eval(xyvalRaw)
@@ -370,7 +400,7 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
             if yval==0: yval_over_xyval_m_mip=0
             if xyval_m_mip>0:yval_over_xyval_m_mip=yval/xyval_m_mip
 
-            #Si vs Silicone banana correction
+            #residual (=banana) correction
             if not (banana is None):
                 p0=banana[0].Eval(xyval)
                 p1=banana[1].Eval(xyval)
@@ -378,7 +408,10 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
                 resCorrection  = p0
                 resCorrection += p1*yval_over_xyval_m_mip
                 resCorrection += p2*yval_over_xyval_m_mip*yval_over_xyval_m_mip
-                if resCorrection>0: xyval /= resCorrection
+                if resCorrection>0: 
+                    xval  /= resCorrection
+                    yval  /= resCorrection
+                    xyval = xval+yval
 
             #final responses
             xresp, yresp, xyresp = xval/genEn_mean, yval/genEn_mean, xyval/genEn_mean
@@ -429,8 +462,8 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
             responseProfiles[xaxisName+'_gen'].SetPoint(np,genEn_mean,xPiOverE[2])
             responseProfiles[xaxisName+'_gen'].SetPointError(np,0,xPiOverE[3])
             fracCoord, fracCoordErr = getMedianFor(x=yfracvaluesAtY0)
-            if byMode:
-                fracCoord,fracCoordErr= fitGaussianToPeak(data=yfracvaluesAtY0,hrange=(0,1),nbins=20)
+            #if byMode:
+            #    fracCoord,fracCoordErr= fitGaussianToPeak(data=yfracvaluesAtY0,hrange=(0,1),nbins=20)
             piovereArcGr.SetPoint(0,xPiOverE[2],fracCoord)
             piovereArcGr.SetPointError(0,xPiOverE[3],0)
 
@@ -440,8 +473,8 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
             responseProfiles[yaxisName+'_gen'].SetPoint(np,genEn_mean,yPiOverE[2])
             responseProfiles[yaxisName+'_gen'].SetPointError(np,0,yPiOverE[3])
             fracCoord, fracCoordErr = getMedianFor(x=yfracvaluesAtX0)
-            if byMode:
-                fracCoord,fracCoordErr= fitGaussianToPeak(data=yfracvaluesAtX0,hrange=(0,1),nbins=20)
+            #if byMode:
+            #    fracCoord,fracCoordErr= fitGaussianToPeak(data=yfracvaluesAtX0,hrange=(0,1),nbins=20)
             piovereArcGr.SetPoint(1,yPiOverE[2],fracCoord)
             piovereArcGr.SetPointError(1,yPiOverE[3],0)
 
@@ -454,8 +487,8 @@ def computeSubdetectorResponse(enRanges,etaRanges,xaxis,yaxis,banana,ws,outDir,b
         combdiagPiOverE = computePiOverE(x=xydiagvalues, xresp=xydiagrespvalues, gr=responseProfiles[xaxisName+yaxisName+'_combdiag'],byMode=byMode)
         if len(combdiagPiOverE)==4:
             fracCoord, fracCoordErr = getMedianFor(x=yfracvaluesAtDiag)
-            if byMode:
-                fracCoord,fracCoordErr= fitGaussianToPeak(data=yfracvaluesAtDiag,hrange=(0,1),nbins=20)
+            #if byMode:
+            #    fracCoord,fracCoordErr= fitGaussianToPeak(data=yfracvaluesAtDiag,hrange=(0,1),nbins=20)
             piovereArcGr.SetPoint(2,combdiagPiOverE[2],fracCoord)
             piovereArcGr.SetPointError(2,combdiagPiOverE[3],0)
 
@@ -1219,77 +1252,79 @@ def runCalibrationStudy(opt):
 
         #raw energies
         rawe_EE    = entryVars.find('en_EE').getVal()
-        if opt.noEE : rawe_EE=0
+        mipthr_EE  = THRMIPFRAC*INTEGMIPEM['EE']
+        mip_EE     = INTEGMIPEM['EE']
+        if opt.noEE : rawe_EE, mipthr_EE, mip_EE = 0, 0, 0
+
         rawe_HEF   = entryVars.find('en_HEF').getVal()
-        if opt.noHEF : rawe_HEF=0
+        mipthr_HEF = THRMIPFRAC*INTEGMIPEM['HEF']
+        mip_HEF    = INTEGMIPEM['HEF']
+        if opt.noHEF : rawe_HEF, mipthr_HEF, mip_HEF = 0, 0, 0
+
         rawe_HEB   = entryVars.find('en_HEB').getVal()
+        mipthr_HEB = THRMIPFRAC*INTEGMIPEM['HEB']
+        mip_HEB    = INTEGMIPEM['HEB']
+
+        #raw energy
         rawe_Total = rawe_EE+rawe_HEF+rawe_HEB
 
-        #global compensation weights
+        #corrected energies
+        e_EE, e_HEF, e_HEB = 0, 0, 0
+        if not (pioverE_HEB is None) and not opt.noComp : 
+            e_HEB = rawe_HEB/pioverE_HEB.Eval(rawe_Total) 
+            mip_HEB = mip_HEB/pioverE_HEB.Eval(mip_HEB)
+        if not (pioverE_HEF is None) and not opt.noComp : 
+            e_HEF = rawe_HEF/pioverE_HEF.Eval(rawe_Total)
+            mip_HEF = mip_HEF/pioverE_HEF.Eval(mip_HEF)
+        if not (pioverE_EE is None) and not opt.noComp  : 
+            e_EE  = rawe_EE/pioverE_EE.Eval(rawe_Total)
+            mip_EE = mip_EE/pioverE_EE.Eval(mip_EE)
+
+        e_pie_tot = e_EE + e_HEF + e_HEB
+        e_tot     = e_pie_tot
+
+        #compensation weights
         c_EE    = entryVars.find('c_EE').getVal()
         c_HEF   = entryVars.find('c_HEF').getVal()
         c_HEB   = entryVars.find('c_HEB').getVal()
 
-        #corrected energies
-        e_EE, e_HEF, e_HEB = 0, 0, 0
-        if not (pioverE_HEB is None) and not opt.noComp : e_HEB = rawe_HEB/pioverE_HEB.Eval(rawe_Total) 
-        if not (pioverE_HEF is None) and not opt.noComp : e_HEF = rawe_HEF/pioverE_HEF.Eval(rawe_Total)
-        if not (pioverE_EE is None) and not opt.noComp  : e_EE  = rawe_EE/pioverE_EE.Eval(rawe_Total)
-        e_tot      = e_EE + e_HEF + e_HEB
-        e_comp_tot = e_EE + c_HEF*e_HEF + e_HEB
-
         #residual energy sharing correction
         if not (banana is None):
             if opt.noHEF is False:
-                yval_over_xyval_m_mip = -1
-                e_front,      e_back = 0, 0
-                e_comp_front, e_comp_back = 0, 0
+                e_front, e_comp_front = 0, 0
+                e_back,  e_comp_back  = 0, 0
+                e_m_mip               = 0, 0
                 if opt.noEE:
                     e_front, e_comp_front = e_HEF, c_HEF*e_HEF
                     e_back,  e_comp_back  = e_HEB, e_HEB
-                    mipEm   = 0
-                    if not(pioverE_HEF is None) : mipEm += INTEGMIPEM['HEF']/pioverE_HEF.Eval(INTEGMIPEM['HEF'])
-                    else                        : mipEm += INTEGMIPEM['HEF']
+                    e_m_mip               = ROOT.TMath.Max(e_front-mip_HEF,0.)+e_back
                 elif opt.combineSi:
                     e_front, e_comp_front = e_EE+e_HEF, e_EE+c_HEF*e_HEF
-                    e_back, e_comp_back   = e_HEB,      e_HEB
-                    mipEm   = 0
-                    if not(pioverE_HEF is None) : mipEm += INTEGMIPEM['HEF']/pioverE_HEF.Eval(INTEGMIPEM['HEF'])
-                    else                        : mipEm += INTEGMIPEM['HEF']
-                    if not(pioverE_EE is None)  : mipEm += INTEGMIPEM['EE']/pioverE_EE.Eval(INTEGMIPEM['EE'])
-                    else                        : mipEm += INTEGMIPEM['EE']
+                    e_back,  e_comp_back  = e_HEB,      e_HEB
+                    e_m_mip               = ROOT.TMath.Max(e_front-mip_EE-mip_HEF,0.)+e_back
                 else:
                     e_front, e_comp_front = e_EE, e_EE
                     e_back, e_comp_back   = e_HEB+e_HEF, e_HEB+c_HEF*e_HEF
-                    mipEm   = 0
-                    if not(pioverE_EE is None)  : mipEm += INTEGMIPEM['EE']/pioverE_EE.Eval(INTEGMIPEM['EE'])
-                    else                        : mipEm += INTEGMIPEM['EE']
+                    e_m_mip               = ROOT.TMath.Max(e_front-mip_EE,0.)+e_back
+                
+                #fraction of energy in back calorimeter (MIP subtracted)
+                e_back_over_e_m_mip       = e_back/e_m_mip      if e_m_mip>0 else 0
+                e_comp_back_over_e_m_mip  = e_comp_back/e_m_mip if e_m_mip>0 else 0
 
                 #do the banana
-                xyval_m_mip = ROOT.TMath.Max(e_front-mipEm,0.)+e_back
-                if e_back==0     : yval_over_xyval_m_mip=0
-                if xyval_m_mip>0 : yval_over_xyval_m_mip=e_front/xyval_m_mip
-                p0=banana[0].Eval(e_tot)
-                p1=banana[1].Eval(e_tot)
-                p2=banana[2].Eval(e_tot)
+                p0=banana[0].Eval(e_pie_tot)
+                p1=banana[1].Eval(e_pie_tot)
+                p2=banana[2].Eval(e_pie_tot)
                 resCorrection  = p0
-                resCorrection += p1*yval_over_xyval_m_mip
-                resCorrection += p2*yval_over_xyval_m_mip*yval_over_xyval_m_mip
-                if resCorrection>0: e_tot /=resCorrection
+                resCorrection += p1*e_back_over_e_m_mip
+                resCorrection += p2*(e_back_over_e_m_mip**2)
+                e_tot=e_pie_tot/resCorrection if resCorrection>0 else e_pie_tot
 
-                #do the banana
-                xyval_m_mip = ROOT.TMath.Max(e_comp_front-mipEm,0.)+e_comp_back
-                if e_comp_back==0     : yval_over_xyval_m_mip=0
-                if xyval_m_mip>0      : yval_over_xyval_m_mip=e_comp_front/xyval_m_mip
-                p0=banana[0].Eval(e_comp_tot)
-                p1=banana[1].Eval(e_comp_tot)
-                p2=banana[2].Eval(e_comp_tot)
-                resCorrection  = p0
-                resCorrection += p1*yval_over_xyval_m_mip
-                resCorrection += p2*yval_over_xyval_m_mip*yval_over_xyval_m_mip
-                if resCorrection>0: e_comp_tot /=resCorrection
+        if e_pie_tot<=0: continue
 
-        if e_tot<=0: continue
+        #global compensation 
+        e_comp_tot = (e_EE + c_HEF*e_HEF + e_HEB)*e_tot/e_pie_tot
+
         enEstimators['simple'] = e_tot
         enEstimators['gc']     = e_comp_tot
 
@@ -1481,8 +1516,8 @@ def main():
 
     #basic ROOT customization
     customROOTstyle()
-    ROOT.gSystem.Load( "libUserCodeHGCanalysis")
-
+    ROOT.gSystem.Load("libUserCodeHGCanalysis")
+    
     #ROOT.gROOT.SetBatch(False)
     ROOT.gROOT.SetBatch(True)
     ROOT.gStyle.SetPalette(1)

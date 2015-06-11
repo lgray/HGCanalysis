@@ -91,7 +91,7 @@ def getTBresults():
 #ymin,ymax=0,0.25
 
 resolModelType=1
-overlayTestBeam=True
+overlayTestBeam=False #True
 #toPlot=[
 #	['Single211_CMSSW_6_2_0_SLHC23_patch1_RECO-PU0_SimHits/edep_rec/calib__calib_uncalib.root',    'simple', 'Perfect cluster', True],
 #	['Single211_CMSSW_6_2_0_SLHC23_patch1_RECO-PU0_SimHits/edep_clus/calib__calib_uncalib.root',   'simple', 'CMS PF',          False],
@@ -134,10 +134,20 @@ overlayTestBeam=True
 #	['~/www/pion/clus-nocomp/calib__calib_uncalib.root',   'gc', 'Pandora+GC',              False]
 #	]
 
+#toPlot=[
+#	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec/calib_uncalib.root',                           'simple',  'X_{0} (median)',   False],
+#	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec--byMode/calib_uncalib.root',                   'simple',  'X_{0} (mode)',     False],
+#	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec--weightingdedx/calib_uncalib.root',            'simple',  'dE/dx (median)',   False],
+#	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec--weightingdedx--byMode/calib_uncalib.root',    'simple',  'dE/dx (mode)',     True],
+#	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec--weightinglambda/calib_uncalib.root',          'simple',  '#lambda (median)', False],
+#	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec--weightinglambda--byMode/calib_uncalib.root',  'simple',  '#lambda (mode)',   False]
+#	]
+
 toPlot=[
-	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec-TrivialComb/calib__calib_uncalib.root',  'simple', 'no #pi/e corr.',        False],
-	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec-IndComb/calib__calib_uncalib.root',      'simple', '#pi/e corr.',      False],
-	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec-IndComb/calib__calib_uncalib.root',      'gc',     '#pi/e corr.+GC', True]
+	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec--weightingdedx/calib_uncalib.root',            'simple',  'dE/dx (median)',   False],
+	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec--weightingdedx--byMode/calib_uncalib.root',    'simple',  'dE/dx (mode)',     True],
+	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec--weightingdedx/calib_uncalib.root',            'gc',  'dE/dx (median)+GC',    False],
+	['Single211_CMSSW_6_2_0_SLHC23_patch2_RECO-PU0_SimHits/edep_rec--weightingdedx--byMode/calib_uncalib.root',    'gc',  'dE/dx (mode)+GC',      True]
 	]
 
 ROOT.gROOT.SetBatch(True)
