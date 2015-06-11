@@ -12,15 +12,17 @@
 class SlimmedRecHit : public TObject
 {
  public:
- SlimmedRecHit() : detId_(0), clustId_(-1), isIn3x3_(false), isIn5x5_(false), isIn7x7_(false), x_(0), y_(0), z_(0), en_(0), t_(0), cellSize_(1.0) {}
+ SlimmedRecHit() : detId_(0), layerId_(0), clustId_(-1), isIn3x3_(false), isIn5x5_(false), isIn7x7_(false), x_(0), y_(0), z_(0), en_(0), t_(0), cellSize_(1.0) {}
  SlimmedRecHit(int detId, float x=0, float y=0, float z=0, float en=0, float t=0, float cellSize=1) : detId_(detId),
     clustId_(-1), isIn3x3_(false), isIn5x5_(false), isIn7x7_(false),
     x_(x), y_(y), z_(z), en_(en), t_(t), cellSize_(cellSize) 
   { 
+    layerId_=(detId>>19)&0x1f;
   }
   SlimmedRecHit(const SlimmedRecHit &other)
     {
       detId_    = other.detId_;
+      layerId_  = other.layerId_;
       clustId_  = other.clustId_;
       isIn3x3_  = other.isIn3x3_;
       isIn5x5_  = other.isIn5x5_;
@@ -54,7 +56,7 @@ class SlimmedRecHit : public TObject
 
   virtual ~SlimmedRecHit() { }
   
-  unsigned int detId_;
+  unsigned int detId_,layerId_;
   int clustId_;
   bool isIn3x3_, isIn5x5_, isIn7x7_;
   float x_,y_,z_,en_,t_;

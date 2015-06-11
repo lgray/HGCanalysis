@@ -67,7 +67,7 @@ class HGCROIAnalyzer : public edm::EDAnalyzer
   std::vector<SlimmedVertex> *slimmedVertices_;
   TVector3 *genVertex_;
   
-  bool useSuperClustersAsROIs_;
+  bool useSuperClustersAsROIs_,useStatus3ForGenVertex_;
   std::string eeSimHitsSource_, hefSimHitsSource_;
   std::string eeRecHitsSource_, hefRecHitsSource_;
   std::string g4TracksSource_, g4VerticesSource_;

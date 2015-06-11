@@ -37,7 +37,8 @@ HGCROIAnalyzer::HGCROIAnalyzer( const edm::ParameterSet &iConfig ) :
   slimmedROIs_(new std::vector<SlimmedROI>),
   slimmedVertices_(new std::vector<SlimmedVertex>),
   genVertex_(new TVector3),
-  useSuperClustersAsROIs_(false)
+  useSuperClustersAsROIs_(false),
+  useStatus3ForGenVertex_(false)
 {
   //configure analyzer
   g4TracksSource_   = iConfig.getUntrackedParameter< std::string >("g4TracksSource");
@@ -46,6 +47,7 @@ HGCROIAnalyzer::HGCROIAnalyzer( const edm::ParameterSet &iConfig ) :
   genJetsSource_    = iConfig.getUntrackedParameter<std::string>("genJetsSource");
   recoVertexSource_ = iConfig.getUntrackedParameter<std::string>("recoVertexSource");
   useSuperClustersAsROIs_ = iConfig.getUntrackedParameter<bool>("useSuperClustersAsROIs");
+  useStatus3ForGenVertex_ = iConfig.getUntrackedParameter<bool>("useStatus3ForGenVertex");
   superClustersSource_ = iConfig.getUntrackedParameter<std::string>("superClustersSource");
   pfJetsSource_     = iConfig.getUntrackedParameter< std::string >("pfJetsSource");
   eeSimHitsSource_  = iConfig.getUntrackedParameter< std::string >("eeSimHitsSource");
@@ -371,10 +373,11 @@ void HGCROIAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
   for(size_t i = 0; i < genParticles->size(); ++ i)
     {
        const reco::GenParticle & p = dynamic_cast<const reco::GenParticle &>( (*genParticles)[i] );
-       if(p.status()!=3) continue;
+       if(useStatus3ForGenVertex_  && p.status()!=3) continue;
        genVertex_->SetXYZ(p.vx(),p.vy(),p.vz());
        break;
     }
+  
   
   //jet analysis
   edm::Handle<std::vector<reco::PFJet> > pfJets;
