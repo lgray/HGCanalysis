@@ -74,6 +74,8 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	hitMax_[key]=0;
 	hitMaxX_[key]=0; hitMaxY_[key]=0; hitMaxEta_[key]=0; hitMaxPhi_[key]=0;	hitMaxLayer_[key]=0;
 	showerMeanX_[key]=0; showerMeanY_[key]=0; showerMeanZ_[key]=0; showerMeanEta_[key]=0; showerMeanPhi_[key]=0;
+        showerMeanDepth_[key]=0; showerAvgExpDepth_[key]=0;
+        showerStartDepth_[key]=0;
 	nClusters_[key]=0;
 	totalE_[key]=0;
         emeanTime_[key] = 0;
@@ -105,6 +107,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
 	      ctrledeps_[key][ilay]=0;
 	    }
 	    emeanPhi_[key][ilay]=0;       emeanEta_[key][ilay]=0;       emeanX_[key][ilay]=0;       emeanY_[key][ilay]=0;
+            layerZ_[key][ilay]=0;
             edepstdc_[key][ilay]=0; 
             nhitstdc_[key][ilay]=0; 
             maxTimeLayer_[key][ilay]=0;
@@ -141,7 +144,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   Bool_t hasChargedInteraction_,hasInteractionBeforeHGC_;
   Int_t layerShowerStart_;
   Int_t nlay_;
-  std::map<TString, Float_t> showerMeanX_, showerMeanY_, showerMeanZ_, showerMeanEta_, showerMeanPhi_;
+  std::map<TString, Float_t> showerMeanX_, showerMeanY_, showerMeanZ_, showerMeanEta_, showerMeanPhi_, showerMeanDepth_, showerAvgExpDepth_, showerStartDepth_;
   std::map<TString,Int_t> nClusters_;
   std::map<TString, Float_t *> clusterEn_, clusterZ_, clusterEta_, clusterPhi_;
   std::map<TString, Float_t> hitMax_, hitMaxX_, hitMaxY_, hitMaxEta_, hitMaxPhi_;
@@ -150,7 +153,7 @@ class HGCSimHitsAnalyzer : public edm::EDAnalyzer
   std::map<TString, Float_t> emeanTime20_, emeanTime50_, emeanTime80_, emeanTime100_, emeanTime150_, emeanTime200_;
   std::map<TString, Float_t *> edeps_, edepstdc_, maxTimeLayer_, maxTimeEnergyLayer_, weightedEdeps_, edeps3x3_, edeps5x5_, ctrledeps_;
   std::map<TString, Int_t *> nhits_, nhitstdc_, nhitsavg_, nhits5mip_, nhits10mip_, ctrlnhits_;
-  std::map<TString, Float_t *> emeanX_, emeanY_, emeanPhi_,    emeanEta_, emeanTimeLayer_;
+  std::map<TString, Float_t *> emeanX_, emeanY_, layerZ_, emeanPhi_,    emeanEta_, emeanTimeLayer_;
   std::map<TString, Float_t *> emeanTimeLayer20_, emeanTimeLayer50_, emeanTimeLayer80_, emeanTimeLayer100_, emeanTimeLayer150_, emeanTimeLayer200_;
   std::map<TString, Float_t *> width1_, width2_, widthep1_, widthep2_, edepdR_, edepArea_;
 

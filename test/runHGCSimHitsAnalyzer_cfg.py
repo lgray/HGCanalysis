@@ -59,9 +59,59 @@ elif preFix.find('lpc:')>=0:
     process.source.fileNames=fillFromStore('srm://cmseos.fnal.gov:8443/srm/v2/server?SFN=/eos/uscms/store/user/lpchgcal/HGCAL_Samples/%s'%preFix,ffile,step)
 else :
     process.source.fileNames=fillFromStore('/store/cmst3/group/hgcal/CMSSW/%s'%preFix,ffile,step)
-print process.source.fileNames
+
 process.source.duplicateCheckMode = cms.untracked.string('noDuplicateCheck')
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(2000) )
+
+inputs = """
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_1.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_10.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_13.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_15.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_19.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_2.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_22.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_26.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_27.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_28.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_30.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_33.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_36.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_38.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_39.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_4.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_41.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_43.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_44.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_46.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_5.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_6.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_8.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_100_9.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_1.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_10.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_12.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_14.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_15.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_17.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_19.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_2.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_20.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_21.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_22.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_23.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_24.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_25.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_26.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_27.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_28.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_29.root
+/store/cmst3/group/hgcal/CMSSW/Single211_CMSSW_6_2_0_SLHC25_patch6/RECO-PU0/Events_211_10_3.root
+""".split()
+
+process.source.fileNames=cms.untracked.vstring(inputs)
+
+print process.source.fileNames
 
 #load the analyzer
 import getpass
@@ -74,4 +124,5 @@ process.load('UserCode.HGCanalysis.hgcTrackerInteractionsFilter_cfi')
 #run it
 process.p = cms.Path(process.analysis)
 #process.p = cms.Path(process.analysis*process.trackerIntFilter)
+
 

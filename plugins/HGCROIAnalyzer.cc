@@ -371,7 +371,7 @@ void HGCROIAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
   for(size_t i = 0; i < genParticles->size(); ++ i)
     {
        const reco::GenParticle & p = dynamic_cast<const reco::GenParticle &>( (*genParticles)[i] );
-       if(p.status()!=3) continue;
+       if(p.status()!=1) continue;
        genVertex_->SetXYZ(p.vx(),p.vy(),p.vz());
        break;
     }
@@ -492,7 +492,7 @@ void HGCROIAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
 	{
 	  const reco::PFJet &jet=pfJets->at(j);
 	  
-	  if(jet.pt()<10 || fabs(jet.eta())<1.5 || fabs(jet.eta())>3.0) continue;
+	  if(jet.pt() < 0.0 || fabs(jet.eta())<1.5 || fabs(jet.eta())>3.0) continue;
 	  
 	  SlimmedROI slimJet(jet.pt(),jet.eta(),jet.phi(),jet.mass(),jet.jetArea());
 	  

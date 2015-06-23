@@ -33,6 +33,223 @@
 
 using namespace std;
 
+
+typedef std::tuple<float,float,GlobalPoint,unsigned> ReducedHit;
+
+float minimizeTimeJitter(const std::vector<ReducedHit>& hits_and_times, float reso) {
+  if( !hits_and_times.size() ) return -1.f;
+  //const float sqrt_nHits = std::sqrt((float)hits_and_times.size());
+  //const float expected_resolution = reso/sqrt_nHits;
+  std::array<float,2> moments = { {0.0f,0.0f} };
+  float norm = 0.0f;
+  //float en,;
+  float time;
+  GlobalPoint pos;
+
+  // calculate <t> and <t^2>
+  for( const auto& hit : hits_and_times ) {
+    //en = std::get<0>(hit);
+    time = std::get<1>(hit);
+    
+    norm += 1.0;
+    moments[0] += time;
+    moments[1] += time*time;
+  }
+  moments[0] /= norm;
+  moments[1] /= norm;
+    
+  //const float initial_sd = std::sqrt(moments[1] - moments[0]*moments[0]);
+  
+  std::vector<ReducedHit> local_hits = hits_and_times;
+  std::sort(local_hits.begin(), local_hits.end(), [&](const ReducedHit& a, const ReducedHit& b) {
+      const float t1 = std::get<1>(a);
+      const float t2 = std::get<1>(b);
+      return ( std::abs(t1 - moments[0]) < std::abs(t2 - moments[0]) );
+    });
+  /*
+  for( const auto& hit : local_hits ) {
+    std::cout << std::get<0>(hit) << ' ' << std::get<1>(hit) << ' ' 
+              << std::abs( std::get<1>(hit) - moments[0] ) << ' ' 
+              << std::get<2>(hit) << std::endl;
+  }
+  */
+
+  bool iterate = true;
+  unsigned i = 0 ;
+  while( iterate && local_hits.size() ) {
+    const float sqrt_tdc_hits = std::sqrt(local_hits.size());
+    const float expect_sd = reso/sqrt_tdc_hits;
+    moments[0] = moments[1] = 0.0f;
+    norm = 0.0f;
+    for( const auto& hit : local_hits ) {
+      //en = std::get<0>(hit);
+      time = std::get<1>(hit);
+      
+      norm += 1.0;
+      moments[0] += time;
+      moments[1] += time*time;
+    }
+    moments[0] /= norm;
+    moments[1] /= norm;
+    const float iter_sd = std::sqrt(moments[1] - moments[0]*moments[0]);
+    
+    if( iter_sd/sqrt_tdc_hits <=  expect_sd ) {
+      iterate = false;
+    } else {
+      std::sort(local_hits.begin(), local_hits.end(), [&](const ReducedHit& a, const ReducedHit& b) {
+          const float t1 = std::get<1>(a);
+          const float t2 = std::get<1>(b);
+          return ( t1 - moments[0] < t2 - moments[0] );
+        });
+      local_hits.pop_back();      
+    }
+    ++i;
+  }
+
+  return moments[0];
+}
+
+float minimizeTimeJitter_median(const std::vector<ReducedHit>& hits_and_times, float reso) {
+  if( !hits_and_times.size() ) return -1.f;
+  //const float sqrt_nHits = std::sqrt((float)hits_and_times.size());
+  //const float expected_resolution = reso/sqrt_nHits;
+  std::array<float,2> moments = { {0.0f,0.0f} };
+  float norm = 0.0f;
+  //float en,;
+  float time;
+  GlobalPoint pos;
+
+  // get the initial standard deviation
+  for( const auto& hit : hits_and_times ) {
+    //en = std::get<0>(hit);
+    time = std::get<1>(hit);
+    
+    norm += 1.0;
+    moments[0] += time;
+    moments[1] += time*time;
+  }
+  moments[0] /= norm;
+  moments[1] /= norm;
+
+  // calculate the median
+  std::vector<ReducedHit> local_hits = hits_and_times;
+  std::sort(local_hits.begin(), local_hits.end(), [&](const ReducedHit& a, const ReducedHit& b) {
+      const float t1 = std::get<1>(a);
+      const float t2 = std::get<1>(b);
+      return ( t1 < t2 );
+    });
+  
+  const float init_median = std::get<1>(local_hits[(local_hits.size()+1)/2]);
+  
+    
+  //const float initial_sd = std::sqrt(moments[1] - moments[0]*moments[0]);
+  
+  std::sort(local_hits.begin(), local_hits.end(), [&](const ReducedHit& a, const ReducedHit& b) {
+      const float t1 = std::get<1>(a);
+      const float t2 = std::get<1>(b);
+      return ( std::abs(t1 - init_median) < std::abs(t2 - init_median) );
+    });
+  /*
+  for( const auto& hit : local_hits ) {
+    std::cout << std::get<0>(hit) << ' ' << std::get<1>(hit) << ' ' 
+              << std::abs( std::get<1>(hit) - moments[0] ) << ' ' 
+              << std::get<2>(hit) << std::endl;
+  }
+  */
+
+  bool iterate = true;
+  unsigned i = 0 ;
+  while( iterate && local_hits.size() ) {
+    const float sqrt_tdc_hits = std::sqrt(local_hits.size());
+    const float expect_sd = reso/sqrt_tdc_hits;
+    moments[0] = moments[1] = 0.0f;
+    norm = 0.0f;
+    for( const auto& hit : local_hits ) {
+      //en = std::get<0>(hit);
+      time = std::get<1>(hit);
+      
+      norm += 1.0;
+      moments[0] += time;
+      moments[1] += time*time;
+    }
+    moments[0] /= norm;
+    moments[1] /= norm;
+    const float iter_sd = std::sqrt(moments[1] - moments[0]*moments[0]);
+    
+    std::sort(local_hits.begin(), local_hits.end(), [&](const ReducedHit& a, const ReducedHit& b) {
+        const float t1 = std::get<1>(a);
+        const float t2 = std::get<1>(b);
+        return ( t1 < t2 );
+      });
+  
+    const float iter_median = std::get<1>(local_hits[(local_hits.size()+1)/2]);
+
+    if( iter_sd/sqrt_tdc_hits <= expect_sd ) {
+      iterate = false;
+    } else {
+      std::sort(local_hits.begin(), local_hits.end(), [&](const ReducedHit& a, const ReducedHit& b) {
+          const float t1 = std::get<1>(a);
+          const float t2 = std::get<1>(b);
+          return ( std::abs(t1 - iter_median) < std::abs(t2 - iter_median) );
+        });
+      local_hits.pop_back();      
+    }
+    ++i;
+  }
+
+  return moments[0];
+}
+
+float minimizeTimeJitterByLayer(const std::vector<ReducedHit>& hits_and_times, float reso) {
+  if( !hits_and_times.size() ) return -1.f;
+  //const float sqrt_nHits = std::sqrt((float)hits_and_times.size());
+  //const float expected_resolution = reso/sqrt_nHits;
+
+  std::map<unsigned, std::vector<ReducedHit> > layers;
+  // make the ordered set of layers
+  for( const auto& hit : hits_and_times ) {
+    layers[std::get<3>(hit)].push_back(hit);
+  }
+
+  for( auto& layer : layers ) {
+    
+    std::sort(layer.second.begin(), layer.second.end(), [&](const ReducedHit& a, const ReducedHit& b) {
+        const float t1 = std::get<1>(a);
+        const float t2 = std::get<1>(b);
+        return ( t1 < t2);
+      });
+
+    if( layer.second.size() <= 1 ) continue;
+    std::cout << "processing layer: " << layer.first << std::endl;
+    std::array<float,2> moments = { {0.0f,0.0f} };
+    float norm = 0.0f;
+    float en, time;
+    //GlobalPoint pos;
+    
+    // calculate <t> and <t^2>    
+    for( const auto& hit : layer.second ) {
+      en = std::get<0>(hit);
+      time = std::get<1>(hit);      
+
+      norm += en;
+      moments[0] += en*time;
+      moments[1] += en*time*time;
+
+      std::cout << '\t' << en << ' ' << time << ' ' << moments[0]/norm << std::endl;
+    }
+    moments[0] /= norm;
+    moments[1] /= norm;
+
+    const float initial_sd = std::sqrt(moments[1] - moments[0]*moments[0]);
+    
+    std::cout << "calculated layer " << layer.first << " with " << layer.second.size() 
+              << " cells mean: "<< moments[0] << " SD: "<< initial_sd << ' ' 
+              << reso/std::sqrt(layer.second.size()) << " cell reso = " << reso << std::endl;
+  }
+  
+  return 0.0;
+}
+
 //
 HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
 {
@@ -92,6 +309,14 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       t_->Branch("showerMeanEta_"+key,     &showerMeanEta_[key],   "showerMeanEta_"+key+"/F");
       showerMeanPhi_[key]=0;
       t_->Branch("showerMeanPhi_"+key,     &showerMeanPhi_[key],   "showerMeanPhi_"+key+"/F");
+
+      showerMeanDepth_[key]=0;
+      t_->Branch("showerMeanDepth_"+key,     &showerMeanDepth_[key],   "showerMeanDepth_"+key+"/F");
+      showerAvgExpDepth_[key]=0;
+      t_->Branch("showerAvgExpDepth_"+key,     &showerAvgExpDepth_[key],   "showerAvgExpDepth_"+key+"/F");
+
+      showerStartDepth_[key]=0;
+      t_->Branch("showerStartDepth_"+key, &showerStartDepth_[key], "showerStartDepth_"+key+"/F");
 
       hitMax_[key]=0;
       t_->Branch("hitMax_"+key,        &hitMax_[key],      "hitMax_"+key+"/F");
@@ -235,6 +460,9 @@ HGCSimHitsAnalyzer::HGCSimHitsAnalyzer( const edm::ParameterSet &iConfig )
       emeanY_[key] = new Float_t[100];
       t_->Branch("emeanY_"+key,  emeanY_[key], "emeanY_"+key+"[nlay]/F");
 
+      layerZ_[key] = new Float_t[100];
+      t_->Branch("layerZ_"+key,  layerZ_[key], "layerZ_"+key+"[nlay]/F");
+
       edepdR_[key]    = new Float_t[100];
       t_->Branch("edepdR_"+key,      edepdR_[key],    "edepdR_"+key+"[nlay]/F");
       
@@ -367,13 +595,74 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       genHitX_=hitPos.x();
       genHitY_=hitPos.y();
       genHitZ_=hitPos.z();
-      hasInteractionBeforeHGC_=(fabs(hitPos.z())<317 && fabs(hitPos.z()) > 1e-3);
+      hasInteractionBeforeHGC_=(fabs(hitPos.z())<320.13 && fabs(hitPos.z()) > 1e-3);
       hasChargedInteraction_=intInfo.info;
 
       // gen vertex positions
       genVertexX_ = p.vx();
       genVertexY_ = p.vy();
       genVertexZ_ = p.vz();
+      math::XYZVectorD genVertexPos(p.vx(),p.vy(),p.vz());
+
+      const auto& propagation_axis = (hitPos - genVertexPos).unit();
+
+      math::XYZVectorD avgShowerDepthFromGen(0.,0.,0.);
+      float predictedSigma = 0.0;
+      if( !hasInteractionBeforeHGC_ ) {
+        
+        constexpr float criticalEnergy_ = 0.00536;
+        constexpr float radiationLength_ = 0.968;
+        // averages
+        constexpr float meant0_ = -1.396;
+        constexpr float meant1_ = 1.007;
+        constexpr float meanalpha0_ = -0.0433;
+        constexpr float meanalpha1_ = 0.540;
+        // fluctuations
+        constexpr float sigmalnt0_ = -2.506;
+        constexpr float sigmalnt1_ = 1.245;
+        constexpr float sigmalnalpha0_ = -0.08442;
+        constexpr float sigmalnalpha1_ = 0.7904;
+        // corr(lnalpha,lnt) = corrlnalpha0_+corrlnalphalnt1_*y
+        constexpr float corrlnalphalnt0_ = 0.7858;
+        constexpr float corrlnalphalnt1_ = -0.0232;
+        
+        const float lny = std::log(p.energy()/criticalEnergy_);
+        
+        const float meantmax = meant0_ + meant1_*lny;
+        const float meanalpha = meanalpha0_ + meanalpha1_*lny;
+                
+        const float sigmalntmax = 1.0f / (sigmalnt0_+sigmalnt1_*lny);
+        const float sigmalnalpha = 1.0f / (sigmalnalpha0_+sigmalnalpha1_*lny);
+        const float corrlnalphalntmax = corrlnalphalnt0_+corrlnalphalnt1_*lny;
+        
+        float sigmaalpha = meanalpha*sigmalnalpha;
+        if (sigmaalpha<0.) sigmaalpha = 1.;
+        float sigmatmax = meantmax*sigmalntmax;
+        if (sigmatmax<0.) sigmatmax = 1.;
+        
+        const float invbeta = meantmax/(meanalpha-1.f);
+        const float depth = meanalpha*invbeta*radiationLength_;
+        const float smax_cm = meantmax*radiationLength_;
+
+        predictedSigma = sigmalnalpha*sigmalnalpha/((meanalpha-1.f)*(meanalpha-1.f));
+        predictedSigma += sigmalntmax*sigmalntmax;
+        predictedSigma -= 2.f*sigmalnalpha*sigmalntmax*corrlnalphalntmax/(meanalpha-1.f);
+        predictedSigma = depth*sqrt(predictedSigma);
+        
+        avgShowerDepthFromGen = hitPos + smax_cm*propagation_axis;
+        avgShowerDepthFromGen = hitPos + depth*propagation_axis;
+      }
+
+      
+      constexpr float speed_of_light = 29.9792458f;
+      /*
+      std::cout << genVertexPos.r() << ' ' << avgShowerDepthFromGen.r() << ' ' << hitPos.r() << " sigma = " << predictedSigma << std::endl;
+      std::cout << genVertexPos.r()/speed_of_light << ' '                 
+                << avgShowerDepthFromGen.r()/speed_of_light << ' ' 
+                << hitPos.r()/speed_of_light << " sigma = " << predictedSigma/speed_of_light<< std::endl;
+      */
+      
+      
 
       //match nearest HGC layer in Z
       float dzMin(99999999.);
@@ -433,6 +722,19 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      
 	      //save it if interesting (convert energy to keV)
 	      float hitEnInMIPs(hit_it->energy()*1e6/mipEn_[i]);
+              float hitTime(hit_it->time());
+              if( hitTime >= 0.0f ) {
+                switch(i) {
+                case 0:
+                  hitEnInMIPs += 30.0f;
+                  break;
+                case 1:
+                  hitEnInMIPs += 20.0f;
+                  break;
+                default:
+                  break;
+                }
+              }
 	      if(hitEnInMIPs<0.5) continue;
 	      if(i==2 && hitEnInMIPs<1.0) continue;
 	      if(allEdeps[key].find(recoDetId)==allEdeps[key].end()) allEdeps[key][recoDetId].first = 0;
@@ -450,8 +752,20 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  for(HGCRecHitCollection::const_iterator hit_it=recHits[i]->begin(); hit_it!=recHits[i]->end(); hit_it++,recHitCtr++)
 	    {
 	      //convert energy to keV
-	      float hitEn(hit_it->energy()*1e6/mipEn_[i]);
+	      float hitEn(hit_it->energy()*1e6/mipEn_[i]);              
               float hitTime(hit_it->time());
+              if( hitTime >= 0.0f ) {
+                switch(i) {
+                case 0:
+                  hitEn += 30.0f;
+                  break;
+                case 1:
+                  hitEn += 20.0f;
+                  break;
+                default:
+                  break;
+                }
+              }
 	      if(hitEn<0.5) continue;
 
 	      uint32_t recoDetId(hit_it->id());
@@ -674,8 +988,14 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	  //loop over the hits
 	  int nhitsEE(0), nhitsHEF(0), nhitsHEB(0);
 	  float totalEn(0), totalEnTDC(0),totalX0WgtEn(0), totalLambdaWgtEn(0),totalEnEE(0),totalEnHEF(0),totalEnHEB(0);
+          float totalLogWeight(0);
           
           //constexpr float tdc_reso = 0.080f;
+          
+          std::array<std::vector<ReducedHit>, 7> hits_and_times;
+          constexpr std::array<float,6> tdc_resolutions = { { 0.020f, 0.050f, 0.080f, 0.100f, 0.150f, 0.200f} } ;
+
+          std::unordered_map<unsigned,float> logE_norms;
 
 	  for(std::map<uint32_t,std::pair<float,float> >::iterator detIt=stepIt->second.begin();
 	      detIt!=stepIt->second.end();
@@ -698,19 +1018,48 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
 	      }catch(...){
 		nFailed++; continue;
 	      }
-	       
 	    
-              constexpr std::array<float,6> tdc_resolutions = { { 0.020f, 0.050f, 0.080f, 0.100f, 0.150f, 0.200f} } ;
+              	    
+              
 
 	      int layerIdx(hitLayer+layerCtrOffset[subDetCtr]-1); 
 	      float en(detIt->second.first);
               float time(detIt->second.second);
+              if( time > 0 ) {
+                //std::cout << "time at (0,0,0): " << time << std::endl;
+                math::XYZVector this_hit_pos(hitX,hitY,hitZ);
+                // correct the time from (0,0,0) back to the original arrival time
+                time += this_hit_pos.r()/speed_of_light;
+                //std::cout << "arrival time: " << time << std::endl;
+                // now correct the time of each cell to the sim vertex (for now)              
+                //time -= (this_hit_pos - genVertexPos).r()/speed_of_light;
+                //std::cout << "time at PV: " << time << std::endl;
+              }
+
+              if( time > 0.0f ) {
+                math::XYZVector this_hit_pos(hitX,hitY,hitZ);
+                const float corr_time = time - (this_hit_pos - genVertexPos).r()/speed_of_light;
+                hits_and_times[0].emplace_back(en,corr_time,GlobalPoint(hitX,hitY,hitZ),layerIdx);
+              }
               float time_smeared[6];// 20,50,80,100,150,200
               for( int ii = 0; ii < 6; ++ii ) {
-                time_smeared[ii] = tdcReso_->fire(time,tdc_resolutions[ii]);
+                math::XYZVector this_hit_pos(hitX,hitY,hitZ);
+                time_smeared[ii] = tdcReso_->fire(time,tdc_resolutions[ii]); // smear the uncorrected time
+                // then correct the smeared time
+                time_smeared[ii] -= (this_hit_pos - genVertexPos).r()/speed_of_light;
+                if( time > 0.0f ) {
+                  hits_and_times[ii+1].emplace_back(en,time_smeared[ii],GlobalPoint(hitX,hitY,hitZ),layerIdx);                  
+                }
               }
               
+              // correct the time we play around with here
+              math::XYZVector this_hit_pos(hitX,hitY,hitZ);
+              time -= (this_hit_pos - genVertexPos).r()/speed_of_light;
+
 	      totalEn                    += en;
+              if( !logE_norms.count(layerIdx) ) logE_norms[layerIdx] = 0.0;
+              logE_norms[layerIdx] += ( en > 1.0 ? std::log(en/1.0) : 0.0 );
+              totalLogWeight             += ( en > 30.0 ? std::log(en/30.0) : 0.0 );
               totalEnTDC                 += ( time > 0 ? en : 0.0 );
 	      if(subDetCtr==0)           { totalEnEE += en; nhitsEE++; }
 	      if(subDetCtr==1)           { totalEnHEF += en; nhitsHEF++; }
@@ -732,14 +1081,14 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
                           << std::abs(layerZ[0]) << ' ' 
                           << time - (std::abs(hitZ) - std::abs(layerZ[0]))/cm_per_ns << std::endl;
                 */
-                emeanTimeLayer_[key][layerIdx] += en*( time ); // - (std::abs(hitZ) - std::abs(layerZ[0]))/cm_per_ns
+                emeanTimeLayer_[key][layerIdx] += ( time ); // - (std::abs(hitZ) - std::abs(layerZ[0]))/cm_per_ns
                 
-                emeanTimeLayer20_[key][layerIdx] += en*( time_smeared[0] );
-                emeanTimeLayer50_[key][layerIdx] += en*( time_smeared[1] );
-                emeanTimeLayer80_[key][layerIdx] += en*( time_smeared[2] );
-                emeanTimeLayer100_[key][layerIdx] += en*( time_smeared[3] );
-                emeanTimeLayer150_[key][layerIdx] += en*( time_smeared[4] );
-                emeanTimeLayer200_[key][layerIdx] += en*( time_smeared[5] );
+                emeanTimeLayer20_[key][layerIdx] += ( time_smeared[0] );
+                emeanTimeLayer50_[key][layerIdx] += ( time_smeared[1] );
+                emeanTimeLayer80_[key][layerIdx] += ( time_smeared[2] );
+                emeanTimeLayer100_[key][layerIdx] += ( time_smeared[3] );
+                emeanTimeLayer150_[key][layerIdx] += ( time_smeared[4] );
+                emeanTimeLayer200_[key][layerIdx] += ( time_smeared[5] );
 
                 edepstdc_[key][layerIdx]      += en;
 
@@ -753,30 +1102,43 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
               
 	      emeanEta_[key][layerIdx]      += en*hitEta;
 	      showerMeanEta_[key]           += en*hitEta;
-	      emeanX_[key][layerIdx]        += en*hitX;
+	      emeanX_[key][layerIdx]        += ( en > 1.0 ? std::log(en/1.0) : 0.0 )*hitX;
 	      showerMeanX_[key]             += en*hitX;
-	      emeanY_[key][layerIdx]        += en*hitY;
-	      showerMeanY_[key]             += en*hitY;
-	      showerMeanZ_[key]             += en*hitZ;
+	      emeanY_[key][layerIdx]        += ( en > 1.0 ? std::log(en/1.0) : 0.0 )*hitY;
+              layerZ_[key][layerIdx]        = hitZ;
+	      showerMeanY_[key]             += ( en > 30.0 ) ? std::log(en/30.0)*hitY : 0.0;
+	      showerMeanZ_[key]             += ( en > 30.0 ) ? std::log(en/30.0)*hitZ : 0.0;              
 	    }
+          
+         
 
 	  //compute shower direction (global and local)
 	  if(totalEn<=0 || isnan(totalEn) || totalEn>1e10) continue;
 	  showerMeanPhi_[key]/=totalEn;
 	  showerMeanEta_[key]/=totalEn;
-	  showerMeanX_[key]/=totalEn;
-	  showerMeanY_[key]/=totalEn;
-	  showerMeanZ_[key]/=totalEn;
-          
+	  showerMeanX_[key]/=totalLogWeight;
+	  showerMeanY_[key]/=totalLogWeight;
+	  showerMeanZ_[key]/=totalLogWeight;          
+
+          math::XYZVectorD showermean(showerMeanX_[key],showerMeanY_[key],showerMeanZ_[key]);
+          //std::cout << "calculated shower mean depth (" << key << "): " << showermean.r() << std::endl;
+
+          showerAvgExpDepth_[key] = avgShowerDepthFromGen.r();
+          showerMeanDepth_[key] = showermean.r();
+          showerStartDepth_[key] = hitPos.r();
+
+          float total_tdc_hits = 0;
 	  for(Int_t ilay=0; ilay<nlay_; ilay++)
 	    {
 	      float iTotalEn( edeps_[key][ilay] );
 	      if(iTotalEn<=0) continue;
 	      emeanPhi_[key][ilay] /= iTotalEn;	  
 	      emeanEta_[key][ilay] /= iTotalEn;
-	      emeanX_[key][ilay]   /= iTotalEn;	  
-	      emeanY_[key][ilay]   /= iTotalEn;
+	      emeanX_[key][ilay]   /= logE_norms[ilay];
+	      emeanY_[key][ilay]   /= logE_norms[ilay];
               float iTDCEn( edepstdc_[key][ilay] );
+              float iTDCNhits( nhitstdc_[key][ilay] );
+              total_tdc_hits += iTDCNhits;
               if( iTDCEn > 0.001f ) {                
                 emeanTime_[key] += emeanTimeLayer_[key][ilay];
                 emeanTime20_[key] += emeanTimeLayer20_[key][ilay];
@@ -786,13 +1148,13 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
                 emeanTime150_[key] += emeanTimeLayer150_[key][ilay];
                 emeanTime200_[key] += emeanTimeLayer200_[key][ilay];
                 
-                emeanTimeLayer_[key][ilay] /= iTDCEn; 
-                emeanTimeLayer20_[key][ilay] /= iTDCEn; 
-                emeanTimeLayer50_[key][ilay] /= iTDCEn; 
-                emeanTimeLayer80_[key][ilay] /= iTDCEn; 
-                emeanTimeLayer100_[key][ilay] /= iTDCEn; 
-                emeanTimeLayer150_[key][ilay] /= iTDCEn; 
-                emeanTimeLayer200_[key][ilay] /= iTDCEn; 
+                emeanTimeLayer_[key][ilay] /=  iTDCNhits; 
+                emeanTimeLayer20_[key][ilay] /=  iTDCNhits; 
+                emeanTimeLayer50_[key][ilay] /=  iTDCNhits; 
+                emeanTimeLayer80_[key][ilay] /=  iTDCNhits; 
+                emeanTimeLayer100_[key][ilay] /= iTDCNhits; 
+                emeanTimeLayer150_[key][ilay] /=  iTDCNhits; 
+                emeanTimeLayer200_[key][ilay] /=  iTDCNhits; 
               } else {
                 emeanTimeLayer_[key][ilay] = -1.f;
                 emeanTimeLayer20_[key][ilay] = -1.f;
@@ -804,14 +1166,54 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
               }
 	    }
 
+           // clean up the hits used for calculating the time
+          std::array<std::vector<ReducedHit>, 7> cleaned_hits_and_times;
+          
+          for( unsigned ires = 0; ires < 7; ++ires ) {
+            //std::cout << "started with " << hits_and_times[ires].size() << " hits" << std::endl;
+            for( auto the_hit : hits_and_times[ires] ) {              
+              //const auto& hitenergy = std::get<0>(the_hit);
+              //auto& time = std::get<1>(the_hit);
+              const auto& pos = std::get<2>(the_hit);
+              //const auto& layer = std::get<3>(the_hit);
+
+              /*
+              const float dx = pos.x() - emeanX_[key][layer];
+	      const float dy = pos.y() - emeanY_[key][layer];
+              const float dr = std::sqrt( dx*dx + dy*dy );
+              */
+
+              //std::cout << " dr to mean layer position: " << dr << std::endl;
+
+              const float signed_sigma = (std::abs(pos.z()) - std::abs(showerMeanZ_[key]))/0.908259;
+              //std::cout << " signed sigma : " << signed_sigma << std::endl;
+              //time = time - (0.00873301 + 0.000305606*signed_sigma - 0.000110602*signed_sigma*signed_sigma);
+              // now correct the time by the walk as a function of shower depth
+              // defined on [-8,8] in shower sigma
+              if( signed_sigma < 8.0 && signed_sigma > -8.0 ) { // && dr < std::sqrt(2)
+                cleaned_hits_and_times[ires].push_back(std::move(the_hit));
+              }
+            }
+            //std::cout << "ended with " << cleaned_hits_and_times[ires].size() << " hits" << std::endl;
+          }
+
+          /*
+          if( !hasInteractionBeforeHGC_ ) {
+            for( unsigned ii = 1; ii < 7; ++ii ) {
+              minimizeTimeJitterByLayer(hits_and_times[ii],tdc_resolutions[ii-1]);
+              std::cout << std::endl;
+            }
+          }
+          */
+
           if( totalEnTDC > 0.001f) {
-            emeanTime_[key] /= totalEnTDC;     
-            emeanTime20_[key] /= totalEnTDC;
-            emeanTime50_[key] /= totalEnTDC;
-            emeanTime80_[key] /= totalEnTDC;
-            emeanTime100_[key] /= totalEnTDC;
-            emeanTime150_[key] /= totalEnTDC;
-            emeanTime200_[key] /= totalEnTDC;
+            emeanTime_[key] /= total_tdc_hits;
+            emeanTime20_[key] = minimizeTimeJitter(cleaned_hits_and_times[1],tdc_resolutions[0]);
+            emeanTime50_[key] = minimizeTimeJitter(cleaned_hits_and_times[2],tdc_resolutions[1]);
+            emeanTime80_[key] = minimizeTimeJitter(cleaned_hits_and_times[3],tdc_resolutions[2]);
+            emeanTime100_[key] = minimizeTimeJitter(cleaned_hits_and_times[4],tdc_resolutions[3]);
+            emeanTime150_[key] = minimizeTimeJitter(cleaned_hits_and_times[5],tdc_resolutions[4]);
+            emeanTime200_[key] = minimizeTimeJitter(cleaned_hits_and_times[6],tdc_resolutions[5]);
           } else {
             emeanTime_[key] = -1.f;
             emeanTime20_[key] = -1.f;
@@ -958,6 +1360,8 @@ void HGCSimHitsAnalyzer::analyze( const edm::Event &iEvent, const edm::EventSetu
       t_->Fill();
     }
 }
+
+
 
 
 //define this as a plug-in
