@@ -59,5 +59,3 @@ G4InteractionPositionInfo getInteractionPosition(const std::vector<SimTrack> *Si
 
   return toRet;
 }
-
-
