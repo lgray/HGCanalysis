@@ -28,6 +28,9 @@ input2process=sys.argv[2]
 outputName='HGCROIAnalyzer.root'
 if(len(sys.argv)>3):
     outputName=sys.argv[3]
+filtertag=''
+if(len(sys.argv)>4):
+    filtertag=sys.argv[4]
 
 print '[runHGCROIAnalyzer] processing from %s and output name is %s'%(input2process,outputName)
 
@@ -39,7 +42,12 @@ process.source = cms.Source("PoolSource",
 if input2process.find('file')>=0:
     process.source.fileNames=cms.untracked.vstring(input2process)
 else :
-    process.source.fileNames=fillFromStore(input2process)
+    allFiles=fillFromStore(input2process)
+    for f in allFiles:
+        if len(filtertag)>0:
+            if not filtertag in f:
+                continue
+        process.source.fileNames.append(f)
 print process.source.fileNames
 process.source.duplicateCheckMode = cms.untracked.string('noDuplicateCheck')
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
