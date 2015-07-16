@@ -26,6 +26,8 @@
 #include "Geometry/Records/interface/IdealGeometryRecord.h"
 #include "Geometry/FCalGeometry/interface/HGCalGeometry.h"
 
+#include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
+
 #include <iostream>
 
 using namespace std;
@@ -36,7 +38,7 @@ HGCROIAnalyzer::HGCROIAnalyzer( const edm::ParameterSet &iConfig ) :
   slimmedClusters_(new std::vector<SlimmedCluster>),
   slimmedROIs_(new std::vector<SlimmedROI>),
   slimmedVertices_(new std::vector<SlimmedVertex>),
-  genVertex_(new TVector3),
+  genVertex_(new TLorentzVector),
   useSuperClustersAsROIs_(false),
   useStatus3ForGenVertex_(false)
 {
@@ -64,7 +66,7 @@ HGCROIAnalyzer::HGCROIAnalyzer( const edm::ParameterSet &iConfig ) :
   tree_->Branch("Clusters",  "std::vector<SlimmedCluster>",  &slimmedClusters_);
   tree_->Branch("ROIs",      "std::vector<SlimmedROI>",      &slimmedROIs_);
   tree_->Branch("Vertices",  "std::vector<SlimmedVertex>",   &slimmedVertices_);
-  tree_->Branch("GenVertex", "TVector3",                     &genVertex_);
+  tree_->Branch("GenVertex", "TLorentzVector",               &genVertex_);
 }
 
 //
@@ -84,6 +86,7 @@ void HGCROIAnalyzer::slimRecHits(const edm::Event &iEvent, const edm::EventSetup
   iEvent.getByLabel(edm::InputTag("g4SimHits",eeSimHitsSource_), eeSimHits);
   edm::Handle<HGCRecHitCollection> eeRecHits;
   iEvent.getByLabel(edm::InputTag("HGCalRecHit",eeRecHitsSource_),eeRecHits); 
+
   if(eeRecHits.isValid())
     {
       edm::ESHandle<HGCalGeometry> eeGeom;
@@ -366,18 +369,21 @@ void HGCROIAnalyzer::analyze(const edm::Event &iEvent, const edm::EventSetup &iS
       selVtx.push_back(iv);
       slimmedVertices_->push_back(SlimmedVertex(vtx.nTracks(),vtx.x(),vtx.y(),vtx.z(),vtx.p4().pt(),vtx.normalizedChi2()) );
     }
-
-  //hard process vertex
+  
+  // get the vertices for later
   edm::Handle<edm::View<reco::Candidate> > genParticles;
   iEvent.getByLabel(edm::InputTag(genSource_), genParticles);
-  for(size_t i = 0; i < genParticles->size(); ++ i)
-    {
-       const reco::GenParticle & p = dynamic_cast<const reco::GenParticle &>( (*genParticles)[i] );
-       if(useStatus3ForGenVertex_  && p.status()!=3) continue;
-       genVertex_->SetXYZ(p.vx(),p.vy(),p.vz());
-       break;
-    }
   
+  // get the vertex info...
+  edm::Handle<edm::HepMCProduct>  hepmcevent;
+  iEvent.getByLabel(edm::InputTag("generator"), hepmcevent);
+  const HepMC::GenEvent& genevt = hepmcevent->getHepMCData();
+  genVertex_->SetXYZT(0.,0.,0.,0.);
+  if( genevt.vertices_size() ) {
+    
+    HepMC::FourVector temp = (*genevt.vertices_begin())->position() ;
+    genVertex_->SetXYZT(0.1*temp.x(),0.1*temp.y(),0.1*temp.z(),temp.t()/299.792458); // convert positions to cm and time to ns (it's in mm to start?)
+  }
   
   //jet analysis
   edm::Handle<std::vector<reco::PFJet> > pfJets;

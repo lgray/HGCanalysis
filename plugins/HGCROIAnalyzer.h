@@ -25,6 +25,7 @@
 
 #include "TTree.h"
 #include "TVector3.h"
+#include "TLorentzVector.h"
 
 #include <unordered_map>
 
@@ -65,7 +66,7 @@ class HGCROIAnalyzer : public edm::EDAnalyzer
   std::vector<SlimmedCluster> *slimmedClusters_;
   std::vector<SlimmedROI> *slimmedROIs_;
   std::vector<SlimmedVertex> *slimmedVertices_;
-  TVector3 *genVertex_;
+  TLorentzVector *genVertex_;
   
   bool useSuperClustersAsROIs_,useStatus3ForGenVertex_;
   std::string eeSimHitsSource_, hefSimHitsSource_;
