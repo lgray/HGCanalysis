@@ -13,7 +13,7 @@ STOREDIR=${WORKDIR}
 JOBNB=1
 GEOMETRY="Extended2023HGCalMuon,Extended2023HGCalMuonReco"
 #CUSTOM="SLHCUpgradeSimulations/Configuration/combinedCustoms.cust_2023HGCalMuon"
-CUSTOM="RecoParticleFlow/PandoraTranslator/customizeHGCalPandora_cff.cust_2023HGCalPandoraMuon"
+CUSTOM="RecoParticleFlow/PandoraTranslator/customizeHGCalPandora_cff.cust_2023HGCalPandoraMuonPerfectFastTime"
 EE_AIR=""
 HEF_AIR=""
 TAG=""
@@ -124,7 +124,7 @@ if [ -z ${SIMONLY} ]; then
 	--no_exec 
 else
     cmsDriver.py ${CFI} -n ${NEVENTS} \
-	--python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
+        --python_filename ${WORKDIR}/${PYFILE} --fileout file:${WORKDIR}/${OUTFILE} \
 	-s GEN,SIM --datatier GEN-SIM --eventcontent FEVTDEBUGHLT \
 	--conditions auto:upgradePLS3 --beamspot ${BEAMSPOT} --magField 38T_PostLS1 \
 	--customise  ${CUSTOM} \
@@ -194,10 +194,9 @@ fi
 cmsRun ${WORKDIR}/${PYFILE} > ${WORKDIR}/${LOGFILE} 2>&1
 
 if [[ $STOREDIR =~ .*/store/cmst3.* ]]; then
-    cmsMkdir ${STOREDIR}
-    cmsStage -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
+    xrdcp -s -f ${WORKDIR}/${OUTFILE} root://eoscms.cern.ch/${STOREDIR}/${OUTFILE}
 elif [[ $STOREDIR =~ /afs/.* ]]; then
-    mkdir ${STOREDIR}
+    mkdir -p ${STOREDIR}
     cp -f ${WORKDIR}/${OUTFILE} ${STOREDIR}/${OUTFILE}
 fi
 
